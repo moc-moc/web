@@ -26,7 +26,7 @@ class _ReportState extends ConsumerState<Report> {
   Future<void> _loadLocalData() async {
     final manager = StreakDataManager();
     final localData = await manager.getLocalStreakData();
-    
+
     // ログに出力
     debugPrint('📱 ===== ローカルデータ確認 =====');
     if (localData == null) {
@@ -40,7 +40,7 @@ class _ReportState extends ConsumerState<Report> {
       debugPrint('  - 最終更新日時: ${localData.lastModified}');
     }
     debugPrint('============================');
-    
+
     if (mounted) {
       setState(() {
         _localStreakData = localData;
@@ -53,7 +53,7 @@ class _ReportState extends ConsumerState<Report> {
   Widget build(BuildContext context) {
     // Providerから連続継続日数データを監視
     final streakData = ref.watch(streakDataProvider);
-    
+
     // Providerのデータもログに出力（ローカルデータと比較用）
     if (!_isLoadingLocal && _localStreakData != null) {
       debugPrint('☁️  ===== Providerデータ（Firestore同期済み） =====');
@@ -63,7 +63,7 @@ class _ReportState extends ConsumerState<Report> {
       debugPrint('  - 最終トラッキング日: ${streakData.lastTrackedDate}');
       debugPrint('  - 最終更新日時: ${streakData.lastModified}');
       debugPrint('============================');
-      
+
       // 比較
       if (streakData.currentStreak == _localStreakData!.currentStreak &&
           streakData.longestStreak == _localStreakData!.longestStreak) {
@@ -71,14 +71,18 @@ class _ReportState extends ConsumerState<Report> {
       } else {
         debugPrint('⚠️  Providerとローカルのデータが異なります:');
         if (streakData.currentStreak != _localStreakData!.currentStreak) {
-          debugPrint('  - currentStreak: Provider=${streakData.currentStreak}, Local=${_localStreakData!.currentStreak}');
+          debugPrint(
+            '  - currentStreak: Provider=${streakData.currentStreak}, Local=${_localStreakData!.currentStreak}',
+          );
         }
         if (streakData.longestStreak != _localStreakData!.longestStreak) {
-          debugPrint('  - longestStreak: Provider=${streakData.longestStreak}, Local=${_localStreakData!.longestStreak}');
+          debugPrint(
+            '  - longestStreak: Provider=${streakData.longestStreak}, Local=${_localStreakData!.longestStreak}',
+          );
         }
       }
     }
-    
+
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
@@ -102,11 +106,7 @@ class _ReportState extends ConsumerState<Report> {
                       // タイトル行
                       Row(
                         children: [
-                          Icon(
-                            Icons.cloud,
-                            color: AppColors.blue,
-                            size: 32,
-                          ),
+                          Icon(Icons.cloud, color: AppColors.blue, size: 32),
                           const SizedBox(width: 12),
                           const Text(
                             '連続継続日数（Provider）',
@@ -145,19 +145,20 @@ class _ReportState extends ConsumerState<Report> {
                       const Divider(color: AppColors.gray),
                       const SizedBox(height: 16),
                       // 統計情報
-                      _buildStatRow(
-                        '最長記録',
-                        '${streakData.longestStreak}日',
-                      ),
+                      _buildStatRow('最長記録', '${streakData.longestStreak}日'),
                       const SizedBox(height: 12),
                       _buildStatRow(
                         '最終トラッキング日',
-                        DateFormat('yyyy/MM/dd').format(streakData.lastTrackedDate),
+                        DateFormat(
+                          'yyyy/MM/dd',
+                        ).format(streakData.lastTrackedDate),
                       ),
                       const SizedBox(height: 12),
                       _buildStatRow(
                         '最終更新日時',
-                        DateFormat('yyyy/MM/dd HH:mm').format(streakData.lastModified),
+                        DateFormat(
+                          'yyyy/MM/dd HH:mm',
+                        ).format(streakData.lastModified),
                       ),
                     ],
                   ),
@@ -193,9 +194,7 @@ class _ReportState extends ConsumerState<Report> {
                       ),
                       const SizedBox(height: 16),
                       if (_isLoadingLocal)
-                        const Center(
-                          child: CircularProgressIndicator(),
-                        )
+                        const Center(child: CircularProgressIndicator())
                       else if (_localStreakData == null)
                         const Center(
                           child: Text(
@@ -219,22 +218,32 @@ class _ReportState extends ConsumerState<Report> {
                         const SizedBox(height: 12),
                         _buildStatRow(
                           '最終トラッキング日',
-                          DateFormat('yyyy/MM/dd').format(_localStreakData!.lastTrackedDate),
+                          DateFormat(
+                            'yyyy/MM/dd',
+                          ).format(_localStreakData!.lastTrackedDate),
                         ),
                         const SizedBox(height: 12),
                         _buildStatRow(
                           '最終更新日時',
-                          DateFormat('yyyy/MM/dd HH:mm').format(_localStreakData!.lastModified),
+                          DateFormat(
+                            'yyyy/MM/dd HH:mm',
+                          ).format(_localStreakData!.lastModified),
                         ),
                         const SizedBox(height: 16),
                         const Divider(color: AppColors.gray),
                         const SizedBox(height: 12),
                         // 比較結果
-                        if (streakData.currentStreak == _localStreakData!.currentStreak &&
-                            streakData.longestStreak == _localStreakData!.longestStreak)
+                        if (streakData.currentStreak ==
+                                _localStreakData!.currentStreak &&
+                            streakData.longestStreak ==
+                                _localStreakData!.longestStreak)
                           Row(
                             children: [
-                              Icon(Icons.check_circle, color: Colors.green, size: 20),
+                              Icon(
+                                Icons.check_circle,
+                                color: Colors.green,
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               const Expanded(
                                 child: Text(
@@ -250,7 +259,11 @@ class _ReportState extends ConsumerState<Report> {
                         else
                           Row(
                             children: [
-                              Icon(Icons.warning, color: Colors.orange, size: 20),
+                              Icon(
+                                Icons.warning,
+                                color: Colors.orange,
+                                size: 20,
+                              ),
                               const SizedBox(width: 8),
                               const Expanded(
                                 child: Text(
@@ -282,10 +295,7 @@ class _ReportState extends ConsumerState<Report> {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: AppColors.white,
-            fontSize: 16,
-          ),
+          style: const TextStyle(color: AppColors.white, fontSize: 16),
         ),
         Text(
           value,

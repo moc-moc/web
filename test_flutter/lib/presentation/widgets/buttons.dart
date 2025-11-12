@@ -1,8 +1,449 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 
+// ========================================
+// 新しいデザインシステムに基づくボタン
+// ========================================
+
+/// ボタンのサイズ
+enum ButtonSize { small, medium, large }
+
+/// プライマリボタン（青背景、白文字）
+class PrimaryButton extends StatelessWidget {
+  final String text;
+  final VoidCallback onPressed;
+  final ButtonSize size;
+  final bool isLoading;
+  final IconData? icon;
+
+  const PrimaryButton({
+    super.key,
+    required this.text,
+    required this.onPressed,
+    this.size = ButtonSize.medium,
+    this.isLoading = false,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double height = _getHeight();
+    final double fontSize = _getFontSize();
+    final double horizontalPadding = _getHorizontalPadding();
+
+    return Material(
+      color: AppColors.blue,
+      borderRadius: BorderRadius.circular(AppRadius.medium),
+      elevation: 2,
+      shadowColor: AppColors.black.withValues(alpha: 0.2),
+      child: InkWell(
+        onTap: isLoading ? null : onPressed,
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        child: Container(
+          height: height,
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: Center(
+            child: isLoading
+                ? SizedBox(
+                    width: fontSize,
+                    height: fontSize,
+                    child: const CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.textPrimary,
+                      ),
+                    ),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (icon != null) ...[
+                        Icon(
+                          icon,
+                          color: AppColors.textPrimary,
+                          size: fontSize,
+                        ),
+                        SizedBox(width: AppSpacing.sm),
+                      ],
+                      Text(
+                        text,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _getHeight() {
+    switch (size) {
+      case ButtonSize.small:
+        return 36.0;
+      case ButtonSize.medium:
+        return 48.0;
+      case ButtonSize.large:
+        return 56.0;
+    }
+  }
+
+  double _getFontSize() {
+    switch (size) {
+      case ButtonSize.small:
+        return 14.0;
+      case ButtonSize.medium:
+        return 16.0;
+      case ButtonSize.large:
+        return 18.0;
+    }
+  }
+
+  double _getHorizontalPadding() {
+    switch (size) {
+      case ButtonSize.small:
+        return AppSpacing.md;
+      case ButtonSize.medium:
+        return AppSpacing.lg;
+      case ButtonSize.large:
+        return AppSpacing.xl;
+    }
+  }
+}
+
+/// セカンダリボタン（グレー背景、白文字）
+class SecondaryButton extends StatelessWidget {
+  final String text;
+  final VoidCallback onPressed;
+  final ButtonSize size;
+  final bool isLoading;
+  final IconData? icon;
+
+  const SecondaryButton({
+    super.key,
+    required this.text,
+    required this.onPressed,
+    this.size = ButtonSize.medium,
+    this.isLoading = false,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double height = _getHeight();
+    final double fontSize = _getFontSize();
+    final double horizontalPadding = _getHorizontalPadding();
+
+    return Material(
+      color: AppColors.backgroundCard,
+      borderRadius: BorderRadius.circular(AppRadius.medium),
+      elevation: 2,
+      shadowColor: AppColors.black.withValues(alpha: 0.2),
+      child: InkWell(
+        onTap: isLoading ? null : onPressed,
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        child: Container(
+          height: height,
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: Center(
+            child: isLoading
+                ? SizedBox(
+                    width: fontSize,
+                    height: fontSize,
+                    child: const CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.textPrimary,
+                      ),
+                    ),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (icon != null) ...[
+                        Icon(
+                          icon,
+                          color: AppColors.textPrimary,
+                          size: fontSize,
+                        ),
+                        SizedBox(width: AppSpacing.sm),
+                      ],
+                      Text(
+                        text,
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _getHeight() {
+    switch (size) {
+      case ButtonSize.small:
+        return 36.0;
+      case ButtonSize.medium:
+        return 48.0;
+      case ButtonSize.large:
+        return 56.0;
+    }
+  }
+
+  double _getFontSize() {
+    switch (size) {
+      case ButtonSize.small:
+        return 14.0;
+      case ButtonSize.medium:
+        return 16.0;
+      case ButtonSize.large:
+        return 18.0;
+    }
+  }
+
+  double _getHorizontalPadding() {
+    switch (size) {
+      case ButtonSize.small:
+        return AppSpacing.md;
+      case ButtonSize.medium:
+        return AppSpacing.lg;
+      case ButtonSize.large:
+        return AppSpacing.xl;
+    }
+  }
+}
+
+/// アウトラインボタン（枠線のみ、透明背景）
+class OutlineButton extends StatelessWidget {
+  final String text;
+  final VoidCallback onPressed;
+  final ButtonSize size;
+  final bool isLoading;
+  final IconData? icon;
+  final Color? borderColor;
+
+  const OutlineButton({
+    super.key,
+    required this.text,
+    required this.onPressed,
+    this.size = ButtonSize.medium,
+    this.isLoading = false,
+    this.icon,
+    this.borderColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double height = _getHeight();
+    final double fontSize = _getFontSize();
+    final double horizontalPadding = _getHorizontalPadding();
+    final Color effectiveBorderColor = borderColor ?? AppColors.blue;
+
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        border: Border.all(color: effectiveBorderColor, width: 2),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading ? null : onPressed,
+          borderRadius: BorderRadius.circular(AppRadius.medium),
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+            child: Center(
+              child: isLoading
+                  ? SizedBox(
+                      width: fontSize,
+                      height: fontSize,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          effectiveBorderColor,
+                        ),
+                      ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (icon != null) ...[
+                          Icon(
+                            icon,
+                            color: effectiveBorderColor,
+                            size: fontSize,
+                          ),
+                          SizedBox(width: AppSpacing.sm),
+                        ],
+                        Text(
+                          text,
+                          style: TextStyle(
+                            color: effectiveBorderColor,
+                            fontSize: fontSize,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _getHeight() {
+    switch (size) {
+      case ButtonSize.small:
+        return 36.0;
+      case ButtonSize.medium:
+        return 48.0;
+      case ButtonSize.large:
+        return 56.0;
+    }
+  }
+
+  double _getFontSize() {
+    switch (size) {
+      case ButtonSize.small:
+        return 14.0;
+      case ButtonSize.medium:
+        return 16.0;
+      case ButtonSize.large:
+        return 18.0;
+    }
+  }
+
+  double _getHorizontalPadding() {
+    switch (size) {
+      case ButtonSize.small:
+        return AppSpacing.md;
+      case ButtonSize.medium:
+        return AppSpacing.lg;
+      case ButtonSize.large:
+        return AppSpacing.xl;
+    }
+  }
+}
+
+/// テキストボタン（枠線なし、テキストのみ）
+class AppTextButton extends StatelessWidget {
+  final String text;
+  final VoidCallback onPressed;
+  final ButtonSize size;
+  final bool isLoading;
+  final IconData? icon;
+  final Color? textColor;
+
+  const AppTextButton({
+    super.key,
+    required this.text,
+    required this.onPressed,
+    this.size = ButtonSize.medium,
+    this.isLoading = false,
+    this.icon,
+    this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double height = _getHeight();
+    final double fontSize = _getFontSize();
+    final double horizontalPadding = _getHorizontalPadding();
+    final Color effectiveTextColor = textColor ?? AppColors.blue;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: isLoading ? null : onPressed,
+        borderRadius: BorderRadius.circular(AppRadius.small),
+        child: Container(
+          height: height,
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+          child: Center(
+            child: isLoading
+                ? SizedBox(
+                    width: fontSize,
+                    height: fontSize,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        effectiveTextColor,
+                      ),
+                    ),
+                  )
+                : Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (icon != null) ...[
+                        Icon(icon, color: effectiveTextColor, size: fontSize),
+                        SizedBox(width: AppSpacing.sm),
+                      ],
+                      Text(
+                        text,
+                        style: TextStyle(
+                          color: effectiveTextColor,
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  double _getHeight() {
+    switch (size) {
+      case ButtonSize.small:
+        return 36.0;
+      case ButtonSize.medium:
+        return 48.0;
+      case ButtonSize.large:
+        return 56.0;
+    }
+  }
+
+  double _getFontSize() {
+    switch (size) {
+      case ButtonSize.small:
+        return 14.0;
+      case ButtonSize.medium:
+        return 16.0;
+      case ButtonSize.large:
+        return 18.0;
+    }
+  }
+
+  double _getHorizontalPadding() {
+    switch (size) {
+      case ButtonSize.small:
+        return AppSpacing.sm;
+      case ButtonSize.medium:
+        return AppSpacing.md;
+      case ButtonSize.large:
+        return AppSpacing.lg;
+    }
+  }
+}
+
+// ========================================
+// 既存のボタン（互換性のために保持）
+// ========================================
+
 /// 小さいアイコンボタン（ヘッダー用）
-/// 
+///
 /// セクションのヘッダーなどに配置する小さめのアイコンボタンです。
 class CustomIconButton extends StatelessWidget {
   final IconData icon;
@@ -31,11 +472,7 @@ class CustomIconButton extends StatelessWidget {
         child: SizedBox(
           width: size,
           height: size,
-          child: Icon(
-            icon,
-            color: AppColors.white,
-            size: 20,
-          ),
+          child: Icon(icon, color: AppColors.white, size: 20),
         ),
       ),
     );
@@ -112,21 +549,17 @@ class CustomPushButton extends StatelessWidget {
           width: 80,
           height: 80,
           child: Center(
-            child: icon != null 
-              ? Icon(
-                  icon,
-                  color: AppColors.white,
-                  size: 32,
-                )
-              : Text(
-                  text ?? '',
-                  style: const TextStyle(
-                    color: AppColors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
+            child: icon != null
+                ? Icon(icon, color: AppColors.white, size: 32)
+                : Text(
+                    text ?? '',
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
                   ),
-                  textAlign: TextAlign.center,
-                ),
           ),
         ),
       ),
@@ -224,11 +657,7 @@ class CustomBackToHomeButton extends StatelessWidget {
   final String text;
   final Color? color;
 
-  const CustomBackToHomeButton({
-    super.key,
-    required this.text,
-    this.color,
-  });
+  const CustomBackToHomeButton({super.key, required this.text, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -239,11 +668,7 @@ class CustomBackToHomeButton extends StatelessWidget {
       shadowColor: AppColors.black.withValues(alpha: 0.3),
       child: InkWell(
         onTap: () {
-          Navigator.pushNamedAndRemoveUntil(
-            context,
-            '/',
-            (route) => false,
-          );
+          Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
         },
         borderRadius: BorderRadius.circular(30.0),
         child: Container(

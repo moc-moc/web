@@ -5,10 +5,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// ログレベルを定義する列挙型
 enum LogLevel {
-  debug,   // デバッグ情報
-  info,    // 通常情報
+  debug, // デバッグ情報
+  info, // 通常情報
   warning, // 警告
-  error,   // エラー
+  error, // エラー
 }
 
 /// ログエントリ
@@ -60,24 +60,24 @@ class LogEntry {
 }
 
 /// ロギング/監視の汎用的な基本関数
-/// 
+///
 /// ログレベル管理とログ保存に関する基本的な操作を提供する関数群
 /// カウントダウンなどの具体的なビジネスロジックは含まない
 class LogMk {
   // ログ保存のキー
   static const String _logStorageKey = '_logmk_logs';
-  
+
   // 最大保存ログ数（デフォルト: 1000件）
   static const int _maxLogEntries = 1000;
-  
+
   // ログをコンソールに出力するかどうか
   static bool _consoleOutputEnabled = true;
-  
+
   // 最小ログレベル（これ以下のレベルは出力しない）
   static LogLevel _minLogLevel = LogLevel.debug;
 
   /// コンソール出力を有効/無効にする
-  /// 
+  ///
   /// **パラメータ**:
   /// - `enabled`: 有効にする場合はtrue、無効にする場合はfalse
   static void setConsoleOutputEnabled(bool enabled) {
@@ -85,7 +85,7 @@ class LogMk {
   }
 
   /// 最小ログレベルを設定
-  /// 
+  ///
   /// **パラメータ**:
   /// - `level`: 最小ログレベル（これ以下のレベルは出力しない）
   static void setMinLogLevel(LogLevel level) {
@@ -93,7 +93,7 @@ class LogMk {
   }
 
   /// ログを出力
-  /// 
+  ///
   /// **パラメータ**:
   /// - `level`: ログレベル
   /// - `message`: ログメッセージ
@@ -131,7 +131,7 @@ class LogMk {
   }
 
   /// デバッグログを出力
-  /// 
+  ///
   /// **パラメータ**:
   /// - `message`: ログメッセージ
   /// - `tag`: タグ（オプション）
@@ -140,7 +140,7 @@ class LogMk {
   }
 
   /// 情報ログを出力
-  /// 
+  ///
   /// **パラメータ**:
   /// - `message`: ログメッセージ
   /// - `tag`: タグ（オプション）
@@ -149,7 +149,7 @@ class LogMk {
   }
 
   /// 警告ログを出力
-  /// 
+  ///
   /// **パラメータ**:
   /// - `message`: ログメッセージ
   /// - `tag`: タグ（オプション）
@@ -158,7 +158,7 @@ class LogMk {
   }
 
   /// エラーログを出力
-  /// 
+  ///
   /// **パラメータ**:
   /// - `message`: ログメッセージ
   /// - `tag`: タグ（オプション）
@@ -180,28 +180,28 @@ class LogMk {
   }
 
   /// ログをローカルに保存
-  /// 
+  ///
   /// **パラメータ**:
   /// - `entry`: ログエントリ
   static Future<void> saveLogsToLocal(List<LogEntry> entries) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final existingLogs = await getLogs();
-      
+
       // 既存のログと新しいログを結合
       final allLogs = [...existingLogs, ...entries];
-      
+
       // 最大数まで制限
       final logsToSave = allLogs.length > _maxLogEntries
           ? allLogs.sublist(allLogs.length - _maxLogEntries)
           : allLogs;
-      
+
       // JSONに変換して保存
       final jsonList = logsToSave.map((e) => e.toJson()).toList();
       final jsonString = json.encode(jsonList);
-      
+
       await prefs.setString(_logStorageKey, jsonString);
-      
+
       debugPrint('✅ ログ保存完了: ${entries.length}件（合計: ${logsToSave.length}件）');
     } catch (e) {
       debugPrint('❌ ログ保存エラー: $e');
@@ -209,17 +209,17 @@ class LogMk {
   }
 
   /// 保存されたログを取得
-  /// 
+  ///
   /// **戻り値**: ログエントリのリスト
   static Future<List<LogEntry>> getLogs() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString(_logStorageKey);
-      
+
       if (jsonString == null || jsonString.isEmpty) {
         return [];
       }
-      
+
       final jsonList = json.decode(jsonString) as List<dynamic>;
       return jsonList
           .map((e) => LogEntry.fromJson(e as Map<String, dynamic>))
@@ -231,10 +231,10 @@ class LogMk {
   }
 
   /// 指定されたレベルのログを取得
-  /// 
+  ///
   /// **パラメータ**:
   /// - `level`: ログレベル
-  /// 
+  ///
   /// **戻り値**: 該当するログエントリのリスト
   static Future<List<LogEntry>> getLogsByLevel(LogLevel level) async {
     final allLogs = await getLogs();
@@ -242,10 +242,10 @@ class LogMk {
   }
 
   /// 指定されたタグのログを取得
-  /// 
+  ///
   /// **パラメータ**:
   /// - `tag`: タグ
-  /// 
+  ///
   /// **戻り値**: 該当するログエントリのリスト
   static Future<List<LogEntry>> getLogsByTag(String tag) async {
     final allLogs = await getLogs();
@@ -253,7 +253,7 @@ class LogMk {
   }
 
   /// ログをクリア
-  /// 
+  ///
   /// **パラメータ**:
   /// - `level`: 指定されたレベルのみをクリアする場合（オプション）
   static Future<void> clearLogs({LogLevel? level}) async {
@@ -261,13 +261,15 @@ class LogMk {
       if (level != null) {
         // 指定されたレベルのみをクリア
         final allLogs = await getLogs();
-        final filteredLogs = allLogs.where((log) => log.level != level).toList();
-        
+        final filteredLogs = allLogs
+            .where((log) => log.level != level)
+            .toList();
+
         final prefs = await SharedPreferences.getInstance();
         final jsonList = filteredLogs.map((e) => e.toJson()).toList();
         final jsonString = json.encode(jsonList);
         await prefs.setString(_logStorageKey, jsonString);
-        
+
         debugPrint('✅ ログクリア完了: ${level.name}レベル');
       } else {
         // 全てのログをクリア
@@ -281,7 +283,7 @@ class LogMk {
   }
 
   /// ログの件数を取得
-  /// 
+  ///
   /// **戻り値**: ログの件数
   static Future<int> getLogCount() async {
     final logs = await getLogs();
@@ -299,7 +301,7 @@ class LogMk {
       LogLevel.warning: 2,
       LogLevel.error: 3,
     };
-    
+
     return levelValues[level]! < levelValues[_minLogLevel]!;
   }
 
@@ -308,7 +310,7 @@ class LogMk {
     final prefix = _getLogPrefix(entry.level);
     final tagStr = entry.tag != null ? '[${entry.tag}] ' : '';
     final message = '$prefix$tagStr${entry.message}';
-    
+
     if (entry.level == LogLevel.error) {
       debugPrint(message);
       if (entry.error != null) {
@@ -341,19 +343,19 @@ class LogMk {
     try {
       final prefs = await SharedPreferences.getInstance();
       final existingLogs = await getLogs();
-      
+
       // 新しいエントリを追加
       final allLogs = [entry, ...existingLogs];
-      
+
       // 最大数まで制限
       final logsToSave = allLogs.length > _maxLogEntries
           ? allLogs.sublist(0, _maxLogEntries)
           : allLogs;
-      
+
       // JSONに変換して保存
       final jsonList = logsToSave.map((e) => e.toJson()).toList();
       final jsonString = json.encode(jsonList);
-      
+
       await prefs.setString(_logStorageKey, jsonString);
     } catch (e) {
       // ログ保存のエラーはコンソールに出力しない（無限ループ防止）
@@ -361,5 +363,3 @@ class LogMk {
     }
   }
 }
-
-

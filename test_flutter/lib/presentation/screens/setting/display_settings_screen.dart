@@ -12,7 +12,8 @@ class DisplaySettingsScreen extends ConsumerStatefulWidget {
   const DisplaySettingsScreen({super.key});
 
   @override
-  ConsumerState<DisplaySettingsScreen> createState() => _DisplaySettingsScreenState();
+  ConsumerState<DisplaySettingsScreen> createState() =>
+      _DisplaySettingsScreenState();
 }
 
 class _DisplaySettingsScreenState extends ConsumerState<DisplaySettingsScreen> {
@@ -25,7 +26,7 @@ class _DisplaySettingsScreenState extends ConsumerState<DisplaySettingsScreen> {
   Widget build(BuildContext context) {
     // Providerを監視（自動更新）
     final displaySettings = ref.watch(displaySettingsProvider);
-    
+
     // Providerの値で初期化（初回のみ）
     if (!_isInitialized) {
       _isInitialized = true;
@@ -33,7 +34,7 @@ class _DisplaySettingsScreenState extends ConsumerState<DisplaySettingsScreen> {
       _category2Name = displaySettings.category2Name;
       _category3Name = displaySettings.category3Name;
     }
-    
+
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
@@ -55,7 +56,7 @@ class _DisplaySettingsScreenState extends ConsumerState<DisplaySettingsScreen> {
               ),
             ),
             const SizedBox(height: 20),
-            
+
             // カテゴリ1の名前
             CustomTextField(
               label: 'カテゴリ1',
@@ -67,7 +68,7 @@ class _DisplaySettingsScreenState extends ConsumerState<DisplaySettingsScreen> {
               },
             ),
             const SizedBox(height: 16),
-            
+
             // カテゴリ2の名前
             CustomTextField(
               label: 'カテゴリ2',
@@ -79,7 +80,7 @@ class _DisplaySettingsScreenState extends ConsumerState<DisplaySettingsScreen> {
               },
             ),
             const SizedBox(height: 16),
-            
+
             // カテゴリ3の名前
             CustomTextField(
               label: 'カテゴリ3',
@@ -91,7 +92,7 @@ class _DisplaySettingsScreenState extends ConsumerState<DisplaySettingsScreen> {
               },
             ),
             const SizedBox(height: 30),
-            
+
             // 保存ボタン
             CustomSnsButton(
               text: '保存',
@@ -105,17 +106,19 @@ class _DisplaySettingsScreenState extends ConsumerState<DisplaySettingsScreen> {
                   category3Name: _category3Name,
                   lastModified: DateTime.now(),
                 );
-                
+
                 final success = await saveDisplaySettingsHelper(ref, settings);
-                
+
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(success ? '保存しました' : '保存に失敗しました'),
-                      backgroundColor: success ? AppColors.green : AppColors.red,
+                      backgroundColor: success
+                          ? AppColors.green
+                          : AppColors.red,
                     ),
                   );
-                  
+
                   if (success) {
                     Navigator.pop(context);
                   }

@@ -5,17 +5,17 @@ part 'retry_item.g.dart';
 
 /// 送信キューのアイテムタイプ
 enum RetryType {
-  add,      // 追加
-  update,   // 更新
-  delete,   // 削除
+  add, // 追加
+  update, // 更新
+  delete, // 削除
 }
 
 /// 送信キューのステータス
 enum RetryStatus {
-  pending,    // 送信待ち
+  pending, // 送信待ち
   processing, // 送信中
-  success,    // 送信成功
-  failed,     // 送信失敗
+  success, // 送信成功
+  failed, // 送信失敗
 }
 
 /// 送信キューアイテム
@@ -33,7 +33,8 @@ abstract class RetryItem with _$RetryItem {
     DateTime? lastRetryAt,
   }) = _RetryItem;
 
-  factory RetryItem.fromJson(Map<String, dynamic> json) => _$RetryItemFromJson(json);
+  factory RetryItem.fromJson(Map<String, dynamic> json) =>
+      _$RetryItemFromJson(json);
 }
 
 /// 送信キューアイテムの拡張メソッド
@@ -71,16 +72,12 @@ extension RetryItemExtension on RetryItem {
 
   /// 送信開始をマーク
   RetryItem markAsProcessing() {
-    return copyWith(
-      status: RetryStatus.processing,
-    );
+    return copyWith(status: RetryStatus.processing);
   }
 
   /// 送信成功をマーク
   RetryItem markAsSuccess() {
-    return copyWith(
-      status: RetryStatus.success,
-    );
+    return copyWith(status: RetryStatus.success);
   }
 
   /// 送信失敗をマーク

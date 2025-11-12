@@ -1,33 +1,33 @@
 /// エラーの種類を定義する列挙型
 enum ErrorType {
-  network,      // ネットワークエラー
-  validation,   // バリデーションエラー
-  sync,         // 同期エラー
-  storage,      // ストレージエラー
+  network, // ネットワークエラー
+  validation, // バリデーションエラー
+  sync, // 同期エラー
+  storage, // ストレージエラー
   authentication, // 認証エラー
-  permission,   // 権限エラー
-  unknown,      // 不明なエラー
+  permission, // 権限エラー
+  unknown, // 不明なエラー
 }
 
 /// データマネージャーのカスタムエラー型
-/// 
+///
 /// FirestoreDataManagerで発生するエラーを表す
 class DataManagerError implements Exception {
   /// エラーの種類
   final ErrorType type;
-  
+
   /// エラーメッセージ
   final String message;
-  
+
   /// 元のエラーオブジェクト（オプション）
   final Object? originalError;
-  
+
   /// スタックトレース（オプション）
   final StackTrace? stackTrace;
-  
+
   /// エラーコード（オプション）
   final String? code;
-  
+
   /// 追加情報（オプション）
   final Map<String, dynamic>? metadata;
 
@@ -44,28 +44,28 @@ class DataManagerError implements Exception {
   String toString() {
     final buffer = StringBuffer();
     buffer.writeln('DataManagerError(${type.name}): $message');
-    
+
     if (code != null) {
       buffer.writeln('コード: $code');
     }
-    
+
     if (originalError != null) {
       buffer.writeln('元のエラー: $originalError');
     }
-    
+
     if (metadata != null && metadata!.isNotEmpty) {
       buffer.writeln('メタデータ: $metadata');
     }
-    
+
     if (stackTrace != null) {
       buffer.writeln('スタックトレース: $stackTrace');
     }
-    
+
     return buffer.toString();
   }
 
   /// エラーハンドリングの汎用的な基本関数
-  /// 
+  ///
   /// エラー型定義とエラー処理に関する基本的な操作を提供する関数群
   /// カウントダウンなどの具体的なビジネスロジックは含まない
   static DataManagerError handleError(
@@ -141,10 +141,10 @@ class DataManagerError implements Exception {
   }
 
   /// 再試行可能なエラーかどうかを判定
-  /// 
+  ///
   /// **パラメータ**:
   /// - `error`: エラーオブジェクト
-  /// 
+  ///
   /// **戻り値**: 再試行可能な場合はtrue、そうでない場合はfalse
   static bool isRetryableError(Object error) {
     // DataManagerErrorの場合
@@ -217,10 +217,10 @@ class DataManagerError implements Exception {
   }
 
   /// エラーからネットワークエラーかどうかを判定
-  /// 
+  ///
   /// **パラメータ**:
   /// - `error`: エラーオブジェクト
-  /// 
+  ///
   /// **戻り値**: ネットワークエラーの場合はtrue、そうでない場合はfalse
   static bool isNetworkError(Object error) {
     if (error is DataManagerError) {
@@ -235,10 +235,10 @@ class DataManagerError implements Exception {
   }
 
   /// エラーから認証エラーかどうかを判定
-  /// 
+  ///
   /// **パラメータ**:
   /// - `error`: エラーオブジェクト
-  /// 
+  ///
   /// **戻り値**: 認証エラーの場合はtrue、そうでない場合はfalse
   static bool isAuthenticationError(Object error) {
     if (error is DataManagerError) {
@@ -253,10 +253,10 @@ class DataManagerError implements Exception {
   }
 
   /// エラーからバリデーションエラーかどうかを判定
-  /// 
+  ///
   /// **パラメータ**:
   /// - `error`: エラーオブジェクト
-  /// 
+  ///
   /// **戻り値**: バリデーションエラーの場合はtrue、そうでない場合はfalse
   static bool isValidationError(Object error) {
     if (error is DataManagerError) {
@@ -270,12 +270,12 @@ class DataManagerError implements Exception {
   }
 
   /// ネットワークエラーを作成
-  /// 
+  ///
   /// **パラメータ**:
   /// - `message`: エラーメッセージ
   /// - `originalError`: 元のエラーオブジェクト（オプション）
   /// - `stackTrace`: スタックトレース（オプション）
-  /// 
+  ///
   /// **戻り値**: DataManagerError
   static DataManagerError networkError(
     String message, {
@@ -291,11 +291,11 @@ class DataManagerError implements Exception {
   }
 
   /// バリデーションエラーを作成
-  /// 
+  ///
   /// **パラメータ**:
   /// - `message`: エラーメッセージ
   /// - `originalError`: 元のエラーオブジェクト（オプション）
-  /// 
+  ///
   /// **戻り値**: DataManagerError
   static DataManagerError validationError(
     String message, {
@@ -309,12 +309,12 @@ class DataManagerError implements Exception {
   }
 
   /// 同期エラーを作成
-  /// 
+  ///
   /// **パラメータ**:
   /// - `message`: エラーメッセージ
   /// - `originalError`: 元のエラーオブジェクト（オプション）
   /// - `stackTrace`: スタックトレース（オプション）
-  /// 
+  ///
   /// **戻り値**: DataManagerError
   static DataManagerError syncError(
     String message, {
@@ -330,11 +330,11 @@ class DataManagerError implements Exception {
   }
 
   /// ストレージエラーを作成
-  /// 
+  ///
   /// **パラメータ**:
   /// - `message`: エラーメッセージ
   /// - `originalError`: 元のエラーオブジェクト（オプション）
-  /// 
+  ///
   /// **戻り値**: DataManagerError
   static DataManagerError storageError(
     String message, {
@@ -348,11 +348,11 @@ class DataManagerError implements Exception {
   }
 
   /// 認証エラーを作成
-  /// 
+  ///
   /// **パラメータ**:
   /// - `message`: エラーメッセージ
   /// - `originalError`: 元のエラーオブジェクト（オプション）
-  /// 
+  ///
   /// **戻り値**: DataManagerError
   static DataManagerError authenticationError(
     String message, {
@@ -365,5 +365,3 @@ class DataManagerError implements Exception {
     );
   }
 }
-
-

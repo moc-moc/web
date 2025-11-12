@@ -19,17 +19,12 @@ class SettingsTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
       color: AppColors.blackgray,
       child: ListTile(
         leading: CircleAvatar(
           backgroundColor: iconBackgroundColor,
-          child: Icon(
-            icon,
-            color: AppColors.blackgray
-          ),
+          child: Icon(icon, color: AppColors.blackgray),
         ),
         title: Text(
           title,
@@ -38,10 +33,7 @@ class SettingsTile extends StatelessWidget {
             fontWeight: FontWeight.w500,
           ),
         ),
-        trailing: const Icon(
-          Icons.chevron_right,
-          color: AppColors.white
-        ),
+        trailing: const Icon(Icons.chevron_right, color: AppColors.white),
         onTap: onTap,
       ),
     );
@@ -49,7 +41,7 @@ class SettingsTile extends StatelessWidget {
 }
 
 /// テキスト入力フィールド（設定用）
-/// 
+///
 /// シンプルなテキスト入力フィールドです。
 class CustomTextField extends StatelessWidget {
   final String label;
@@ -88,7 +80,7 @@ class CustomTextField extends StatelessWidget {
 }
 
 /// スイッチ付きリストタイル（設定用）
-/// 
+///
 /// ON/OFF切り替え用のスイッチ付きタイルです。
 class CustomSwitchTile extends StatelessWidget {
   final String title;
@@ -105,9 +97,7 @@ class CustomSwitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       color: AppColors.blackgray,
       child: SwitchListTile(
         title: Text(
@@ -126,7 +116,7 @@ class CustomSwitchTile extends StatelessWidget {
 }
 
 /// 時間選択ボタン（設定用）
-/// 
+///
 /// 時間を選択するボタンです。タップするとTimePickerが表示されます。
 class CustomTimePicker extends StatelessWidget {
   final String label;
@@ -143,9 +133,7 @@ class CustomTimePicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       color: AppColors.blackgray,
       child: ListTile(
         leading: const Icon(Icons.access_time, color: AppColors.blue),
@@ -175,7 +163,8 @@ class CustomTimePicker extends StatelessWidget {
           );
 
           if (time != null) {
-            final formattedTime = '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+            final formattedTime =
+                '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
             onTimeSelected(formattedTime);
           }
         },
@@ -185,7 +174,7 @@ class CustomTimePicker extends StatelessWidget {
 }
 
 /// セグメント選択（設定用）
-/// 
+///
 /// 複数の選択肢から1つを選ぶセグメントコントロールです。
 class CustomSegmentedControl extends StatelessWidget {
   final List<String> options;
@@ -202,9 +191,7 @@ class CustomSegmentedControl extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       color: AppColors.blackgray,
       child: Padding(
         padding: const EdgeInsets.all(12.0),
@@ -244,7 +231,7 @@ class CustomSegmentedControl extends StatelessWidget {
 }
 
 /// 色選択ウィジェット（設定用）
-/// 
+///
 /// アバター用の色を選択するウィジェットです。
 class CustomColorPicker extends StatelessWidget {
   final String selectedColor;
@@ -268,9 +255,7 @@ class CustomColorPicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12.0),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
       color: AppColors.blackgray,
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -321,7 +306,7 @@ class CustomColorPicker extends StatelessWidget {
 }
 
 /// アバター表示ウィジェット（設定用）
-/// 
+///
 /// 色+頭文字のアバターを表示するウィジェットです。
 class CustomAvatarDisplay extends StatelessWidget {
   final String name;
@@ -357,4 +342,3 @@ class CustomAvatarDisplay extends StatelessWidget {
     );
   }
 }
-

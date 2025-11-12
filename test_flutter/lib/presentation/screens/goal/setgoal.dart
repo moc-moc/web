@@ -78,9 +78,9 @@ class _GoalSetGoalState extends ConsumerState<GoalSetGoal> {
   Future<void> _addCountdown() async {
     // 日時チェック
     if (_selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('日付を選択してください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('日付を選択してください')));
       return;
     }
 
@@ -154,17 +154,16 @@ class _GoalSetGoalState extends ConsumerState<GoalSetGoal> {
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.calendar_today,
-                        color: AppColors.blue,
-                      ),
+                      const Icon(Icons.calendar_today, color: AppColors.blue),
                       const SizedBox(width: 12),
                       Text(
                         _selectedDate != null
                             ? '${_selectedDate!.year}年${_selectedDate!.month}月${_selectedDate!.day}日'
                             : '日付を選択してください',
                         style: TextStyle(
-                          color: _selectedDate != null ? AppColors.white : AppColors.gray,
+                          color: _selectedDate != null
+                              ? AppColors.white
+                              : AppColors.gray,
                           fontSize: 16,
                         ),
                       ),
@@ -183,10 +182,7 @@ class _GoalSetGoalState extends ConsumerState<GoalSetGoal> {
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.access_time,
-                        color: AppColors.blue,
-                      ),
+                      const Icon(Icons.access_time, color: AppColors.blue),
                       const SizedBox(width: 12),
                       Text(
                         '${_selectedTime.hour.toString().padLeft(2, '0')}:${_selectedTime.minute.toString().padLeft(2, '0')}',
@@ -213,5 +209,3 @@ class _GoalSetGoalState extends ConsumerState<GoalSetGoal> {
     );
   }
 }
-
-

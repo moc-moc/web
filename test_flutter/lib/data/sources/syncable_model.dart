@@ -1,5 +1,5 @@
 /// 同期可能なモデルのインターフェース
-/// 
+///
 /// FirestoreとSharedPreferencesで同期されるモデルが実装すべきインターフェース。
 /// このインターフェースを実装することで、データマネージャーでの同期処理が可能になります。
 abstract class SyncableModel {
@@ -12,4 +12,3 @@ abstract class SyncableModel {
   /// 論理削除フラグ
   bool get isDeleted;
 }
-

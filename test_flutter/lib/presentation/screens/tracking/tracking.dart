@@ -78,7 +78,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     ),
                   ),
                   const SizedBox(height: 20),
-                  
+
                   // パソコン
                   TimeInputCard(
                     label: 'パソコン',
@@ -87,7 +87,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     controller: _computerController,
                   ),
                   const SizedBox(height: 12),
-                  
+
                   // 本
                   TimeInputCard(
                     label: '本',
@@ -96,7 +96,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     controller: _bookController,
                   ),
                   const SizedBox(height: 12),
-                  
+
                   // 総合計
                   TimeInputCard(
                     label: '総合計',
@@ -105,7 +105,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     controller: _totalController,
                   ),
                   const SizedBox(height: 12),
-                  
+
                   // 人
                   TimeInputCard(
                     label: '人',
@@ -114,7 +114,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                     controller: _personController,
                   ),
                   const SizedBox(height: 12),
-                  
+
                   // スマホ
                   TimeInputCard(
                     label: 'スマホ',
@@ -127,7 +127,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
               ),
             ),
           ),
-          
+
           // Finishedボタン
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -143,7 +143,7 @@ class _TrackingScreenState extends State<TrackingScreen> {
                   'person': personMinutes,
                   'smartphone': smartphoneMinutes,
                 };
-                
+
                 // データを渡してtracking finished画面へ遷移
                 Navigator.pushReplacementNamed(
                   context,
@@ -158,4 +158,3 @@ class _TrackingScreenState extends State<TrackingScreen> {
     );
   }
 }
-

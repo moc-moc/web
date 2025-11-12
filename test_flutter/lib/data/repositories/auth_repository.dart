@@ -9,16 +9,13 @@ class AuthServiceUN {
   static Future<AuthResult> signInWithGoogle() async {
     try {
       final user = await AuthMk.signInWithGoogle();
-      
+
       if (user == null) {
-        return AuthResult(
-          success: false,
-          message: '認証がキャンセルされました',
-        );
+        return AuthResult(success: false, message: '認証がキャンセルされました');
       }
 
       final token = await AuthMk.getUserIdToken();
-      
+
       await SecureStorageMk.saveUserInfoToStorage(
         userId: user.uid,
         email: user.email ?? '',
@@ -26,9 +23,9 @@ class AuthServiceUN {
         token: token,
         photoUrl: user.photoURL,
       );
-      
+
       debugPrint('✅ Google認証成功 & データ保存完了: ${user.email}');
-      
+
       return AuthResult(
         success: true,
         message: 'ログインに成功しました',
@@ -43,10 +40,7 @@ class AuthServiceUN {
       );
     } catch (e) {
       debugPrint('❌ ログインエラー: $e');
-      return AuthResult(
-        success: false,
-        message: 'ログイン処理中にエラーが発生しました: $e',
-      );
+      return AuthResult(success: false, message: 'ログイン処理中にエラーが発生しました: $e');
     }
   }
 
@@ -54,16 +48,13 @@ class AuthServiceUN {
   static Future<AuthResult> handleRedirectResult() async {
     try {
       final user = await AuthMk.getRedirectResult();
-      
+
       if (user == null) {
-        return AuthResult(
-          success: false,
-          message: 'リダイレクト認証なし',
-        );
+        return AuthResult(success: false, message: 'リダイレクト認証なし');
       }
 
       final token = await AuthMk.getUserIdToken();
-      
+
       await SecureStorageMk.saveUserInfoToStorage(
         userId: user.uid,
         email: user.email ?? '',
@@ -71,9 +62,9 @@ class AuthServiceUN {
         token: token,
         photoUrl: user.photoURL,
       );
-      
+
       debugPrint('✅ Redirect認証成功 & データ保存完了: ${user.email}');
-      
+
       return AuthResult(
         success: true,
         message: 'ログインに成功しました',
@@ -100,7 +91,7 @@ class AuthServiceUN {
     try {
       await AuthMk.signOutFromFirebase();
       await SecureStorageMk.deleteAllSecureStorage();
-      
+
       debugPrint('✅ サインアウト & データ削除完了');
     } catch (e) {
       debugPrint('❌ サインアウトエラー: $e');
@@ -113,7 +104,7 @@ class AuthServiceUN {
     try {
       final hasStoredAuth = await SecureStorageMk.hasValidStoredAuth();
       final isFirebaseAuthenticated = AuthMk.checkFirebaseAuthState();
-      
+
       if (hasStoredAuth && isFirebaseAuthenticated) {
         debugPrint('✅ 認証状態を復元しました');
         return true;
@@ -131,17 +122,17 @@ class AuthServiceUN {
   static Future<UserInfo?> initializeAuth() async {
     try {
       final isAuthenticated = await restoreAuthState();
-      
+
       if (!isAuthenticated) {
         return null;
       }
-      
+
       final userInfo = await getCurrentUserInfo();
-      
+
       if (userInfo != null) {
         debugPrint('ログイン中のユーザー: ${userInfo.email}');
       }
-      
+
       return userInfo;
     } catch (e) {
       debugPrint('❌ 認証初期化エラー: $e');
@@ -153,15 +144,15 @@ class AuthServiceUN {
   static Future<UserInfo?> getCurrentUserInfo() async {
     try {
       final user = AuthMk.getCurrentUser();
-      
+
       if (user == null) {
         debugPrint('ℹ️ ログインしていません');
         return null;
       }
-      
+
       final storedInfo = await SecureStorageMk.getUserInfoFromStorage();
       final token = await AuthMk.getUserIdToken();
-      
+
       return UserInfo(
         userId: user.uid,
         email: user.email ?? storedInfo['email'],
@@ -187,12 +178,12 @@ class AuthServiceUN {
   static Future<String?> refreshToken() async {
     try {
       final newToken = await AuthMk.refreshUserToken();
-      
+
       if (newToken != null) {
         await SecureStorageMk.updateToken(newToken);
         debugPrint('✅ トークン更新 & 保存完了');
       }
-      
+
       return newToken;
     } catch (e) {
       debugPrint('❌ トークン更新エラー: $e');

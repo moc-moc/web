@@ -19,7 +19,7 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _targetTimeController = TextEditingController();
   final TextEditingController _durationController = TextEditingController();
-  
+
   DateTime? _selectedDate;
   ComparisonType _comparisonType = ComparisonType.above;
   DetectionItem _detectionItem = DetectionItem.book;
@@ -63,32 +63,32 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
   Future<void> _addGoal() async {
     // バリデーション
     if (_titleController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('タイトルを入力してください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('タイトルを入力してください')));
       return;
     }
 
     if (_selectedDate == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('開始日を選択してください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('開始日を選択してください')));
       return;
     }
 
     final targetTime = int.tryParse(_targetTimeController.text);
     if (targetTime == null || targetTime <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('目標時間を正しく入力してください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('目標時間を正しく入力してください')));
       return;
     }
 
     final duration = int.tryParse(_durationController.text);
     if (duration == null || duration <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('期間を正しく入力してください')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('期間を正しく入力してください')));
       return;
     }
 
@@ -159,7 +159,7 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // タイトル入力
             CustomCard(
               child: Padding(
@@ -184,7 +184,7 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // 目標時間入力
             CustomCard(
               child: Padding(
@@ -210,7 +210,7 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // 以上/以下選択
             CustomCard(
               child: Padding(
@@ -251,7 +251,7 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // 検出項目選択
             CustomCard(
               child: Padding(
@@ -296,7 +296,7 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // 開始日選択
             CustomCard(
               child: InkWell(
@@ -306,17 +306,16 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
                   padding: const EdgeInsets.all(16.0),
                   child: Row(
                     children: [
-                      const Icon(
-                        Icons.calendar_today,
-                        color: AppColors.blue,
-                      ),
+                      const Icon(Icons.calendar_today, color: AppColors.blue),
                       const SizedBox(width: 12),
                       Text(
                         _selectedDate != null
                             ? '${_selectedDate!.year}年${_selectedDate!.month}月${_selectedDate!.day}日'
                             : '開始日を選択してください',
                         style: TextStyle(
-                          color: _selectedDate != null ? AppColors.white : AppColors.gray,
+                          color: _selectedDate != null
+                              ? AppColors.white
+                              : AppColors.gray,
                           fontSize: 16,
                         ),
                       ),
@@ -326,7 +325,7 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // 期間入力
             CustomCard(
               child: Padding(
@@ -352,7 +351,7 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
               ),
             ),
             const SizedBox(height: 32),
-            
+
             // 保存ボタン
             CustomSnsButton(
               text: '目標を設定',
@@ -365,4 +364,3 @@ class _SettingGoalState extends ConsumerState<SettingGoal> {
     );
   }
 }
-

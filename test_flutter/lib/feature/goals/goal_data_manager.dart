@@ -11,6 +11,7 @@ part 'goal_data_manager.g.dart';
 enum ComparisonType {
   /// 以上
   above,
+
   /// 以下
   below,
 }
@@ -19,17 +20,19 @@ enum ComparisonType {
 enum DetectionItem {
   /// 本
   book,
+
   /// スマホ
   smartphone,
+
   /// パソコン
   pc,
 }
 
 /// 目標モデル
-/// 
+///
 /// ユーザーが設定する目標を管理します。
 /// Freezedを使用してイミュータブルなモデルを実現しています。
-/// 
+///
 @freezed
 abstract class Goal with _$Goal {
   /// Goalモデルのコンストラクタ
@@ -49,15 +52,14 @@ abstract class Goal with _$Goal {
   }) = _Goal;
 
   /// JSONからGoalモデルを生成
-  factory Goal.fromJson(Map<String, dynamic> json) =>
-      _$GoalFromJson(json);
+  factory Goal.fromJson(Map<String, dynamic> json) => _$GoalFromJson(json);
 }
 
 /// 目標用データマネージャー
-/// 
+///
 /// data_manager_hive_un.dartのFirestoreHiveDataManagerを使用して
 /// 目標データの管理を行います。
-/// 
+///
 class GoalDataManager {
   /// FirestoreHiveDataManagerのインスタンス
   late final FirestoreHiveDataManager<Goal> _manager;
@@ -67,7 +69,7 @@ class GoalDataManager {
     _manager = FirestoreHiveDataManager<Goal>(
       // コレクションパス: users/{userId}/goals
       collectionPathBuilder: (userId) => 'users/$userId/goals',
-      
+
       // Firestoreデータ → Goalモデル変換
       fromFirestore: (data) {
         return Goal(
@@ -75,8 +77,12 @@ class GoalDataManager {
           tag: data['tag'] as String,
           title: data['title'] as String,
           targetTime: data['targetTime'] as int,
-          comparisonType: ComparisonType.values.byName(data['comparisonType'] as String),
-          detectionItem: DetectionItem.values.byName(data['detectionItem'] as String),
+          comparisonType: ComparisonType.values.byName(
+            data['comparisonType'] as String,
+          ),
+          detectionItem: DetectionItem.values.byName(
+            data['detectionItem'] as String,
+          ),
           startDate: (data['startDate'] as Timestamp).toDate(),
           durationDays: data['durationDays'] as int,
           consecutiveAchievements: data['consecutiveAchievements'] as int? ?? 0,
@@ -85,7 +91,7 @@ class GoalDataManager {
           lastModified: (data['lastModified'] as Timestamp).toDate(),
         );
       },
-      
+
       // Goalモデル → Firestoreデータ変換
       toFirestore: (goal) {
         return {
@@ -103,19 +109,19 @@ class GoalDataManager {
           'lastModified': Timestamp.fromDate(goal.lastModified),
         };
       },
-      
+
       // Hiveのボックス名
       hiveBoxName: 'goals',
-      
+
       // JSON → Goalモデル変換
       fromJson: (json) => Goal.fromJson(json),
-      
+
       // Goalモデル → JSON変換
       toJson: (goal) => goal.toJson(),
-      
+
       // IDフィールド名
       idField: 'id',
-      
+
       // 最終更新フィールド名
       lastModifiedField: 'lastModified',
     );
@@ -231,19 +237,12 @@ class GoalDataManager {
 
   /// 目標を論理削除
   Future<bool> softDeleteGoal(String userId, String id) async {
-    return await _manager.updatePartial(
-      userId,
-      id,
-      {'isDeleted': true},
-    );
+    return await _manager.updatePartial(userId, id, {'isDeleted': true});
   }
 
   /// 目標を論理削除（認証自動取得版）
   Future<bool> softDeleteGoalWithAuth(String id) async {
-    return await _manager.updatePartialWithAuth(
-      id,
-      {'isDeleted': true},
-    );
+    return await _manager.updatePartialWithAuth(id, {'isDeleted': true});
   }
 
   /// アクティブな目標のみを取得
@@ -261,13 +260,15 @@ class GoalDataManager {
   }
 
   /// Firestoreから直接目標を取得（認証自動取得版）
-  /// 
+  ///
   /// ローカルキャッシュを無視して、Firestoreから最新データを取得します。
   Future<List<Goal>> getGoalsFromFirestoreWithAuth() async {
     try {
       debugPrint('🔍 [getGoalsFromFirestoreWithAuth] Firestoreから直接取得開始');
       final goals = await _manager.getAllWithAuth();
-      debugPrint('✅ [getGoalsFromFirestoreWithAuth] Firestoreから取得成功: ${goals.length}件');
+      debugPrint(
+        '✅ [getGoalsFromFirestoreWithAuth] Firestoreから取得成功: ${goals.length}件',
+      );
       return goals;
     } catch (e) {
       debugPrint('❌ [getGoalsFromFirestoreWithAuth] 取得エラー: $e');
@@ -276,9 +277,13 @@ class GoalDataManager {
   }
 
   /// 達成記録を更新
-  /// 
+  ///
   /// 連続達成回数をインクリメントし、達成時間を記録します。
-  Future<bool> recordAchievement(String userId, String id, int achievedTime) async {
+  Future<bool> recordAchievement(
+    String userId,
+    String id,
+    int achievedTime,
+  ) async {
     try {
       // 現在の目標を取得
       final goal = await _manager.getById(userId, id);
@@ -312,4 +317,3 @@ class GoalDataManager {
     return await recordAchievement(currentUser.uid, id, achievedTime);
   }
 }
-

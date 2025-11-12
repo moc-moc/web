@@ -7,7 +7,8 @@ import 'package:test_flutter/presentation/widgets/buttons.dart';
 import 'package:test_flutter/presentation/widgets/cards.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
-import 'package:test_flutter/feature/goals/goal_data_manager.dart' as goal_model;
+import 'package:test_flutter/feature/goals/goal_data_manager.dart'
+    as goal_model;
 import 'package:test_flutter/feature/countdown/countdown_functions.dart';
 import 'package:test_flutter/feature/countdown/countdowndata.dart';
 
@@ -41,22 +42,26 @@ class _GoalState extends ConsumerState<Goal> {
   Future<void> _loadLocalData() async {
     final countdownManager = CountdownDataManager();
     final goalManager = goal_model.GoalDataManager();
-    
+
     final localCountdowns = await countdownManager.getLocalCountdowns();
     final localGoals = await goalManager.getLocalGoals();
-    
+
     // ログに出力
     debugPrint('📱 ===== Countdown & Goal ローカルデータ確認 =====');
     debugPrint('✅ ローカルカウントダウン数: ${localCountdowns.length}件');
     for (var i = 0; i < localCountdowns.length; i++) {
-      debugPrint('  - ${i + 1}. ${localCountdowns[i].title}: ${localCountdowns[i].targetDate}');
+      debugPrint(
+        '  - ${i + 1}. ${localCountdowns[i].title}: ${localCountdowns[i].targetDate}',
+      );
     }
     debugPrint('✅ ローカルゴール数: ${localGoals.length}件');
     for (var i = 0; i < localGoals.length; i++) {
-      debugPrint('  - ${i + 1}. ${localGoals[i].tag}: ${localGoals[i].targetTime}分');
+      debugPrint(
+        '  - ${i + 1}. ${localGoals[i].tag}: ${localGoals[i].targetTime}分',
+      );
     }
     debugPrint('============================');
-    
+
     if (mounted) {
       setState(() {
         _localCountdowns = localCountdowns;
@@ -118,13 +123,15 @@ class _GoalState extends ConsumerState<Goal> {
   Widget build(BuildContext context) {
     final goals = ref.watch(goalsListProvider);
     final countdowns = ref.watch(countdownsListProvider);
-    
+
     // 期限切れカウントダウンを削除（画面表示後に実行）
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       await deleteExpiredCountdownsHelper(ref);
     });
-    
-    debugPrint('🎯 [Goal画面] Goals: ${goals.length}件, Countdowns: ${countdowns.length}件');
+
+    debugPrint(
+      '🎯 [Goal画面] Goals: ${goals.length}件, Countdowns: ${countdowns.length}件',
+    );
 
     return Scaffold(
       backgroundColor: AppColors.black,
@@ -145,13 +152,13 @@ class _GoalState extends ConsumerState<Goal> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                  const Text(
-                    'カウントダウン',
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                      const Text(
+                        'カウントダウン',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       CustomIconButton(
                         icon: Icons.add,
@@ -163,17 +170,17 @@ class _GoalState extends ConsumerState<Goal> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  
+
                   if (countdowns.isEmpty)
                     const Center(
                       child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                        padding: EdgeInsets.symmetric(
+                          vertical: 20,
+                          horizontal: 16,
+                        ),
                         child: Text(
                           '新しいカウントダウンを追加して、大切なイベントまでの日数を確認しましょう！',
-                          style: TextStyle(
-                            color: AppColors.gray,
-                            fontSize: 14,
-                          ),
+                          style: TextStyle(color: AppColors.gray, fontSize: 14),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -214,7 +221,7 @@ class _GoalState extends ConsumerState<Goal> {
                         ),
                       );
                     }),
-                  
+
                   // ローカルデータ表示セクション
                   const SizedBox(height: 24),
                   Row(
@@ -235,7 +242,9 @@ class _GoalState extends ConsumerState<Goal> {
                           });
                         },
                         icon: Icon(
-                          _showLocalData ? Icons.visibility_off : Icons.visibility,
+                          _showLocalData
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                           color: AppColors.white,
                           size: 16,
                         ),
@@ -250,7 +259,7 @@ class _GoalState extends ConsumerState<Goal> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  
+
                   if (_showLocalData)
                     CustomCard(
                       width: double.infinity,
@@ -283,7 +292,10 @@ class _GoalState extends ConsumerState<Goal> {
                             else if (_localCountdowns.isEmpty)
                               const Text(
                                 'ローカルカウントダウンデータなし',
-                                style: TextStyle(color: AppColors.gray, fontSize: 12),
+                                style: TextStyle(
+                                  color: AppColors.gray,
+                                  fontSize: 12,
+                                ),
                               )
                             else ...[
                               Text(
@@ -301,11 +313,14 @@ class _GoalState extends ConsumerState<Goal> {
                                   child: Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: AppColors.black.withValues(alpha: 0.3),
+                                      color: AppColors.black.withValues(
+                                        alpha: 0.3,
+                                      ),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           cd.title,
@@ -333,7 +348,9 @@ class _GoalState extends ConsumerState<Goal> {
                                         Text(
                                           '削除済み: ${cd.isDeleted ? "はい" : "いいえ"}',
                                           style: TextStyle(
-                                            color: cd.isDeleted ? Colors.red : Colors.green,
+                                            color: cd.isDeleted
+                                                ? Colors.red
+                                                : Colors.green,
                                             fontSize: 10,
                                           ),
                                         ),
@@ -345,15 +362,25 @@ class _GoalState extends ConsumerState<Goal> {
                               const SizedBox(height: 8),
                               const Divider(color: AppColors.gray, height: 1),
                               const SizedBox(height: 8),
-                              if (countdowns.length == _localCountdowns.where((c) => !c.isDeleted).length)
+                              if (countdowns.length ==
+                                  _localCountdowns
+                                      .where((c) => !c.isDeleted)
+                                      .length)
                                 Row(
                                   children: [
-                                    Icon(Icons.check_circle, color: Colors.green, size: 16),
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: Colors.green,
+                                      size: 16,
+                                    ),
                                     const SizedBox(width: 6),
                                     const Expanded(
                                       child: Text(
                                         'Providerと一致',
-                                        style: TextStyle(color: Colors.green, fontSize: 11),
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontSize: 11,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -361,12 +388,19 @@ class _GoalState extends ConsumerState<Goal> {
                               else
                                 Row(
                                   children: [
-                                    Icon(Icons.warning, color: Colors.orange, size: 16),
+                                    Icon(
+                                      Icons.warning,
+                                      color: Colors.orange,
+                                      size: 16,
+                                    ),
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(
                                         'Provider: ${countdowns.length}件、ローカル(アクティブ): ${_localCountdowns.where((c) => !c.isDeleted).length}件',
-                                        style: const TextStyle(color: Colors.orange, fontSize: 11),
+                                        style: const TextStyle(
+                                          color: Colors.orange,
+                                          fontSize: 11,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -376,10 +410,9 @@ class _GoalState extends ConsumerState<Goal> {
                         ),
                       ),
                     ),
-                  
-                  if (_showLocalData)
-                    const SizedBox(height: 12),
-                  
+
+                  if (_showLocalData) const SizedBox(height: 12),
+
                   // ローカルゴールデータカード
                   if (_showLocalData)
                     CustomCard(
@@ -413,7 +446,10 @@ class _GoalState extends ConsumerState<Goal> {
                             else if (_localGoals.isEmpty)
                               const Text(
                                 'ローカルゴールデータなし',
-                                style: TextStyle(color: AppColors.gray, fontSize: 12),
+                                style: TextStyle(
+                                  color: AppColors.gray,
+                                  fontSize: 12,
+                                ),
                               )
                             else ...[
                               Text(
@@ -427,19 +463,24 @@ class _GoalState extends ConsumerState<Goal> {
                               const SizedBox(height: 12),
                               ..._localGoals.map((goal) {
                                 final now = DateTime.now();
-                                final endDate = goal.startDate.add(Duration(days: goal.durationDays));
+                                final endDate = goal.startDate.add(
+                                  Duration(days: goal.durationDays),
+                                );
                                 final daysLeft = endDate.difference(now).inDays;
-                                
+
                                 return Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child: Container(
                                     padding: const EdgeInsets.all(12),
                                     decoration: BoxDecoration(
-                                      color: AppColors.black.withValues(alpha: 0.3),
+                                      color: AppColors.black.withValues(
+                                        alpha: 0.3,
+                                      ),
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           goal.tag,
@@ -458,9 +499,11 @@ class _GoalState extends ConsumerState<Goal> {
                                           ),
                                         ),
                                         Text(
-                                          '期間: ${daysLeft >= 0 ? "残り${daysLeft}日" : "期間終了"}',
+                                          '期間: ${daysLeft >= 0 ? "残り$daysLeft日" : "期間終了"}',
                                           style: TextStyle(
-                                            color: daysLeft >= 0 ? AppColors.green : Colors.red,
+                                            color: daysLeft >= 0
+                                                ? AppColors.green
+                                                : Colors.red,
                                             fontSize: 11,
                                           ),
                                         ),
@@ -481,7 +524,9 @@ class _GoalState extends ConsumerState<Goal> {
                                         Text(
                                           '削除済み: ${goal.isDeleted ? "はい" : "いいえ"}',
                                           style: TextStyle(
-                                            color: goal.isDeleted ? Colors.red : Colors.green,
+                                            color: goal.isDeleted
+                                                ? Colors.red
+                                                : Colors.green,
                                             fontSize: 10,
                                           ),
                                         ),
@@ -493,15 +538,23 @@ class _GoalState extends ConsumerState<Goal> {
                               const SizedBox(height: 8),
                               const Divider(color: AppColors.gray, height: 1),
                               const SizedBox(height: 8),
-                              if (goals.length == _localGoals.where((g) => !g.isDeleted).length)
+                              if (goals.length ==
+                                  _localGoals.where((g) => !g.isDeleted).length)
                                 Row(
                                   children: [
-                                    Icon(Icons.check_circle, color: Colors.green, size: 16),
+                                    Icon(
+                                      Icons.check_circle,
+                                      color: Colors.green,
+                                      size: 16,
+                                    ),
                                     const SizedBox(width: 6),
                                     const Expanded(
                                       child: Text(
                                         'Providerと一致',
-                                        style: TextStyle(color: Colors.green, fontSize: 11),
+                                        style: TextStyle(
+                                          color: Colors.green,
+                                          fontSize: 11,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -509,12 +562,19 @@ class _GoalState extends ConsumerState<Goal> {
                               else
                                 Row(
                                   children: [
-                                    Icon(Icons.warning, color: Colors.orange, size: 16),
+                                    Icon(
+                                      Icons.warning,
+                                      color: Colors.orange,
+                                      size: 16,
+                                    ),
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(
                                         'Provider: ${goals.length}件、ローカル(アクティブ): ${_localGoals.where((g) => !g.isDeleted).length}件',
-                                        style: const TextStyle(color: Colors.orange, fontSize: 11),
+                                        style: const TextStyle(
+                                          color: Colors.orange,
+                                          fontSize: 11,
+                                        ),
                                       ),
                                     ),
                                   ],
@@ -524,9 +584,9 @@ class _GoalState extends ConsumerState<Goal> {
                         ),
                       ),
                     ),
-                  
+
                   const SizedBox(height: 32),
-                  
+
                   // 目標セクション
                   const Text(
                     '目標',
@@ -537,24 +597,23 @@ class _GoalState extends ConsumerState<Goal> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  
+
                   if (goals.isEmpty)
                     const Center(
                       child: Padding(
                         padding: EdgeInsets.symmetric(vertical: 20),
                         child: Text(
                           '目標がありません',
-                          style: TextStyle(
-                            color: AppColors.gray,
-                            fontSize: 14,
-                          ),
+                          style: TextStyle(color: AppColors.gray, fontSize: 14),
                         ),
                       ),
                     )
                   else
                     ...goals.map((goal) {
                       final now = DateTime.now();
-                      final endDate = goal.startDate.add(Duration(days: goal.durationDays));
+                      final endDate = goal.startDate.add(
+                        Duration(days: goal.durationDays),
+                      );
                       final daysLeft = endDate.difference(now).inDays;
 
                       return Padding(
@@ -586,7 +645,7 @@ class _GoalState extends ConsumerState<Goal> {
                                     ),
                                   ),
                                 const SizedBox(height: 8),
-                                
+
                                 // タイトル
                                 Text(
                                   goal.title,
@@ -597,7 +656,7 @@ class _GoalState extends ConsumerState<Goal> {
                                   ),
                                 ),
                                 const SizedBox(height: 8),
-                                
+
                                 // 目標情報
                                 Text(
                                   '${_getDetectionItemText(goal.detectionItem)}: ${goal.targetTime}分${_getComparisonTypeText(goal.comparisonType)}',
@@ -607,12 +666,10 @@ class _GoalState extends ConsumerState<Goal> {
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                
+
                                 // 期間情報
                                 Text(
-                                  daysLeft >= 0
-                                      ? '残り $daysLeft日'
-                                      : '期間終了',
+                                  daysLeft >= 0 ? '残り $daysLeft日' : '期間終了',
                                   style: TextStyle(
                                     color: daysLeft >= 0
                                         ? AppColors.green
@@ -620,7 +677,7 @@ class _GoalState extends ConsumerState<Goal> {
                                     fontSize: 14,
                                   ),
                                 ),
-                                
+
                                 // 連続達成回数
                                 if (goal.consecutiveAchievements > 0)
                                   Text(

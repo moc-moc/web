@@ -5,7 +5,7 @@ part 'settings_models.freezed.dart';
 part 'settings_models.g.dart';
 
 /// アカウント設定モデル
-/// 
+///
 /// ユーザーのアカウント情報を管理します。
 /// アイコンは色+頭文字で表示します。
 @freezed
@@ -15,21 +15,24 @@ abstract class AccountSettings with _$AccountSettings {
   const factory AccountSettings({
     /// 固定ID（'account_settings'）
     required String id,
+
     /// アカウント名
     required String accountName,
+
     /// アバターの色（'blue', 'red', 'green', 'purple', 'orange', 'pink'）
     required String avatarColor,
+
     /// 最終更新日時
     required DateTime lastModified,
   }) = _AccountSettings;
 
   /// デフォルト値を持つコンストラクタ
   factory AccountSettings.defaultSettings() => AccountSettings(
-        id: 'account_settings',
-        accountName: 'ユーザー',
-        avatarColor: 'blue',
-        lastModified: DateTime.now(),
-      );
+    id: 'account_settings',
+    accountName: 'ユーザー',
+    avatarColor: 'blue',
+    lastModified: DateTime.now(),
+  );
 
   /// JSON形式から生成
   factory AccountSettings.fromJson(Map<String, dynamic> json) =>
@@ -41,7 +44,8 @@ abstract class AccountSettings with _$AccountSettings {
       id: data['id'] as String? ?? 'account_settings',
       accountName: data['accountName'] as String? ?? 'ユーザー',
       avatarColor: data['avatarColor'] as String? ?? 'blue',
-      lastModified: (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastModified:
+          (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -57,7 +61,7 @@ abstract class AccountSettings with _$AccountSettings {
 }
 
 /// 通知設定モデル
-/// 
+///
 /// アプリの通知に関する設定を管理します。
 @freezed
 abstract class NotificationSettings with _$NotificationSettings {
@@ -66,36 +70,44 @@ abstract class NotificationSettings with _$NotificationSettings {
   const factory NotificationSettings({
     /// 固定ID（'notification_settings'）
     required String id,
+
     /// カウントダウン通知
     required bool countdownNotification,
+
     /// 目標期限通知
     required bool goalDeadlineNotification,
+
     /// 継続日数途切れ通知
     required bool streakBreakNotification,
+
     /// 昨日の報告通知
     required bool dailyReportNotification,
+
     /// 通知回数（'both', 'morning', 'evening'）
     required String notificationFrequency,
+
     /// 朝の通知時間（例: '08:30'）
     required String morningTime,
+
     /// 夜の通知時間（例: '22:00'）
     required String eveningTime,
+
     /// 最終更新日時
     required DateTime lastModified,
   }) = _NotificationSettings;
 
   /// デフォルト値を持つコンストラクタ
   factory NotificationSettings.defaultSettings() => NotificationSettings(
-        id: 'notification_settings',
-        countdownNotification: true,
-        goalDeadlineNotification: true,
-        streakBreakNotification: true,
-        dailyReportNotification: true,
-        notificationFrequency: 'both',
-        morningTime: '08:30',
-        eveningTime: '22:00',
-        lastModified: DateTime.now(),
-      );
+    id: 'notification_settings',
+    countdownNotification: true,
+    goalDeadlineNotification: true,
+    streakBreakNotification: true,
+    dailyReportNotification: true,
+    notificationFrequency: 'both',
+    morningTime: '08:30',
+    eveningTime: '22:00',
+    lastModified: DateTime.now(),
+  );
 
   /// JSON形式から生成
   factory NotificationSettings.fromJson(Map<String, dynamic> json) =>
@@ -106,13 +118,15 @@ abstract class NotificationSettings with _$NotificationSettings {
     return NotificationSettings(
       id: data['id'] as String? ?? 'notification_settings',
       countdownNotification: data['countdownNotification'] as bool? ?? true,
-      goalDeadlineNotification: data['goalDeadlineNotification'] as bool? ?? true,
+      goalDeadlineNotification:
+          data['goalDeadlineNotification'] as bool? ?? true,
       streakBreakNotification: data['streakBreakNotification'] as bool? ?? true,
       dailyReportNotification: data['dailyReportNotification'] as bool? ?? true,
       notificationFrequency: data['notificationFrequency'] as String? ?? 'both',
       morningTime: data['morningTime'] as String? ?? '08:30',
       eveningTime: data['eveningTime'] as String? ?? '22:00',
-      lastModified: (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastModified:
+          (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -133,7 +147,7 @@ abstract class NotificationSettings with _$NotificationSettings {
 }
 
 /// 表示設定モデル
-/// 
+///
 /// カテゴリ名など、アプリの表示に関する設定を管理します。
 @freezed
 abstract class DisplaySettings with _$DisplaySettings {
@@ -142,24 +156,28 @@ abstract class DisplaySettings with _$DisplaySettings {
   const factory DisplaySettings({
     /// 固定ID（'display_settings'）
     required String id,
+
     /// カテゴリ1の名前
     required String category1Name,
+
     /// カテゴリ2の名前
     required String category2Name,
+
     /// カテゴリ3の名前
     required String category3Name,
+
     /// 最終更新日時
     required DateTime lastModified,
   }) = _DisplaySettings;
 
   /// デフォルト値を持つコンストラクタ
   factory DisplaySettings.defaultSettings() => DisplaySettings(
-        id: 'display_settings',
-        category1Name: '勉強',
-        category2Name: 'スマホ',
-        category3Name: 'パソコン',
-        lastModified: DateTime.now(),
-      );
+    id: 'display_settings',
+    category1Name: '勉強',
+    category2Name: 'スマホ',
+    category3Name: 'パソコン',
+    lastModified: DateTime.now(),
+  );
 
   /// JSON形式から生成
   factory DisplaySettings.fromJson(Map<String, dynamic> json) =>
@@ -172,7 +190,8 @@ abstract class DisplaySettings with _$DisplaySettings {
       category1Name: data['category1Name'] as String? ?? '勉強',
       category2Name: data['category2Name'] as String? ?? 'スマホ',
       category3Name: data['category3Name'] as String? ?? 'パソコン',
-      lastModified: (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastModified:
+          (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -189,7 +208,7 @@ abstract class DisplaySettings with _$DisplaySettings {
 }
 
 /// 時間設定モデル
-/// 
+///
 /// 一日の区切り時刻など、時間に関する設定を管理します。
 @freezed
 abstract class TimeSettings with _$TimeSettings {
@@ -198,18 +217,20 @@ abstract class TimeSettings with _$TimeSettings {
   const factory TimeSettings({
     /// 固定ID（'time_settings'）
     required String id,
+
     /// 一日の区切り時刻（例: '24:00', '00:00', '04:00'）
     required String dayBoundaryTime,
+
     /// 最終更新日時
     required DateTime lastModified,
   }) = _TimeSettings;
 
   /// デフォルト値を持つコンストラクタ
   factory TimeSettings.defaultSettings() => TimeSettings(
-        id: 'time_settings',
-        dayBoundaryTime: '24:00',
-        lastModified: DateTime.now(),
-      );
+    id: 'time_settings',
+    dayBoundaryTime: '24:00',
+    lastModified: DateTime.now(),
+  );
 
   /// JSON形式から生成
   factory TimeSettings.fromJson(Map<String, dynamic> json) =>
@@ -220,7 +241,8 @@ abstract class TimeSettings with _$TimeSettings {
     return TimeSettings(
       id: data['id'] as String? ?? 'time_settings',
       dayBoundaryTime: data['dayBoundaryTime'] as String? ?? '24:00',
-      lastModified: (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastModified:
+          (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
@@ -233,4 +255,3 @@ abstract class TimeSettings with _$TimeSettings {
     };
   }
 }
-

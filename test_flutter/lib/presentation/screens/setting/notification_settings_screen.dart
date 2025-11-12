@@ -12,10 +12,12 @@ class NotificationSettingsScreen extends ConsumerStatefulWidget {
   const NotificationSettingsScreen({super.key});
 
   @override
-  ConsumerState<NotificationSettingsScreen> createState() => _NotificationSettingsScreenState();
+  ConsumerState<NotificationSettingsScreen> createState() =>
+      _NotificationSettingsScreenState();
 }
 
-class _NotificationSettingsScreenState extends ConsumerState<NotificationSettingsScreen> {
+class _NotificationSettingsScreenState
+    extends ConsumerState<NotificationSettingsScreen> {
   bool _countdownNotification = true;
   bool _goalDeadlineNotification = true;
   bool _streakBreakNotification = true;
@@ -29,7 +31,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
   Widget build(BuildContext context) {
     // Providerを監視（自動更新）
     final notificationSettings = ref.watch(notificationSettingsProvider);
-    
+
     // Providerの値で初期化（初回のみ）
     if (!_isInitialized) {
       _isInitialized = true;
@@ -41,7 +43,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
       _morningTime = notificationSettings.morningTime;
       _eveningTime = notificationSettings.eveningTime;
     }
-    
+
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
@@ -64,7 +66,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
               },
             ),
             const SizedBox(height: 12),
-            
+
             CustomSwitchTile(
               title: '目標期限通知',
               value: _goalDeadlineNotification,
@@ -75,7 +77,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
               },
             ),
             const SizedBox(height: 12),
-            
+
             CustomSwitchTile(
               title: '継続日数途切れ通知',
               value: _streakBreakNotification,
@@ -86,7 +88,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
               },
             ),
             const SizedBox(height: 12),
-            
+
             CustomSwitchTile(
               title: '昨日の報告通知',
               value: _dailyReportNotification,
@@ -97,7 +99,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
               },
             ),
             const SizedBox(height: 30),
-            
+
             // 通知回数の選択
             const Align(
               alignment: Alignment.centerLeft,
@@ -123,7 +125,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
               },
             ),
             const SizedBox(height: 30),
-            
+
             // 朝の通知時間
             CustomTimePicker(
               label: '朝の通知時間',
@@ -135,7 +137,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
               },
             ),
             const SizedBox(height: 12),
-            
+
             // 夜の通知時間
             CustomTimePicker(
               label: '夜の通知時間',
@@ -147,7 +149,7 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
               },
             ),
             const SizedBox(height: 30),
-            
+
             // 保存ボタン
             CustomSnsButton(
               text: '保存',
@@ -165,17 +167,22 @@ class _NotificationSettingsScreenState extends ConsumerState<NotificationSetting
                   eveningTime: _eveningTime,
                   lastModified: DateTime.now(),
                 );
-                
-                final success = await saveNotificationSettingsHelper(ref, settings);
-                
+
+                final success = await saveNotificationSettingsHelper(
+                  ref,
+                  settings,
+                );
+
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(success ? '保存しました' : '保存に失敗しました'),
-                      backgroundColor: success ? AppColors.green : AppColors.red,
+                      backgroundColor: success
+                          ? AppColors.green
+                          : AppColors.red,
                     ),
                   );
-                  
+
                   if (success) {
                     Navigator.pop(context);
                   }

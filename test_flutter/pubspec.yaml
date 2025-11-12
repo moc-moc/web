@@ -25,6 +25,7 @@ dependencies:
   google_fonts: ^6.2.1
   flutter_slidable: ^4.0.3
   percent_indicator: ^4.2.3
+  fl_chart: ^0.69.0
   
   # 画面遷移関連
   go_router: ^16.2.5

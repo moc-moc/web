@@ -33,7 +33,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Future<void> _loadLocalData() async {
     final manager = TotalDataManager();
     final localData = await manager.getLocalTotalData();
-    
+
     // ログに出力
     debugPrint('📱 ===== Total ローカルデータ確認 =====');
     if (localData == null) {
@@ -47,7 +47,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       debugPrint('  - 最終更新日時: ${localData.lastModified}');
     }
     debugPrint('============================');
-    
+
     if (mounted) {
       setState(() {
         _localTotalData = localData;
@@ -60,7 +60,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   Widget build(BuildContext context) {
     final totalData = ref.watch(totalDataProvider);
     final manager = TotalDataManager();
-    final formattedWorkTime = manager.formatWorkTime(totalData.totalWorkTimeMinutes);
+    final formattedWorkTime = manager.formatWorkTime(
+      totalData.totalWorkTimeMinutes,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -84,7 +86,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             // ローカルデータ表示トグルボタン
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -145,25 +150,45 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         else if (_localTotalData == null)
                           const Text(
                             'ローカルデータなし',
-                            style: TextStyle(color: AppColors.gray, fontSize: 12),
+                            style: TextStyle(
+                              color: AppColors.gray,
+                              fontSize: 12,
+                            ),
                           )
                         else ...[
-                          _buildLocalStatRow('総ログイン日数', '${_localTotalData!.totalLoginDays}日'),
+                          _buildLocalStatRow(
+                            '総ログイン日数',
+                            '${_localTotalData!.totalLoginDays}日',
+                          ),
                           const SizedBox(height: 8),
-                          _buildLocalStatRow('総作業時間', manager.formatWorkTime(_localTotalData!.totalWorkTimeMinutes)),
+                          _buildLocalStatRow(
+                            '総作業時間',
+                            manager.formatWorkTime(
+                              _localTotalData!.totalWorkTimeMinutes,
+                            ),
+                          ),
                           const SizedBox(height: 8),
                           const Divider(color: AppColors.gray, height: 1),
                           const SizedBox(height: 8),
-                          if (totalData.totalLoginDays == _localTotalData!.totalLoginDays &&
-                              totalData.totalWorkTimeMinutes == _localTotalData!.totalWorkTimeMinutes)
+                          if (totalData.totalLoginDays ==
+                                  _localTotalData!.totalLoginDays &&
+                              totalData.totalWorkTimeMinutes ==
+                                  _localTotalData!.totalWorkTimeMinutes)
                             Row(
                               children: [
-                                Icon(Icons.check_circle, color: Colors.green, size: 16),
+                                Icon(
+                                  Icons.check_circle,
+                                  color: Colors.green,
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 6),
                                 const Expanded(
                                   child: Text(
                                     'Providerと一致',
-                                    style: TextStyle(color: Colors.green, fontSize: 11),
+                                    style: TextStyle(
+                                      color: Colors.green,
+                                      fontSize: 11,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -171,12 +196,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           else
                             Row(
                               children: [
-                                Icon(Icons.warning, color: Colors.orange, size: 16),
+                                Icon(
+                                  Icons.warning,
+                                  color: Colors.orange,
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 6),
                                 const Expanded(
                                   child: Text(
                                     'Providerと不一致',
-                                    style: TextStyle(color: Colors.orange, fontSize: 11),
+                                    style: TextStyle(
+                                      color: Colors.orange,
+                                      fontSize: 11,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -211,11 +243,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     onPressed: () async {
                       final result = await AuthServiceUN.signInWithGoogle();
                       if (result.success && context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(result.message)),
-                        );
+                        ScaffoldMessenger.of(
+                          context,
+                        ).showSnackBar(SnackBar(content: Text(result.message)));
                         debugPrint('✅ ${result.userInfo}');
-                        
+
                         // ログイン成功後、全データを同期
                         debugPrint('🔄 ログイン後のデータ同期を開始...');
                         await syncCountdownsHelper(ref);
@@ -266,10 +298,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            color: AppColors.white,
-            fontSize: 12,
-          ),
+          style: const TextStyle(color: AppColors.white, fontSize: 12),
         ),
         Text(
           value,
@@ -283,4 +312,3 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     );
   }
 }
-

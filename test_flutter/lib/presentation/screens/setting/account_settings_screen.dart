@@ -12,7 +12,8 @@ class AccountSettingsScreen extends ConsumerStatefulWidget {
   const AccountSettingsScreen({super.key});
 
   @override
-  ConsumerState<AccountSettingsScreen> createState() => _AccountSettingsScreenState();
+  ConsumerState<AccountSettingsScreen> createState() =>
+      _AccountSettingsScreenState();
 }
 
 class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
@@ -23,13 +24,13 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
   Widget build(BuildContext context) {
     // Providerを監視（自動更新）
     final accountSettings = ref.watch(accountSettingsProvider);
-    
+
     // Providerの値で初期化（初回のみ）
     if (_accountName.isEmpty) {
       _accountName = accountSettings.accountName;
       _avatarColor = accountSettings.avatarColor;
     }
-    
+
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
@@ -48,7 +49,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
               size: 120,
             ),
             const SizedBox(height: 30),
-            
+
             // アカウント名入力
             CustomTextField(
               label: 'アカウント名',
@@ -60,7 +61,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
               },
             ),
             const SizedBox(height: 20),
-            
+
             // 色選択
             CustomColorPicker(
               selectedColor: _avatarColor,
@@ -71,7 +72,7 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
               },
             ),
             const SizedBox(height: 30),
-            
+
             // 保存ボタン
             CustomSnsButton(
               text: '保存',
@@ -84,17 +85,19 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
                   avatarColor: _avatarColor,
                   lastModified: DateTime.now(),
                 );
-                
+
                 final success = await saveAccountSettingsHelper(ref, settings);
-                
+
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(success ? '保存しました' : '保存に失敗しました'),
-                      backgroundColor: success ? AppColors.green : AppColors.red,
+                      backgroundColor: success
+                          ? AppColors.green
+                          : AppColors.red,
                     ),
                   );
-                  
+
                   if (success) {
                     Navigator.pop(context);
                   }
@@ -107,4 +110,3 @@ class _AccountSettingsScreenState extends ConsumerState<AccountSettingsScreen> {
     );
   }
 }
-

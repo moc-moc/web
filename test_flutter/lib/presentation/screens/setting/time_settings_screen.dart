@@ -23,13 +23,13 @@ class _TimeSettingsScreenState extends ConsumerState<TimeSettingsScreen> {
   Widget build(BuildContext context) {
     // Providerを監視（自動更新）
     final timeSettings = ref.watch(timeSettingsProvider);
-    
+
     // Providerの値で初期化（初回のみ）
     if (!_isInitialized) {
       _isInitialized = true;
       _dayBoundaryTime = timeSettings.dayBoundaryTime;
     }
-    
+
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
@@ -53,13 +53,10 @@ class _TimeSettingsScreenState extends ConsumerState<TimeSettingsScreen> {
             const SizedBox(height: 8),
             const Text(
               'この時刻を過ぎると翌日としてカウントされます',
-              style: TextStyle(
-                fontSize: 14,
-                color: AppColors.gray,
-              ),
+              style: TextStyle(fontSize: 14, color: AppColors.gray),
             ),
             const SizedBox(height: 20),
-            
+
             // 一日の区切り時刻
             CustomTimePicker(
               label: '区切り時刻',
@@ -71,7 +68,7 @@ class _TimeSettingsScreenState extends ConsumerState<TimeSettingsScreen> {
               },
             ),
             const SizedBox(height: 30),
-            
+
             // 保存ボタン
             CustomSnsButton(
               text: '保存',
@@ -83,17 +80,19 @@ class _TimeSettingsScreenState extends ConsumerState<TimeSettingsScreen> {
                   dayBoundaryTime: _dayBoundaryTime,
                   lastModified: DateTime.now(),
                 );
-                
+
                 final success = await saveTimeSettingsHelper(ref, settings);
-                
+
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(success ? '保存しました' : '保存に失敗しました'),
-                      backgroundColor: success ? AppColors.green : AppColors.red,
+                      backgroundColor: success
+                          ? AppColors.green
+                          : AppColors.red,
                     ),
                   );
-                  
+
                   if (success) {
                     Navigator.pop(context);
                   }

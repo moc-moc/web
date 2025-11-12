@@ -1,0 +1,4 @@
+
+module firebase_analytics.__Swift {
+  exclude header "firebase_analytics-Swift.h"
+}

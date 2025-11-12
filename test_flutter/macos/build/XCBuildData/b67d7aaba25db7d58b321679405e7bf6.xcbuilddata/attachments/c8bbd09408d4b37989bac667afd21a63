@@ -1,0 +1,20 @@
+{
+  "" : {
+    "const-values" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseSharedSwift-master.swiftconstvalues",
+    "dependencies" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseSharedSwift-master.d",
+    "diagnostics" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseSharedSwift-master.dia",
+    "emit-module-dependencies" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseSharedSwift-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseSharedSwift-master-emit-module.dia",
+    "swift-dependencies" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseSharedSwift-master.swiftdeps"
+  },
+  "/Users/ki/Desktop/test_flutter/macos/Pods/FirebaseSharedSwift/FirebaseSharedSwift/Sources/FirebaseRemoteConfigValueDecoding.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseRemoteConfigValueDecoding.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseRemoteConfigValueDecoding.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseRemoteConfigValueDecoding.o"
+  },
+  "/Users/ki/Desktop/test_flutter/macos/Pods/FirebaseSharedSwift/FirebaseSharedSwift/Sources/third_party/FirebaseDataEncoder/FirebaseDataEncoder.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseDataEncoder.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseDataEncoder.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseSharedSwift.build/Objects-normal/arm64/FirebaseDataEncoder.o"
+  }
+}

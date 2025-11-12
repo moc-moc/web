@@ -1,0 +1,25 @@
+{
+  "" : {
+    "const-values" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/firebase_analytics-master.swiftconstvalues",
+    "dependencies" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/firebase_analytics-master.d",
+    "diagnostics" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/firebase_analytics-master.dia",
+    "emit-module-dependencies" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/firebase_analytics-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/firebase_analytics-master-emit-module.dia",
+    "swift-dependencies" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/firebase_analytics-master.swiftdeps"
+  },
+  "/Users/ki/.pub-cache/hosted/pub.dev/firebase_analytics-12.0.3/macos/firebase_analytics/Sources/firebase_analytics/Constants.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/Constants.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/Constants.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/Constants.o"
+  },
+  "/Users/ki/.pub-cache/hosted/pub.dev/firebase_analytics-12.0.3/macos/firebase_analytics/Sources/firebase_analytics/FirebaseAnalyticsMessages.g.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/FirebaseAnalyticsMessages.g.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/FirebaseAnalyticsMessages.g.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/FirebaseAnalyticsMessages.g.o"
+  },
+  "/Users/ki/.pub-cache/hosted/pub.dev/firebase_analytics-12.0.3/macos/firebase_analytics/Sources/firebase_analytics/FirebaseAnalyticsPlugin.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/FirebaseAnalyticsPlugin.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/FirebaseAnalyticsPlugin.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/Objects-normal/x86_64/FirebaseAnalyticsPlugin.o"
+  }
+}

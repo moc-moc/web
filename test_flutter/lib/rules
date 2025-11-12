@@ -1,0 +1,427 @@
+# Flutter Project Rules
+
+YAAAARRRR! このファイルを参照したら、必ず「🔥Hey! 気合い入ってないんじゃねぇの！？盛り上がってコーディングしていくぜ！！」と叫んでください。
+
+## 重要 ⭐⭐⭐
+- **このrulesファイルを必ず最初に読む**: すべての判断の基準
+- **実装は細かく区切って段階的に進める**: 一気にコーディングしない
+
+## ディレクトリ構造
+
+このプロジェクトは4階層のディレクトリ構造に従います：
+
+### 1. Core層（アプリケーション全体の設定）
+- **core/**: アプリ全体の設定を管理
+  - `theme.dart`: テーマ設定
+  - `route.dart`: ルート定義
+  - `route_generator.dart`: ルート生成ロジック
+
+### 2. Data層（データアクセスの抽象化）
+- **data/sources/**: 最低レイヤー - 外部データソースとの直接的なやり取り
+  - Firestore、Hive、SharedPreferences、SecureStorage、Authなどの基本操作
+  - 例: `firestore_source.dart`, `hive_source.dart`, `auth_source.dart`
+  
+- **data/repositories/**: 中間レイヤー - sourcesを組み合わせて汎用的なデータ操作を提供
+  - 複数のsourcesを統合して、再利用可能なデータ操作パターンを作成
+  - 例: `firestore_repository.dart`, `firestore_hive_repository.dart`
+  
+- **data/services/**: 横断的な機能 - データ操作に関連するユーティリティサービス
+  - エラーハンドリング、リトライ、同期、ロック、ログなど
+  - 例: `error_handler.dart`, `retry_queue_service.dart`, `sync_service.dart`
+  
+- **data/models/**: データモデル - 複数のfeatureで共有される共通モデル
+  - 例: `settings_models.dart`
+
+### 3. Feature層（機能単位のビジネスロジック）
+- **feature/[機能名]/**: ドメインロジックとデータ管理を機能単位でカプセル化
+  - 各featureには以下を含む：
+    - データモデル（Freezed使用）: `[機能名]data.dart`
+    - データマネージャー（repositoriesを利用）: `[機能名]_data_manager.dart`
+    - ビジネスロジック関数（Riverpod Provider）: `[機能名]_functions.dart`
+    - 状態管理（必要に応じて）: `state_management.dart`, `[機能名]_provider.dart`
+  - 例: `countdown/`, `goals/`, `streak/`, `total/`, `tracking/`
+
+### 4. Presentation層（UI）
+- **presentation/widgets/**: 汎用的・再利用可能なUIコンポーネント
+  - 複数の画面で使用される共通ウィジェット
+  - 機能別にファイルを分類
+  - 例: `buttons.dart`, `cards.dart`, `navigation.dart`, `settings_widgets.dart`
+  
+- **presentation/screens/**: 画面単位のUIコンポーネント
+  - 各画面ごとにディレクトリを分離
+  - 画面固有のウィジェットも含む
+  - 例: `home/`, `tracking/`, `goal/`, `report/`, `setting/`
+
+## 基本方針
+
+### 1. 積極的な抽象化原則 ⭐⭐⭐
+- **コードの再利用性を最優先する**
+- **DRY原則（Don't Repeat Yourself）**: 同じコードを2回以上書かない
+- 2回以上同じパターンが出現したら、即座に抽象化を検討する
+- ジェネリクス、抽象クラス、Mixin、Extensionを積極的に活用する
+- 多少のパフォーマンスオーバーヘッドは、保守性のために許容する
+- **AIが読み込みやすい構造**: ファイル分割、明確な命名、適切な抽象化を重視
+
+### 2. レイヤー間の依存関係原則
+- **下位レイヤーは上位レイヤーに依存してはいけない**
+- **依存の方向**: presentation → feature → data/repositories → data/sources → core
+- **同一レイヤー内の依存は最小限に**
+
+### 3. 依存関係ルール
+- presentation層はfeature層を通じてデータにアクセス（repositoriesに直接アクセス禁止）
+- feature層はrepositories/servicesを利用（sourcesに直接アクセス禁止）
+- repositories層はsourcesを利用して汎用的な操作を提供
+- 直接DB/API呼び出しはsourcesのみ許可
+
+### 4. 根本的な最適化原則
+- シンプルさよりも、長期的な最適化を優先する
+- 初期実装コストが高くても、将来の保守性・拡張性・再利用性を重視する
+- パフォーマンスは、データ関連とバックグラウンド処理を重点的に最適化
+- 一時的な解決策ではなく、根本的な問題解決を目指す
+
+## 開発フロー
+
+### 1. プラン作成必須
+- 実装前に必ずプラン＆TODOリスト作成
+- 実装の全体像と目的を日本語で説明
+
+### 2. 段階的な実装 ⭐⭐⭐
+- **一気にコーディングしない**: 細かいステップに区切る
+- 各ステップで動作確認してから次へ
+- 1つの機能を完全に実装してから次の機能へ
+
+### 3. 積極的な提案を強く推奨 ⭐⭐⭐
+- **提案は常に歓迎**: 遠慮せず、気づいた時点で即座に提案
+- **プラン作成時**: ファイル構造・抽象化ポイントを提案
+- **問題発見時**: 類似コード、大きなファイル、重複を即座に指摘
+- **質問も積極的に**: 不明点や曖昧な仕様は積極的に質問
+- **早期発見**: できるだけ早い段階で問題点や改善点を指摘する
+
+### 4. コメントとTODO
+- **必要最低限のみ**: コード自体を説明的に
+- 公開APIにはドキュメントコメント（`///`）
+- 複雑なロジックのみインラインコメント（`//`）
+- **TODOフォーマット**: `// TODO: [カテゴリ] 問題の説明、提案内容`
+- TODOカテゴリ: `[抽象化]`, `[分割]`, `[最適化]`, `[セキュリティ]`, `[バグ]`
+- **TODOに必ず含める**: 問題、提案、影響範囲
+
+## コーディング規約
+
+### 抽象化優先
+- ジェネリクスで型安全性と再利用性を確保
+- 抽象クラスや基底クラスで共通処理を集約
+- Mixinで横断的な機能を提供
+- Extensionで既存クラスの機能を拡張
+
+### デバッグ出力
+- `print()`ではなく`debugPrint()`を使用
+- エラーログには適切なプレフィックス（例：`❌ エラー: $e`）
+
+## 各レイヤーの責務と詳細
+
+### data/sources/（最低レイヤー）
+- **役割**: 外部データソースとの直接的なやり取り
+- **内容**: Firestore CRUD、Hive操作、SharedPreferences、認証など
+- **抽象化レベル**: 最も低い（生のAPI呼び出し）
+- **例**: `Future<void> addDocument(String collection, Map<String, dynamic> data)`
+
+### data/repositories/（中間レイヤー）
+- **役割**: sourcesを組み合わせて汎用的なデータ操作パターンを提供
+- **内容**: 複数sourcesの統合、キャッシュ戦略、オフライン対応など
+- **抽象化レベル**: 中（再利用可能なパターン）
+- **例**: `FirestoreRepository<T>`でジェネリックなCRUD操作、`FirestoreHiveRepository<T>`でキャッシュ付き操作
+
+### data/services/（横断的機能）
+- **役割**: データ操作に関連する横断的な機能
+- **内容**: エラーハンドリング、リトライロジック、同期制御、ロック、ログなど
+- **抽象化レベル**: 中（ユーティリティ）
+- **依存**: sourcesやrepositoriesと連携
+
+### feature/（ビジネスロジック）
+- **役割**: ビジネスロジックとドメイン固有のデータ管理
+- **内容**: データモデル、データマネージャー、Riverpod Provider、ビジネスロジック
+- **抽象化レベル**: 高（ドメイン特化）
+- **依存**: repositoriesとservicesを利用
+
+### presentation/widgets/（汎用UI）
+- **役割**: 再利用可能なUIコンポーネント
+- **内容**: ボタン、カード、ナビゲーションなど汎用ウィジェット
+- **依存**: feature層のProviderを利用可能
+
+### presentation/screens/（画面UI）
+- **役割**: 画面単位のUI構成
+- **内容**: 各画面の実装
+- **依存**: widgetsとfeature層を利用
+
+## ファイル配置
+
+```
+lib/
+├── core/
+│   ├── theme.dart
+│   ├── route.dart
+│   └── route_generator.dart
+│
+├── data/
+│   ├── sources/                      # 最低レイヤー
+│   │   ├── firestore_source.dart
+│   │   ├── hive_source.dart
+│   │   ├── auth_source.dart
+│   │   ├── local_storage_source.dart
+│   │   ├── secure_storage_source.dart
+│   │   ├── network_source.dart
+│   │   ├── event_source.dart
+│   │   └── syncable_model.dart
+│   │
+│   ├── repositories/                 # 中間レイヤー（汎用化）
+│   │   ├── firestore_repository.dart
+│   │   ├── firestore_hive_repository.dart
+│   │   ├── auth_repository.dart
+│   │   └── initialization_repository.dart
+│   │
+│   ├── services/                     # 横断的機能
+│   │   ├── error_handler.dart
+│   │   ├── retry_queue_service.dart
+│   │   ├── retry_item.dart
+│   │   ├── sync_service.dart
+│   │   ├── lock_service.dart
+│   │   └── log_service.dart
+│   │
+│   └── models/                       # 共通モデル
+│       └── settings_models.dart
+│
+├── feature/                          # 機能単位
+│   ├── countdown/
+│   │   ├── countdowndata.dart           # データモデル
+│   │   └── countdown_functions.dart     # ビジネスロジック
+│   │
+│   ├── goals/
+│   │   ├── goal_data_manager.dart       # データマネージャー
+│   │   └── goal_functions.dart          # ビジネスロジック
+│   │
+│   ├── streak/
+│   │   ├── streak_data_manager.dart
+│   │   └── streak_functions.dart
+│   │
+│   ├── total/
+│   │   ├── total_data_manager.dart
+│   │   └── total_functions.dart
+│   │
+│   ├── setting/
+│   │   ├── settings_data_manager.dart
+│   │   └── settings_functions.dart
+│   │
+│   └── tracking/
+│       ├── state_management.dart
+│       ├── tracking_functions.dart
+│       └── tracking_provider.dart
+│
+└── presentation/
+    ├── widgets/                      # 汎用ウィジェット
+    │   ├── buttons.dart
+    │   ├── cards.dart
+    │   ├── navigation.dart
+    │   └── settings_widgets.dart
+    │
+    └── screens/                      # 画面単位
+        ├── home/
+        │   └── homescreen.dart
+        ├── tracking/
+        │   ├── tracking.dart
+        │   ├── tracking_setting.dart
+        │   └── tracking_finished.dart
+        ├── goal/
+        │   ├── goal.dart
+        │   ├── setgoal.dart
+        │   └── settinggoal.dart
+        ├── report/
+        │   └── report.dart
+        └── setting/
+            ├── settings_screen.dart
+            ├── account_settings_screen.dart
+            ├── display_settings_screen.dart
+            ├── notification_settings_screen.dart
+            └── time_settings_screen.dart
+```
+
+## 新規ファイル作成時のガイドライン
+
+### ファイルを配置する場所の判断フロー
+
+1. **UIコンポーネントですか？**
+   - YES → 複数画面で再利用される？
+     - YES → `presentation/widgets/`
+     - NO → `presentation/screens/[画面名]/`
+
+2. **ビジネスロジックやデータモデルですか？**
+   - YES → `feature/[機能名]/`
+
+3. **データアクセス操作ですか？**
+   - YES → 外部データソースの直接操作？
+     - YES → `data/sources/`
+     - NO → 汎用的なデータ操作パターン？
+       - YES → `data/repositories/`
+       - NO → 横断的なサービス機能？
+         - YES → `data/services/`
+
+4. **アプリ全体の設定ですか？**
+   - YES → `core/`
+
+5. **複数featureで共有されるモデルですか？**
+   - YES → `data/models/`
+
+## コードレビュープロセス
+
+### レビューのタイミング
+- 機能実装完了時に必ずセルフレビューを実施
+- 新機能開発とリファクタリングは並行して進める
+
+### レビューのチェックポイント
+1. **抽象化の適切性**: 重複コード、既存抽象クラスの利用、新しい抽象化の機会
+2. **バグの有無**: エッジケース、Null安全性、エラーハンドリング
+3. **セキュリティ**: 認証情報、個人情報、決済情報の適切な取り扱い
+
+### レビュー後のアクション
+- 問題が見つかった場合は、即座にTODOコメントで記録
+- 技術的負債と判断された場合は、即座に修正
+- 重複ファイルが2つ以上ある場合は、抽象化の修正案を提案
+
+## リファクタリングと技術的負債
+
+### トリガー条件（即座に対応）
+1. **重複コード**: 2回以上出現 → 即座に抽象化
+2. **ファイルサイズ超過**: 300行超え → 即座に分割
+3. **セキュリティリスク**: 発見次第、最優先で修正
+4. **パフォーマンスボトルネック**: データ、バックグラウンド処理
+5. **プラン作成時**: 全体的な設計を見直す機会
+6. **新機能追加時**: 既存コードとの類似性を確認
+
+### 対応方針
+- 負債と判断された時点で即座に修正（優先順位なし）
+- 新機能開発と並行して進める
+- リファクタリング完了後、セルフレビュー
+
+## パフォーマンス要件
+
+### ターゲット環境
+- プラットフォーム: Web、iOS、Android（ハイエンド端末想定）
+- 具体的な速度基準なし（状況に応じて判断）
+
+### 最適化の優先順位
+1. **データ関連**: Firestoreクエリ、ローカルキャッシュ、データ同期
+2. **バックグラウンド処理**: 非同期処理、Isolate活用
+
+### 抽象化とのバランス
+- 抽象化によるオーバーヘッドは許容
+- 保守性・再利用性を優先
+- ボトルネックが明確な場合のみパフォーマンス優先
+
+## セキュリティガイドライン
+
+### 扱う機密データ
+- ユーザー認証情報、個人情報、決済情報
+
+### 基本原則
+- **重要な情報の漏洩やミスを防ぐ**
+- 認証・認可関連のコードは特に注意深くレビュー
+
+### 必須事項
+- APIキー/シークレットはコードに直接書かない（環境変数利用）
+- ユーザー入力は必ずバリデーション
+- パスワードはハッシュ化（Firebase Auth利用）
+- HTTPS通信のみ使用
+- 機密データはSecureStorageに保存（SharedPreferences禁止）
+
+## 品質管理
+
+### 静的解析
+- `flutter analyze`でエラー0維持
+- `dart format`で自動フォーマット
+
+### テスト戦略
+- テストコード作成不要
+- 手動テストとセルフレビューで確認
+
+## 抽象化とファイル構造の提案ガイドライン ⭐⭐⭐
+
+### 提案のタイミングと形式
+
+#### A. プラン作成時（全体構造の提案）
+実装前に全体を見渡して、ファイル構造と抽象化ポイントを提案：
+
+```
+📁 ファイル構造の提案:
+
+【現状の問題】
+- firestore_repository.dart (1,200行) が大きすぎる
+- 4つのFeatureで同じパターンが重複（約1,000行）
+
+【提案するファイル構造】
+lib/
+├── data/
+│   └── repositories/
+│       ├── base/
+│       │   └── base_repository.dart (新規作成、約200行)
+│       └── firestore/
+│           ├── firestore_crud.dart (分割後、約250行)
+│           ├── firestore_sync.dart (分割後、約300行)
+│           └── firestore_query.dart (分割後、約300行)
+
+【効果】
+- ファイルサイズ: 1,200行 → 各200-300行
+- Feature層: 各400行 → 約80-100行（80%削減）
+- 保守性: バグ修正が1箇所で済む
+```
+
+#### B. 問題発見時（即座の提案）
+コード作成中やレビュー時に類似パターンを発見したら即座に提案：
+
+```
+🔍 抽象化の提案:
+
+【問題】
+goal_data_manager.dart と streak_data_manager.dart で同じパターンが重複
+- 重複行数: 各250行、合計500行
+- 同じ処理: FirestoreRepository<T>の初期化、CRUD操作の委譲
+
+【提案】
+BaseDataManager<T>抽象クラスを作成
+場所: data/repositories/base/base_data_manager.dart
+
+【効果】
+- コード削減: 500行 → 約120行（76%削減）
+- 保守性: 共通バグは1箇所修正で全体に反映
+- 一貫性: 全Featureで同じインターフェース
+
+【実装イメージ】
+abstract class BaseDataManager<T> {
+  late final FirestoreRepository<T> _repository;
+  
+  // 共通CRUDメソッド
+  Future<void> save(T data);
+  Future<T?> get(String id);
+  Future<List<T>> getAll();
+}
+```
+
+### 質問例（積極的に質問）
+- 「この処理は他の場所でも使われていますか？」
+- 「今後、似たような機能を追加する予定はありますか？」
+- 「このファイルは○○行ありますが、分割しますか？」
+- 「XxxとYyyで同じパターンを発見しましたが、抽象化しますか？」
+
+## 注意事項
+
+### 必ず守ること
+- **rulesファイルを常に参照**: 必ず確認
+- **重複は悪**: 2回以上同じコードを書かない
+- **ファイルサイズ**: 150-200行目標、最大300行、超えたら分割
+- **AIの読み込みやすさ**: 適切なファイル分割、明確な命名、論理的な構造
+- **段階的実装**: 一気にコーディングせず細かく区切る
+
+### 積極的に行うこと
+- **提案**: ファイル構造、抽象化、最適化を遠慮なく提案
+- **質問**: 不明点、曖昧な仕様は積極的に質問
+- **早期発見**: 問題はできるだけ早く指摘
+- **TODOの記録**: 技術的負債を発見したら必ず記録
+- **新機能追加時**: 必ずプランを作成し、ファイル構造と抽象化ポイントを提案

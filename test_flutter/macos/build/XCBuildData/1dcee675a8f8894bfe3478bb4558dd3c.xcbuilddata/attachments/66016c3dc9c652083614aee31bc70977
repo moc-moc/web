@@ -1,0 +1,23 @@
+{
+  "version": 0,
+  "use-external-names": false,
+  "case-sensitive": false,
+  "roots": [{
+    "type": "directory",
+    "name": "/Users/ki/Desktop/test_flutter/macos/build/Release/FirebaseAuth/FirebaseAuth.framework/Modules",
+    "contents": [{
+      "type": "file",
+      "name": "module.modulemap",
+      "external-contents": "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseAuth.build/unextended-module.modulemap",
+    }]
+    },
+    {
+    "type": "directory",
+    "name": "/Users/ki/Desktop/test_flutter/macos/build/Release/FirebaseAuth/FirebaseAuth.framework/Headers",
+    "contents": [{
+      "type": "file",
+      "name": "FirebaseAuth-Swift.h",
+      "external-contents": "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/FirebaseAuth.build/unextended-interface-header.h",
+    }]
+  }]
+}

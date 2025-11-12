@@ -1,0 +1,23 @@
+{
+  "version": 0,
+  "use-external-names": false,
+  "case-sensitive": false,
+  "roots": [{
+    "type": "directory",
+    "name": "/Users/ki/Desktop/test_flutter/macos/build/Release/firebase_analytics/firebase_analytics.framework/Modules",
+    "contents": [{
+      "type": "file",
+      "name": "module.modulemap",
+      "external-contents": "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/unextended-module.modulemap",
+    }]
+    },
+    {
+    "type": "directory",
+    "name": "/Users/ki/Desktop/test_flutter/macos/build/Release/firebase_analytics/firebase_analytics.framework/Headers",
+    "contents": [{
+      "type": "file",
+      "name": "firebase_analytics-Swift.h",
+      "external-contents": "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/firebase_analytics.build/unextended-interface-header.h",
+    }]
+  }]
+}

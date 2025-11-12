@@ -1,0 +1,45 @@
+{
+  "" : {
+    "const-values" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/GTMAppAuth-master.swiftconstvalues",
+    "dependencies" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/GTMAppAuth-master.d",
+    "diagnostics" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/GTMAppAuth-master.dia",
+    "emit-module-dependencies" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/GTMAppAuth-master-emit-module.d",
+    "emit-module-diagnostics" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/GTMAppAuth-master-emit-module.dia",
+    "swift-dependencies" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/GTMAppAuth-master.swiftdeps"
+  },
+  "/Users/ki/Desktop/test_flutter/macos/Pods/GTMAppAuth/GTMAppAuth/Sources/AuthSession.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/AuthSession.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/AuthSession.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/AuthSession.o"
+  },
+  "/Users/ki/Desktop/test_flutter/macos/Pods/GTMAppAuth/GTMAppAuth/Sources/AuthSessionDelegate.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/AuthSessionDelegate.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/AuthSessionDelegate.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/AuthSessionDelegate.o"
+  },
+  "/Users/ki/Desktop/test_flutter/macos/Pods/GTMAppAuth/GTMAppAuth/Sources/AuthSessionStore.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/AuthSessionStore.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/AuthSessionStore.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/AuthSessionStore.o"
+  },
+  "/Users/ki/Desktop/test_flutter/macos/Pods/GTMAppAuth/GTMAppAuth/Sources/KeychainStore/GTMOAuth2Compatibility.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/GTMOAuth2Compatibility.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/GTMOAuth2Compatibility.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/GTMOAuth2Compatibility.o"
+  },
+  "/Users/ki/Desktop/test_flutter/macos/Pods/GTMAppAuth/GTMAppAuth/Sources/KeychainStore/KeychainAttribute.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/KeychainAttribute.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/KeychainAttribute.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/KeychainAttribute.o"
+  },
+  "/Users/ki/Desktop/test_flutter/macos/Pods/GTMAppAuth/GTMAppAuth/Sources/KeychainStore/KeychainHelper.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/KeychainHelper.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/KeychainHelper.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/KeychainHelper.o"
+  },
+  "/Users/ki/Desktop/test_flutter/macos/Pods/GTMAppAuth/GTMAppAuth/Sources/KeychainStore/KeychainStore.swift" : {
+    "index-unit-output-path" : "/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/KeychainStore.o",
+    "llvm-bc" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/KeychainStore.bc",
+    "object" : "/Users/ki/Desktop/test_flutter/macos/build/Pods.build/Release/GTMAppAuth.build/Objects-normal/arm64/KeychainStore.o"
+  }
+}

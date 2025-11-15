@@ -137,8 +137,6 @@ final allEvents = [
   goalSetEvent,
   goalPeriodEndedEvent,
   streak7DaysEvent,
-  streak10DaysEvent,
-  streak100DaysEvent,
   totalHours1000Event,
   countdownEndedEvent,
   countdownSetEvent,

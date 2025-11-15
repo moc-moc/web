@@ -14,7 +14,7 @@ class TotalHoursMilestoneEventScreen extends StatelessWidget {
     final nextMilestone = event.data?['nextMilestone'] ?? 2000;
 
     return EventScreenBase(
-      gradientColors: const [Color(0xFFFBBF24), Color(0xFFF59E0B)], // Yellow
+      gradientColors: const [Color(0xFFD97706), Color(0xFFB45309)], // トーンを落とした専用の黄色
       content: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

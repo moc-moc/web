@@ -13,7 +13,8 @@ class GoalAchievedEventScreen extends StatelessWidget {
     final event = goalAchievedEvent;
     final goalName = event.data?['goalName'] ?? 'Goal';
     final period = event.data?['period'] ?? 'Daily';
-    final isFocusedOnly = event.data?['isFocusedOnly'] ?? true;
+    final targetHours = event.data?['targetHours'] ?? 2.0;
+    final achievedHours = event.data?['achievedHours'] ?? 2.5;
 
     return EventScreenBase(
       gradientColors: const [Color(0xFF9E66D5), Color(0xFF7C3AED)], // Purple
@@ -40,23 +41,42 @@ class GoalAchievedEventScreen extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           SizedBox(height: AppSpacing.lg),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            alignment: WrapAlignment.center,
-            children: [
-              AppChip(
-                label: period,
-                backgroundColor: AppColors.textPrimary.withValues(alpha: 0.2),
-                textColor: AppColors.textPrimary,
-              ),
-              if (isFocusedOnly)
-                AppChip(
-                  label: 'Focused time only',
-                  backgroundColor: AppColors.textPrimary.withValues(alpha: 0.2),
-                  textColor: AppColors.textPrimary,
+          AppChip(
+            label: period,
+            backgroundColor: AppColors.textPrimary.withValues(alpha: 0.2),
+            textColor: AppColors.textPrimary,
+          ),
+          SizedBox(height: AppSpacing.xl),
+          Container(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: AppColors.textPrimary.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(AppRadius.medium),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.timer, color: AppColors.textPrimary),
+                    SizedBox(width: AppSpacing.sm),
+                    Text(
+                      '${achievedHours.toStringAsFixed(1)}h / ${targetHours.toStringAsFixed(1)}h',
+                      style: AppTextStyles.h2,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
-            ],
+                SizedBox(height: AppSpacing.sm),
+                Text(
+                  'Achieved ${((achievedHours / targetHours) * 100).toStringAsFixed(0)}%',
+                  style: AppTextStyles.body1.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ],
       ),

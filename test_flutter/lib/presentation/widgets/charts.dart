@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
@@ -9,6 +11,11 @@ class AppBarChart extends StatelessWidget {
   final double maxY;
   final Widget Function(double, TitleMeta)? getBottomTitles;
   final Widget Function(double, TitleMeta)? getLeftTitles;
+  final double height;
+
+  // 統一されたアニメーション設定
+  static const Duration _animationDuration = Duration(milliseconds: 1000);
+  static const Curve _animationCurve = Curves.easeOutCubic;
 
   const AppBarChart({
     super.key,
@@ -17,6 +24,7 @@ class AppBarChart extends StatelessWidget {
     required this.maxY,
     this.getBottomTitles,
     this.getLeftTitles,
+    this.height = 250,
   });
 
   @override
@@ -33,62 +41,75 @@ class AppBarChart extends StatelessWidget {
           ),
           SizedBox(height: AppSpacing.md),
         ],
-        SizedBox(
-          height: 250,
-          child: BarChart(
-            BarChartData(
-              maxY: maxY,
-              barGroups: barGroups,
-              borderData: FlBorderData(show: false),
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                getDrawingHorizontalLine: (value) {
-                  return FlLine(
-                    color: AppColors.backgroundSecondary,
-                    strokeWidth: 1,
-                  );
-                },
-              ),
-              titlesData: FlTitlesData(
-                show: true,
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    getTitlesWidget:
-                        getBottomTitles ??
-                        (value, meta) {
-                          return Text(
-                            value.toInt().toString(),
-                            style: AppTextStyles.caption,
-                          );
-                        },
+        Padding(
+          padding: EdgeInsets.only(top: AppSpacing.sm),
+          child: SizedBox(
+            height: height,
+            child: ClipRect(
+              child: BarChart(
+              BarChartData(
+                maxY: maxY,
+                barGroups: barGroups,
+                borderData: FlBorderData(show: false),
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (value) {
+                    return FlLine(
+                      color: AppColors.backgroundSecondary,
+                      strokeWidth: 1,
+                    );
+                  },
+                ),
+                titlesData: FlTitlesData(
+                  show: true,
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      getTitlesWidget:
+                          getBottomTitles ??
+                          (value, meta) {
+                            return Text(
+                              value.toInt().toString(),
+                              style: AppTextStyles.caption,
+                            );
+                          },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 40,
+                      getTitlesWidget:
+                          getLeftTitles ??
+                          (value, meta) {
+                            return Text(
+                              value.toInt().toString(),
+                              style: AppTextStyles.caption,
+                            );
+                          },
+                    ),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
                   ),
                 ),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 40,
-                    getTitlesWidget:
-                        getLeftTitles ??
-                        (value, meta) {
-                          return Text(
-                            value.toInt().toString(),
-                            style: AppTextStyles.caption,
-                          );
-                        },
+                barTouchData: BarTouchData(
+                  enabled: true,
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (group) => AppColors.blackgray,
+                    tooltipRoundedRadius: AppRadius.medium,
+                    tooltipPadding: EdgeInsets.all(AppSpacing.sm),
                   ),
                 ),
-                topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
               ),
+              duration: _animationDuration,
+              curve: _animationCurve,
             ),
-            duration: const Duration(milliseconds: 800),
-            curve: Curves.easeInOut,
+            ),
           ),
         ),
       ],
@@ -101,30 +122,36 @@ class AppPieChart extends StatelessWidget {
   final List<PieChartSectionData> sections;
   final String? centerText;
   final double? radius;
+  final double strokeWidth;
+  final Color backgroundColor;
 
   const AppPieChart({
     super.key,
     required this.sections,
     this.centerText,
     this.radius,
+    this.strokeWidth = 20,
+    this.backgroundColor = AppColors.disabledGray,
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveRadius = radius ?? 100;
+    final size = effectiveRadius * 2;
+
     return SizedBox(
-      height: 250,
+      height: size,
+      width: size,
       child: Stack(
         alignment: Alignment.center,
         children: [
-          PieChart(
-            PieChartData(
+          CustomPaint(
+            size: Size.square(size),
+            painter: _RingPiePainter(
               sections: sections,
-              centerSpaceRadius: radius ?? 60,
-              sectionsSpace: 2,
-              borderData: FlBorderData(show: false),
+              strokeWidth: strokeWidth,
+              backgroundColor: backgroundColor,
             ),
-            duration: const Duration(milliseconds: 800),
-            curve: Curves.easeInOut,
           ),
           if (centerText != null)
             Padding(
@@ -133,18 +160,83 @@ class AppPieChart extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    centerText!,
+                    centerText!.split('\n').first,
                     style: AppTextStyles.h2,
                     textAlign: TextAlign.center,
                     overflow: TextOverflow.ellipsis,
                     maxLines: 2,
                   ),
+                  if (centerText!.contains('\n')) ...[
+                    SizedBox(height: AppSpacing.xs),
+                    Text(
+                      centerText!.split('\n').skip(1).join('\n'),
+                      style: AppTextStyles.caption,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ],
               ),
             ),
         ],
       ),
     );
+  }
+}
+
+class _RingPiePainter extends CustomPainter {
+  final List<PieChartSectionData> sections;
+  final double strokeWidth;
+  final Color backgroundColor;
+
+  _RingPiePainter({
+    required this.sections,
+    required this.strokeWidth,
+    required this.backgroundColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2 - strokeWidth / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
+
+    final basePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..color = backgroundColor;
+
+    canvas.drawArc(rect, 0, math.pi * 2, false, basePaint);
+
+    final total = sections.fold<double>(
+      0,
+      (sum, section) => sum + section.value,
+    );
+    if (total == 0) {
+      return;
+    }
+
+    double startAngle = -math.pi / 2;
+    for (final section in sections) {
+      if (section.value <= 0) continue;
+
+      final sweepAngle = (section.value / total) * math.pi * 2;
+      final paint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..color = section.color;
+
+      canvas.drawArc(rect, startAngle, sweepAngle, false, paint);
+      startAngle += sweepAngle;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RingPiePainter oldDelegate) {
+    return oldDelegate.sections != sections ||
+        oldDelegate.strokeWidth != strokeWidth ||
+        oldDelegate.backgroundColor != backgroundColor;
   }
 }
 

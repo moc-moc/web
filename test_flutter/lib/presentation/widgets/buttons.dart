@@ -15,6 +15,7 @@ class PrimaryButton extends StatelessWidget {
   final ButtonSize size;
   final bool isLoading;
   final IconData? icon;
+  final double? borderRadius;
 
   const PrimaryButton({
     super.key,
@@ -23,6 +24,7 @@ class PrimaryButton extends StatelessWidget {
     this.size = ButtonSize.medium,
     this.isLoading = false,
     this.icon,
+    this.borderRadius,
   });
 
   @override
@@ -30,51 +32,60 @@ class PrimaryButton extends StatelessWidget {
     final double height = _getHeight();
     final double fontSize = _getFontSize();
     final double horizontalPadding = _getHorizontalPadding();
+    final double effectiveRadius = borderRadius ?? AppRadius.large;
+    final borderRadiusValue = BorderRadius.circular(effectiveRadius);
 
-    return Material(
-      color: AppColors.blue,
-      borderRadius: BorderRadius.circular(AppRadius.medium),
-      elevation: 2,
-      shadowColor: AppColors.black.withValues(alpha: 0.2),
-      child: InkWell(
-        onTap: isLoading ? null : onPressed,
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        child: Container(
-          height: height,
-          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-          child: Center(
-            child: isLoading
-                ? SizedBox(
-                    width: fontSize,
-                    height: fontSize,
-                    child: const CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        AppColors.textPrimary,
-                      ),
-                    ),
-                  )
-                : Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (icon != null) ...[
-                        Icon(
-                          icon,
-                          color: AppColors.textPrimary,
-                          size: fontSize,
+    return Container(
+      height: height,
+      decoration: BoxDecoration(
+        color: AppColors.black,
+        borderRadius: borderRadiusValue,
+        border: Border.all(
+          color: AppColors.blue.withValues(alpha: 0.4),
+          width: 1.5,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading ? null : onPressed,
+          borderRadius: borderRadiusValue,
+          child: Container(
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+            child: Center(
+              child: isLoading
+                  ? SizedBox(
+                      width: fontSize,
+                      height: fontSize,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(
+                          AppColors.blue,
                         ),
-                        SizedBox(width: AppSpacing.sm),
+                      ),
+                    )
+                  : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (icon != null) ...[
+                          Icon(
+                            icon,
+                            color: AppColors.blue,
+                            size: fontSize,
+                          ),
+                          SizedBox(width: AppSpacing.sm),
+                        ],
+                        Text(
+                          text,
+                          style: TextStyle(
+                            color: AppColors.blue,
+                            fontSize: fontSize,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
-                      Text(
-                        text,
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: fontSize,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+                    ),
+            ),
           ),
         ),
       ),
@@ -122,6 +133,7 @@ class SecondaryButton extends StatelessWidget {
   final ButtonSize size;
   final bool isLoading;
   final IconData? icon;
+  final double? borderRadius;
 
   const SecondaryButton({
     super.key,
@@ -130,6 +142,7 @@ class SecondaryButton extends StatelessWidget {
     this.size = ButtonSize.medium,
     this.isLoading = false,
     this.icon,
+    this.borderRadius,
   });
 
   @override
@@ -137,15 +150,17 @@ class SecondaryButton extends StatelessWidget {
     final double height = _getHeight();
     final double fontSize = _getFontSize();
     final double horizontalPadding = _getHorizontalPadding();
+    final double effectiveRadius = borderRadius ?? AppRadius.medium;
+    final borderRadiusValue = BorderRadius.circular(effectiveRadius);
 
     return Material(
-      color: AppColors.backgroundCard,
-      borderRadius: BorderRadius.circular(AppRadius.medium),
+      color: AppColors.blackgray,
+      borderRadius: borderRadiusValue,
       elevation: 2,
       shadowColor: AppColors.black.withValues(alpha: 0.2),
       child: InkWell(
         onTap: isLoading ? null : onPressed,
-        borderRadius: BorderRadius.circular(AppRadius.medium),
+        borderRadius: borderRadiusValue,
         child: Container(
           height: height,
           padding: EdgeInsets.symmetric(horizontal: horizontalPadding),

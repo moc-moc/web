@@ -1,286 +1,401 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
-import 'package:test_flutter/presentation/widgets/settings_widgets.dart';
-import 'package:test_flutter/feature/setting/settings_functions.dart';
+import 'package:test_flutter/presentation/widgets/layouts.dart';
+import 'package:test_flutter/presentation/widgets/navigation.dart';
+import 'package:test_flutter/dummy_data/user_data.dart';
 
-/// 設定画面のメイン画面
-/// ユーザー情報と4つの設定項目へのリンクを表示
-class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({super.key});
+/// メイン設定画面（新デザインシステム版）
+class SettingsScreenNew extends StatelessWidget {
+  const SettingsScreenNew({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        title: const Text('設定'),
-        backgroundColor: AppColors.white,
-        foregroundColor: AppColors.blackgray,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          children: [
-            // ユーザー情報セクション
-            _buildUserInfoSection(ref),
-            const SizedBox(height: 30),
+  Widget build(BuildContext context) {
+    return AppScaffold(
+      backgroundColor: AppColors.black,
+      bottomNavigationBar: _buildBottomNavigationBar(context),
+      body: SafeArea(
+        child: ScrollableContent(
+          child: SpacedColumn(
+            spacing: AppSpacing.lg,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // プロフィールセクション
+              _buildProfileSection(context),
 
-            // 設定項目リスト
-            _buildSettingsList(context),
-          ],
+              // 設定項目リスト
+              _buildSettingsSection(context),
+
+              // プレビュー / テスト用リンク
+              _buildPreviewSection(context),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  /// ユーザー情報セクションを構築
-  Widget _buildUserInfoSection(WidgetRef ref) {
-    // アカウント設定を取得
-    final accountSettings = ref.watch(accountSettingsProvider);
-
-    // 値を取得
-    final userName = accountSettings.accountName;
-    final avatarColor = accountSettings.avatarColor;
-
-    return Column(
-      children: [
-        // ユーザーアイコン（色+頭文字）
-        CustomAvatarDisplay(name: userName, colorName: avatarColor, size: 100),
-        const SizedBox(height: 15),
-
-        // ユーザー名
-        Text(
-          userName,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: AppColors.blackgray,
+  Widget _buildProfileSection(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.blackgray,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          // アバター（左上）- 背景は透明度付きの設定色
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: AppColors.blue.withValues(alpha: 0.2),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.blue,
+                width: 2,
+              ),
+            ),
+            child: Center(
+              child: Text(
+                dummyUser.name[0],
+                style: TextStyle(
+                  color: AppColors.blue,
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
           ),
-        ),
-      ],
-    );
-  }
-
-  /// 設定項目リストを構築
-  Widget _buildSettingsList(BuildContext context) {
-    return Column(
-      children: [
-        // アカウント設定
-        SettingsTile(
-          icon: Icons.person,
-          iconBackgroundColor: AppColors.blue,
-          title: 'アカウント設定',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.accountSettings);
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // 通知設定（iOS/Androidのみ表示）
-        if (!kIsWeb) ...[
-          SettingsTile(
-            icon: Icons.notifications,
-            iconBackgroundColor: AppColors.green,
-            title: '通知設定',
-            onTap: () {
-              Navigator.pushNamed(context, AppRoutes.notificationSettings);
-            },
+          SizedBox(width: AppSpacing.md),
+          // ユーザー名（右側）
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(dummyUser.name, style: AppTextStyles.h2),
+                SizedBox(height: AppSpacing.xs),
+                Text(
+                  dummyUser.userId,
+                  style: AppTextStyles.body2.copyWith(color: AppColors.textSecondary),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 12),
         ],
+      ),
+    );
+  }
 
-        // 表示設定
-        SettingsTile(
-          icon: Icons.display_settings,
-          iconBackgroundColor: AppColors.red,
-          title: '表示設定',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.displaySettings);
-          },
-        ),
-        const SizedBox(height: 12),
+  Widget _buildSettingsSection(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Settings', style: AppTextStyles.h3),
+        SizedBox(height: AppSpacing.md),
 
-        // 時間設定
-        SettingsTile(
-          icon: Icons.access_time,
-          iconBackgroundColor: AppColors.gray,
-          title: '時間設定',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.timeSettings);
-          },
-        ),
-
-        // ========== テスト用セクション ==========
-        const SizedBox(height: 30),
-        const Divider(color: AppColors.gray),
-        const SizedBox(height: 12),
-        Text(
-          '🧪 新デザインシステム版画面（テスト用）',
-          style: TextStyle(
-            color: AppColors.gray,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // テスト用: 認証フロー
-        SettingsTile(
-          icon: Icons.login,
-          iconBackgroundColor: AppColors.purple,
-          title: '認証フロー',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.signupLogin);
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // テスト用: 新ホーム画面
-        SettingsTile(
-          icon: Icons.home,
-          iconBackgroundColor: AppColors.blue,
-          title: 'ホーム画面',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.homeNew);
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // テスト用: トラッキング設定
-        SettingsTile(
-          icon: Icons.settings,
-          iconBackgroundColor: AppColors.green,
-          title: 'トラッキング設定',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.trackingSettingNew);
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // テスト用: トラッキング中
-        SettingsTile(
-          icon: Icons.play_circle,
-          iconBackgroundColor: AppColors.success,
-          title: 'トラッキング中',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.trackingNew);
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // テスト用: トラッキング終了
-        SettingsTile(
-          icon: Icons.check_circle,
-          iconBackgroundColor: AppColors.purple,
-          title: 'トラッキング終了',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.trackingFinishedNew);
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // テスト用: 目標画面
-        SettingsTile(
-          icon: Icons.flag,
-          iconBackgroundColor: AppColors.yellow,
-          title: '目標画面',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.goalNew);
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // テスト用: レポート画面
-        SettingsTile(
-          icon: Icons.assessment,
-          iconBackgroundColor: AppColors.red,
-          title: 'レポート画面',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.reportNew);
-          },
-        ),
-        const SizedBox(height: 12),
-
-        const Divider(color: AppColors.gray),
-        const SizedBox(height: 12),
-        Text(
-          '🧪 設定画面（テスト用）',
-          style: TextStyle(
-            color: AppColors.gray,
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // テスト用: メイン設定画面
-        SettingsTile(
-          icon: Icons.settings,
-          iconBackgroundColor: AppColors.blue,
-          title: 'メイン設定画面',
-          onTap: () {
-            Navigator.pushNamed(context, AppRoutes.settingsNew);
-          },
-        ),
-        const SizedBox(height: 12),
-
-        // テスト用: アカウント設定
-        SettingsTile(
+        _buildSettingItem(
+          context,
           icon: Icons.person,
-          iconBackgroundColor: AppColors.purple,
-          title: 'アカウント設定',
+          iconColor: AppColors.blue,
+          title: 'Account Settings',
+          subtitle: 'Profile, bio, and more',
           onTap: () {
             Navigator.pushNamed(context, AppRoutes.accountSettingsNew);
           },
         ),
-        const SizedBox(height: 12),
 
-        // テスト用: 通知設定
-        SettingsTile(
+        _buildSettingItem(
+          context,
           icon: Icons.notifications,
-          iconBackgroundColor: AppColors.green,
-          title: '通知設定',
+          iconColor: AppColors.success,
+          title: 'Notification Settings',
+          subtitle: 'Manage your notifications',
           onTap: () {
             Navigator.pushNamed(context, AppRoutes.notificationSettingsNew);
           },
         ),
-        const SizedBox(height: 12),
 
-        // テスト用: 表示設定
-        SettingsTile(
+        _buildSettingItem(
+          context,
           icon: Icons.display_settings,
-          iconBackgroundColor: AppColors.yellow,
-          title: '表示設定',
+          iconColor: AppColors.purple,
+          title: 'Display Settings',
+          subtitle: 'Category names and reset time',
           onTap: () {
             Navigator.pushNamed(context, AppRoutes.displaySettingsNew);
           },
         ),
-        const SizedBox(height: 12),
 
-        // テスト用: サブスクリプション
-        SettingsTile(
+        _buildSettingItem(
+          context,
           icon: Icons.star,
-          iconBackgroundColor: AppColors.yellow,
-          title: 'サブスクリプション',
+          iconColor: AppColors.yellow,
+          title: 'Subscribe',
+          subtitle: 'Unlock premium features',
           onTap: () {
             Navigator.pushNamed(context, AppRoutes.subscriptionNew);
           },
         ),
-        const SizedBox(height: 12),
 
-        // テスト用: イベントプレビュー
-        SettingsTile(
+        _buildSettingItem(
+          context,
+          icon: Icons.help_outline,
+          iconColor: AppColors.textSecondary,
+          title: 'Contact Us',
+          subtitle: 'Get help and support',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.contactUsNew);
+          },
+        ),
+
+        _buildSettingItem(
+          context,
           icon: Icons.celebration,
-          iconBackgroundColor: AppColors.red,
-          title: 'イベントプレビュー',
+          iconColor: AppColors.red,
+          title: 'Event Preview',
+          subtitle: 'View all event screens',
           onTap: () {
             Navigator.pushNamed(context, AppRoutes.eventPreviewNew);
           },
         ),
       ],
     );
+  }
+
+  Widget _buildSettingItem(
+    BuildContext context, {
+    required IconData icon,
+    required Color iconColor,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSpacing.sm),
+      child: Container(
+        decoration: BoxDecoration(
+          color: AppColors.blackgray,
+          borderRadius: BorderRadius.circular(AppRadius.large),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(AppRadius.large),
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.md),
+              child: Row(
+                children: [
+                  // 丸いアイコン
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: iconColor.withValues(alpha: 0.2),
+                    child: Icon(icon, color: iconColor, size: 24),
+                  ),
+                  SizedBox(width: AppSpacing.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: AppTextStyles.body1.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        SizedBox(height: AppSpacing.xs / 2),
+                        Text(
+                          subtitle,
+                          style: AppTextStyles.caption,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: AppColors.textSecondary),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreviewSection(BuildContext context) {
+    final captionStyle = AppTextStyles.caption.copyWith(
+      color: AppColors.textSecondary,
+      fontWeight: FontWeight.w600,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Preview & Test Screens', style: AppTextStyles.h3),
+        SizedBox(height: AppSpacing.md),
+
+        // Auth screens
+        Text('Auth', style: captionStyle),
+        SizedBox(height: AppSpacing.sm),
+        _buildSettingItem(
+          context,
+          icon: Icons.login,
+          iconColor: AppColors.blue,
+          title: 'Sign Up & Login',
+          subtitle: 'Preview authentication entry screen',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.signupLogin);
+          },
+        ),
+        _buildSettingItem(
+          context,
+          icon: Icons.tune,
+          iconColor: AppColors.purple,
+          title: 'Initial Setup',
+          subtitle: 'Initial preferences flow',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.initialSetup);
+          },
+        ),
+        _buildSettingItem(
+          context,
+          icon: Icons.flag,
+          iconColor: AppColors.orange,
+          title: 'Initial Goal Setup',
+          subtitle: 'Set the first goal during onboarding',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.initialGoal);
+          },
+        ),
+
+        SizedBox(height: AppSpacing.lg),
+
+        // Components
+        Text('Components', style: captionStyle),
+        SizedBox(height: AppSpacing.sm),
+        _buildSettingItem(
+          context,
+          icon: Icons.widgets,
+          iconColor: AppColors.blue,
+          title: 'Widget Catalog',
+          subtitle: 'Component showcase for the new design system',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.widgetCatalog);
+          },
+        ),
+        _buildSettingItem(
+          context,
+          icon: Icons.palette,
+          iconColor: AppColors.purple,
+          title: 'Color Palette',
+          subtitle: 'Preview application color variations',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.colorPreview);
+          },
+        ),
+
+        SizedBox(height: AppSpacing.lg),
+
+        // Event screens
+        Text('Event Screens', style: captionStyle),
+        SizedBox(height: AppSpacing.sm),
+        _buildSettingItem(
+          context,
+          icon: Icons.celebration,
+          iconColor: AppColors.success,
+          title: 'Goal Set',
+          subtitle: 'Event screen when a new goal is created',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.goalSetEvent);
+          },
+        ),
+        _buildSettingItem(
+          context,
+          icon: Icons.emoji_events,
+          iconColor: AppColors.yellow,
+          title: 'Goal Achieved',
+          subtitle: 'Celebrate reaching a goal',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.goalAchievedEvent);
+          },
+        ),
+        _buildSettingItem(
+          context,
+          icon: Icons.hourglass_bottom,
+          iconColor: AppColors.orange,
+          title: 'Goal Period Ended',
+          subtitle: 'Display when a goal period is complete',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.goalPeriodEndedEvent);
+          },
+        ),
+        _buildSettingItem(
+          context,
+          icon: Icons.local_fire_department,
+          iconColor: AppColors.red,
+          title: 'Streak Milestone',
+          subtitle: 'Milestone event for streak achievements',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.streakMilestoneEvent);
+          },
+        ),
+        _buildSettingItem(
+          context,
+          icon: Icons.timer,
+          iconColor: AppColors.blue,
+          title: 'Total Hours Milestone',
+          subtitle: 'Celebrate total focused hours milestones',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.totalHoursMilestoneEvent);
+          },
+        ),
+        _buildSettingItem(
+          context,
+          icon: Icons.schedule,
+          iconColor: AppColors.green,
+          title: 'Countdown Set',
+          subtitle: 'Event when a countdown timer is created',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.countdownSetEvent);
+          },
+        ),
+        _buildSettingItem(
+          context,
+          icon: Icons.alarm_on,
+          iconColor: AppColors.purple,
+          title: 'Countdown Ended',
+          subtitle: 'Event when a countdown reaches zero',
+          onTap: () {
+            Navigator.pushNamed(context, AppRoutes.countdownEndedEvent);
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomNavigationBar(BuildContext context) {
+    return AppBottomNavigationBar(
+      currentIndex: 3,
+      items: AppBottomNavigationBar.defaultItems,
+      onTap: (index) => _handleNavigationTap(context, index),
+    );
+  }
+
+  void _handleNavigationTap(BuildContext context, int index) {
+    if (index == 3) return;
+    switch (index) {
+      case 0:
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        break;
+      case 1:
+        Navigator.pushReplacementNamed(context, AppRoutes.goal);
+        break;
+      case 2:
+        Navigator.pushReplacementNamed(context, AppRoutes.report);
+        break;
+    }
   }
 }

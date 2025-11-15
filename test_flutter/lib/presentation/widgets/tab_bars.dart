@@ -18,18 +18,24 @@ class AppTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: AppColors.backgroundCard,
-        borderRadius: BorderRadius.circular(AppRadius.medium),
+    final borderRadius = BorderRadius.circular(30);
+
+    Widget content = _buildTabRow();
+
+    if (scrollable) {
+      content = SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: content,
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: borderRadius,
+      child: Container(
+        height: 48,
+        color: AppColors.blackgray,
+        child: content,
       ),
-      child: scrollable
-          ? SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: _buildTabRow(),
-            )
-          : _buildTabRow(),
     );
   }
 
@@ -38,14 +44,20 @@ class AppTabBar extends StatelessWidget {
       mainAxisSize: scrollable ? MainAxisSize.min : MainAxisSize.max,
       children: List.generate(tabs.length, (index) {
         final isSelected = index == selectedIndex;
-        return Expanded(
-          flex: scrollable ? 0 : 1,
-          child: _TabItem(
-            label: tabs[index],
-            isSelected: isSelected,
-            onTap: () => onTabSelected(index),
-          ),
+        final tab = _TabItem(
+          label: tabs[index],
+          isSelected: isSelected,
+          onTap: () => onTabSelected(index),
+          isScrollable: scrollable,
         );
+        if (scrollable) {
+          return ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 110),
+            child: tab,
+          );
+        } else {
+          return Expanded(child: tab);
+        }
       }),
     );
   }
@@ -55,30 +67,42 @@ class _TabItem extends StatelessWidget {
   final String label;
   final bool isSelected;
   final VoidCallback onTap;
+  final bool isScrollable;
 
   const _TabItem({
     required this.label,
     required this.isSelected,
     required this.onTap,
+    required this.isScrollable,
   });
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: isSelected ? AppColors.blue : Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.medium),
+      color: Colors.transparent,
       child: InkWell(
+        borderRadius: BorderRadius.circular(30),
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        child: Container(
-          padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Center(
-            child: Text(
-              label,
-              style: AppTextStyles.body2.copyWith(
-                color: AppColors.textPrimary,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-              ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeInOut,
+          height: double.infinity,
+          padding: EdgeInsets.symmetric(
+            horizontal: isScrollable ? AppSpacing.lg : AppSpacing.md,
+            vertical: AppSpacing.sm,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.blue
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(30),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: AppTextStyles.body2.copyWith(
+              color: isSelected ? AppColors.white : AppColors.textPrimary,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
             ),
           ),
         ),
@@ -91,11 +115,13 @@ class _TabItem extends StatelessWidget {
 class PeriodTabBar extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onPeriodSelected;
+  final bool scrollable;
 
   const PeriodTabBar({
     super.key,
     required this.selectedIndex,
     required this.onPeriodSelected,
+    this.scrollable = true,
   });
 
   static const List<String> periods = ['Day', 'Week', 'Month', 'Year'];
@@ -106,7 +132,7 @@ class PeriodTabBar extends StatelessWidget {
       tabs: periods,
       selectedIndex: selectedIndex,
       onTabSelected: onPeriodSelected,
-      scrollable: true,
+      scrollable: scrollable,
     );
   }
 }

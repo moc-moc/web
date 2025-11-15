@@ -18,23 +18,44 @@ class SettingsTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16.0)),
-      color: AppColors.blackgray,
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: iconBackgroundColor,
-          child: Icon(icon, color: AppColors.blackgray),
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.black,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: Border.all(
+          color: iconBackgroundColor.withValues(alpha: 0.4),
+          width: 1.5,
         ),
-        title: Text(
-          title,
-          style: const TextStyle(
-            color: AppColors.white,
-            fontWeight: FontWeight.w500,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.large),
+          child: Padding(
+            padding: EdgeInsets.all(AppSpacing.md),
+            child: Row(
+              children: [
+                CircleAvatar(
+                  radius: 24,
+                  backgroundColor: iconBackgroundColor.withValues(alpha: 0.2),
+                  child: Icon(icon, color: iconBackgroundColor, size: 24),
+                ),
+                SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: AppColors.white,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+                const Icon(Icons.chevron_right, color: AppColors.white),
+              ],
+            ),
           ),
         ),
-        trailing: const Icon(Icons.chevron_right, color: AppColors.white),
-        onTap: onTap,
       ),
     );
   }
@@ -62,19 +83,19 @@ class CustomTextField extends StatelessWidget {
       onChanged: onChanged,
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: const TextStyle(color: AppColors.blackgray),
+        labelStyle: const TextStyle(color: AppColors.gray),
         filled: true,
         fillColor: AppColors.white,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12.0),
-          borderSide: const BorderSide(color: AppColors.gray),
+          borderSide: const BorderSide(color: AppColors.blackgray),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12.0),
           borderSide: const BorderSide(color: AppColors.blue, width: 2),
         ),
       ),
-      style: const TextStyle(color: AppColors.blackgray, fontSize: 16),
+      style: const TextStyle(color: AppColors.gray, fontSize: 16),
     );
   }
 }
@@ -203,7 +224,7 @@ class CustomSegmentedControl extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 4.0),
                 child: Material(
-                  color: isSelected ? AppColors.blue : AppColors.gray,
+                  color: isSelected ? AppColors.blue : AppColors.lightblackgray,
                   borderRadius: BorderRadius.circular(8.0),
                   child: InkWell(
                     onTap: () => onChanged(option),

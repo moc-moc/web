@@ -1,175 +1,666 @@
 import 'package:flutter/material.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
-import 'package:test_flutter/presentation/widgets/buttons.dart';
-import 'package:test_flutter/feature/Streak/streak_data_manager.dart';
-import 'package:test_flutter/feature/Streak/streak_functions.dart';
-import 'package:test_flutter/feature/Total/total_data_manager.dart';
-import 'package:test_flutter/feature/Total/total_functions.dart';
+import 'package:test_flutter/core/route.dart';
+import 'package:test_flutter/presentation/widgets/layouts.dart';
+import 'package:test_flutter/presentation/widgets/progress_bars.dart';
+import 'package:test_flutter/dummy_data/tracking_data.dart';
+import 'package:test_flutter/dummy_data/goal_data.dart';
 
-/// Tracking Finished画面
-/// トラッキング完了画面
-///
-/// トラッキング完了時に以下の処理を実行します:
-/// - 連続継続日数の記録
-/// - 総ログイン日数と総作業時間の記録
-class TrackingFinishedScreen extends ConsumerStatefulWidget {
-  const TrackingFinishedScreen({super.key});
-
-  @override
-  ConsumerState<TrackingFinishedScreen> createState() =>
-      _TrackingFinishedScreenState();
-}
-
-class _TrackingFinishedScreenState
-    extends ConsumerState<TrackingFinishedScreen> {
-  bool _isProcessing = true;
-  String _message = 'トラッキングデータを保存中...';
-  int _workTimeMinutes = 0;
-  bool _hasReceivedArguments = false;
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    // 引数を一度だけ受け取る
-    if (!_hasReceivedArguments) {
-      final args = ModalRoute.of(context)?.settings.arguments;
-      if (args != null && args is Map<String, dynamic>) {
-        _workTimeMinutes = args['total'] as int? ?? 0;
-        debugPrint('🔍 [TrackingFinished] 受け取った作業時間: $_workTimeMinutes分');
-      }
-      _hasReceivedArguments = true;
-
-      // トラッキング完了処理を実行
-      _processTrackingFinished();
-    }
-  }
-
-  /// トラッキング完了処理
-  ///
-  /// 連続継続日数と累計データを記録します。
-  Future<void> _processTrackingFinished() async {
-    try {
-      debugPrint('🔍 [TrackingFinished] トラッキング完了処理開始');
-      debugPrint('🔍 [TrackingFinished] 作業時間: $_workTimeMinutes分');
-
-      // 1. データ保存：連続継続日数を記録
-      final streakManager = StreakDataManager();
-      final streakResult = await streakManager.trackFinished();
-      final streakSuccess = streakResult['success'] as bool;
-      final streakMessage = streakResult['message'] as String;
-
-      debugPrint(
-        '🔍 [TrackingFinished] Streak結果: $streakSuccess - $streakMessage',
-      );
-
-      // 2. データ保存：累計データを記録（受け取った作業時間を使用）
-      final totalManager = TotalDataManager();
-      final totalResult = await totalManager.trackFinished(
-        workTimeMinutes: _workTimeMinutes,
-      );
-      final totalSuccess = totalResult['success'] as bool;
-      final totalMessage = totalResult['message'] as String;
-
-      debugPrint(
-        '🔍 [TrackingFinished] Total結果: $totalSuccess - $totalMessage',
-      );
-
-      // 3. Providerを更新：保存されたデータを取得してProviderに反映
-      final updatedStreakData = await streakManager.getStreakDataOrDefault();
-      ref.read(streakDataProvider.notifier).updateStreak(updatedStreakData);
-      debugPrint(
-        '✅ [TrackingFinished] StreakProvider更新完了: ${updatedStreakData.currentStreak}日連続',
-      );
-
-      final updatedTotalData = await totalManager.getTotalDataOrDefault();
-      ref.read(totalDataProvider.notifier).updateTotal(updatedTotalData);
-      debugPrint(
-        '✅ [TrackingFinished] TotalProvider更新完了: ${updatedTotalData.totalLoginDays}日、${updatedTotalData.totalWorkTimeMinutes}分',
-      );
-
-      // 4. 結果をUI に反映
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-          if (streakSuccess && totalSuccess) {
-            _message = '$streakMessage\n$totalMessage';
-          } else {
-            _message = 'トラッキング完了！\n$streakMessage\n$totalMessage';
-          }
-        });
-
-        // スナックバーで通知
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(_message),
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-
-      debugPrint('✅ [TrackingFinished] トラッキング完了処理完了');
-    } catch (e) {
-      debugPrint('❌ [TrackingFinished] トラッキング完了処理エラー: $e');
-
-      if (mounted) {
-        setState(() {
-          _isProcessing = false;
-          _message = 'エラーが発生しました';
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('エラーが発生しました'),
-            backgroundColor: Colors.red,
-            duration: Duration(seconds: 2),
-          ),
-        );
-      }
-    }
-  }
+/// トラッキング終了画面（新デザインシステム版）
+class TrackingFinishedScreenNew extends StatelessWidget {
+  const TrackingFinishedScreenNew({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.white,
-      appBar: AppBar(
-        title: const Text('Tracking Finished'),
-        backgroundColor: AppColors.white,
-        foregroundColor: AppColors.blackgray,
-        automaticallyImplyLeading: false, // 戻るボタンを無効化
+    final session = completedTrackingSession;
+    final workHours = (session.studyHours + session.pcHours).clamp(0.0, double.infinity);
+
+    return AppScaffold(
+      backgroundColor: AppColors.backgroundSecondary,
+      body: SafeArea(
+        child: ScrollableContent(
+          child: SpacedColumn(
+            spacing: AppSpacing.lg,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildCongratulations(),
+              _buildTimeRange(session),
+              _buildSummaryCards(session, workHours),
+              _buildBreakdownCard(session),
+              _buildGoalUpdates(session),
+              SizedBox(height: AppSpacing.md),
+              _buildActionButtons(context),
+            ],
+          ),
+        ),
       ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+    );
+  }
+
+  Widget _buildCongratulations() {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        gradient: LinearGradient(
+          colors: [
+            AppColors.blue.withValues(alpha: 0.3),
+            AppColors.purple.withValues(alpha: 0.3),
+            AppColors.green.withValues(alpha: 0.3),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        border: Border.all(
+          color: AppColors.blue.withValues(alpha: 0.5),
+          width: 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.blue.withValues(alpha: 0.3),
+            blurRadius: 20,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Text(
+        'Great Work!',
+        style: AppTextStyles.h1.copyWith(
+          fontWeight: FontWeight.w800,
+          letterSpacing: 0.5,
+        ),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildTimeRange(DummyTrackingSession session) {
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.gray.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        border: Border.all(
+          color: AppColors.gray.withValues(alpha: 0.6),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.access_time,
+            color: AppColors.gray,
+            size: 20,
+          ),
+          SizedBox(width: AppSpacing.sm),
+          Text(
+            _formatTimeRange(session),
+            style: AppTextStyles.body1.copyWith(
+              color: AppColors.gray,
+              fontFeatures: [const FontFeature.tabularFigures()],
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSummaryCards(DummyTrackingSession session, double workHours) {
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'トラッキング完了',
-              style: TextStyle(
-                color: AppColors.blackgray,
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
+            Expanded(
+              child: _buildSummaryCard(
+                accentColor: AppColors.blue,
+                icon: Icons.timer_rounded,
+                title: 'Session Total',
+                value: '${session.totalHours.toStringAsFixed(1)}h',
+                subtitle: '',
               ),
             ),
-            const SizedBox(height: 40),
-            if (_isProcessing)
-              const CircularProgressIndicator()
-            else
-              Text(
-                _message,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: AppColors.blackgray,
-                  fontSize: 16,
-                ),
+            SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: _buildSummaryCard(
+                accentColor: AppColors.orange,
+                icon: Icons.work_history_rounded,
+                title: 'Work Total',
+                value: '${workHours.toStringAsFixed(1)}h',
+                subtitle: '',
               ),
-            const SizedBox(height: 40),
-            // pushNamedAndRemoveUntilでhome画面へ遷移（全履歴削除）
-            CustomBackToHomeButton(text: 'OK', color: AppColors.blue),
+            ),
           ],
         ),
       ),
     );
   }
+
+  Widget _buildSummaryCard({
+    required Color accentColor,
+    required IconData icon,
+    required String title,
+    required String value,
+    required String subtitle,
+  }) {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: accentColor.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        border: Border.all(
+          color: accentColor.withValues(alpha: 0.6),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: accentColor, size: 30),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  title,
+                  style: AppTextStyles.body2.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.sm),
+          Center(
+            child: SizedBox(
+              height: 60,
+              child: Center(
+                child: Text(
+                  value,
+                  style: AppTextStyles.h1.copyWith(
+                    color: accentColor,
+                    letterSpacing: 1.1,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (subtitle.isNotEmpty) ...[
+            SizedBox(height: AppSpacing.xs),
+            Text(
+              subtitle,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+                fontFeatures: [const FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBreakdownCard(DummyTrackingSession session) {
+    final categories = [
+      _CategoryStat(
+        label: 'Study',
+        icon: Icons.menu_book,
+        color: AppColors.green,
+        hours: session.studyHours,
+      ),
+      _CategoryStat(
+        label: 'Computer',
+        icon: Icons.computer,
+        color: AppColors.blue,
+        hours: session.pcHours,
+      ),
+      _CategoryStat(
+        label: 'Smartphone',
+        icon: Icons.smartphone,
+        color: AppColors.orange,
+        hours: session.smartphoneHours,
+      ),
+      _CategoryStat(
+        label: 'People',
+        icon: Icons.person,
+        color: AppColors.gray,
+        hours: session.personOnlyHours,
+      ),
+    ];
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildCategoryCard(categories[0]),
+              ),
+              SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _buildCategoryCard(categories[1]),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: _buildCategoryCard(categories[2]),
+              ),
+              SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: _buildCategoryCard(categories[3]),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCategoryCard(_CategoryStat data) {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: data.color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        border: Border.all(
+          color: data.color.withValues(alpha: 0.6),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: data.color.withValues(alpha: 0.3),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: data.color.withValues(alpha: 0.7),
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              data.icon,
+              color: data.color,
+              size: 24,
+            ),
+          ),
+          SizedBox(height: AppSpacing.sm),
+          Text(
+            data.label,
+            style: AppTextStyles.body2.copyWith(
+              color: data.color.withValues(alpha: 0.7),
+            ),
+          ),
+          SizedBox(height: AppSpacing.xs),
+          Text(
+            '${data.hours.toStringAsFixed(1)}h',
+            style: AppTextStyles.body1.copyWith(
+              fontWeight: FontWeight.bold,
+              color: data.color,
+              fontFeatures: [const FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalUpdates(DummyTrackingSession session) {
+    if (todaysGoals.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final plusHoursByCategory = <String, double>{
+      'study': session.studyHours,
+      'pc': session.pcHours,
+      'smartphone': session.smartphoneHours,
+      'person': session.personOnlyHours,
+    };
+
+    return Container(
+      margin: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.black,
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        border: Border.all(
+          color: AppColors.gray.withValues(alpha: 0.4),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Goal Progress',
+            style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+          ),
+          SizedBox(height: AppSpacing.md),
+          ...todaysGoals.asMap().entries.map((entry) {
+            final goal = entry.value;
+            final plusHours = plusHoursByCategory[goal.category] ?? 0.0;
+            final previousHours = goal.currentHours;
+            final previousPercent = _calculatePercent(previousHours, goal.targetHours);
+            final plusPercent = _calculatePercent(plusHours, goal.targetHours);
+
+            final isLast = entry.key == todaysGoals.length - 1;
+            return Padding(
+              padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.md),
+              child: _buildGoalUpdateRow(
+                goal: goal,
+                previousHours: previousHours,
+                previousPercent: previousPercent,
+                plusHours: plusHours,
+                plusPercent: plusPercent,
+              ),
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGoalUpdateRow({
+    required DummyGoal goal,
+    required double previousHours,
+    required double previousPercent,
+    required double plusHours,
+    required double plusPercent,
+  }) {
+    final color = _getGoalColor(goal.category);
+    final afterHours = previousHours + plusHours;
+    final afterPercent = (afterHours / goal.targetHours * 100).clamp(0.0, 999.0);
+    final progress = (afterHours / goal.targetHours).clamp(0.0, 1.0);
+    
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        border: Border.all(
+          color: color.withValues(alpha: 0.6),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                goal.title,
+                style: AppTextStyles.body2.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: color.withValues(alpha: 1.0),
+                ),
+              ),
+              Text(
+                '目標: ${goal.targetHours.toStringAsFixed(1)}h',
+                style: AppTextStyles.caption.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.sm),
+          LinearProgressBar(
+            percentage: progress,
+            height: 12,
+            progressColor: color,
+            backgroundColor: AppColors.blackgray,
+            barBackgroundColor: AppColors.gray.withValues(alpha: 0.4),
+            showFlowAnimation: false,
+          ),
+          SizedBox(height: AppSpacing.sm),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Text(
+                    '${previousHours.toStringAsFixed(1)}h → ${afterHours.toStringAsFixed(1)}h',
+                    style: AppTextStyles.body2,
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Text(
+                    '+${plusHours.toStringAsFixed(1)}h',
+                    style: AppTextStyles.body2.copyWith(
+                      color: color.withValues(alpha: 1.0),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              Row(
+                children: [
+                  Text(
+                    '${previousPercent.toStringAsFixed(0)}% → ${afterPercent.toStringAsFixed(0)}%',
+                    style: AppTextStyles.body2,
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Text(
+                    '+${plusPercent.toStringAsFixed(0)}%',
+                    style: AppTextStyles.body2.copyWith(
+                      color: color.withValues(alpha: 1.0),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+
+
+  Widget _buildActionButtons(BuildContext context) {
+    final borderRadiusValue = BorderRadius.circular(30.0);
+    
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: borderRadiusValue,
+              border: Border.all(
+                color: AppColors.gray.withValues(alpha: 0.4),
+                width: 1,
+              ),
+            ),
+            child: Material(
+              color: AppColors.blackgray,
+              borderRadius: borderRadiusValue,
+              elevation: 2,
+              shadowColor: AppColors.black.withValues(alpha: 0.2),
+              child: InkWell(
+                onTap: () {
+                  // 将来実装
+                },
+                borderRadius: borderRadiusValue,
+                child: Container(
+                  height: 56.0,
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.share,
+                          color: AppColors.gray,
+                          size: 18.0,
+                        ),
+                        SizedBox(width: AppSpacing.sm),
+                        Text(
+                          'Share on Social Media',
+                          style: TextStyle(
+                            color: AppColors.gray,
+                            fontSize: 18.0,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: borderRadiusValue,
+              border: Border.all(
+                color: AppColors.blue.withValues(alpha: 0.9),
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.blue.withValues(alpha: 0.3),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Material(
+              color: AppColors.blue.withValues(alpha: 0.5),
+              borderRadius: borderRadiusValue,
+              elevation: 4,
+              shadowColor: AppColors.blue.withValues(alpha: 0.3),
+              child: InkWell(
+                onTap: () {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    AppRoutes.home,
+                    (route) => false,
+                  );
+                },
+                borderRadius: borderRadiusValue,
+                child: Container(
+                  height: 60.0,
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.check,
+                          color: AppColors.white,
+                          size: 20.0,
+                        ),
+                        SizedBox(width: AppSpacing.sm),
+                        Text(
+                          'OK',
+                          style: TextStyle(
+                            color: AppColors.white,
+                            fontSize: 20.0,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getGoalColor(String category) {
+    switch (category) {
+      case 'study':
+        return AppColors.green;
+      case 'pc':
+        return AppColors.blue;
+      case 'smartphone':
+        return AppColors.orange;
+      default:
+        return AppColors.blue;
+    }
+  }
+
+  String _formatTimeRange(DummyTrackingSession session) {
+    final start = _formatTime(session.startTime);
+    final end = _formatTime(session.endTime);
+    return '$start - $end';
+  }
+
+  String _formatTime(DateTime dateTime) {
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+}
+
+class _CategoryStat {
+  const _CategoryStat({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.hours,
+  });
+
+  final String label;
+  final IconData icon;
+  final Color color;
+  final double hours;
+}
+
+
+double _calculatePercent(double hours, double target) {
+  if (target == 0) return 0;
+  return (hours / target * 100).clamp(0.0, 999.0);
 }

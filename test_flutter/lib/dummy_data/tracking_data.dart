@@ -45,7 +45,7 @@ final completedTrackingSession = DummyTrackingSession(
   startTime: DateTime.now().subtract(const Duration(hours: 3, minutes: 45)),
   endTime: DateTime.now().subtract(const Duration(hours: 1, minutes: 30)),
   categoryHours: {
-    'study': 1.5,
+    'study': 0.2, // 100%以内に収まるように調整（Study目標2.0h: 1.5h+0.2h=1.7h=85%, Daily Reading目標0.5h: 0.3h+0.2h=0.5h=100%）
     'pc': 0.5,
     'smartphone': 0.167,
     'personOnly': 0.083,

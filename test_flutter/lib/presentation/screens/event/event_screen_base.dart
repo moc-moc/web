@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
-import 'package:test_flutter/presentation/widgets/buttons.dart';
 
 /// イベント画面の共通ベース
 class EventScreenBase extends StatelessWidget {
@@ -44,14 +43,46 @@ class EventScreenBase extends StatelessWidget {
 
                 // SNSシェアボタン
                 if (showShareButton) ...[
-                  OutlineButton(
-                    text: 'Share',
-                    icon: Icons.share,
-                    size: ButtonSize.large,
-                    borderColor: AppColors.textPrimary.withValues(alpha: 0.5),
-                    onPressed: () {
-                      // 将来実装: SNS共有機能
-                    },
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: AppColors.textPrimary.withValues(alpha: 0.5),
+                        width: 2,
+                      ),
+                      borderRadius: BorderRadius.circular(30.0),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () {
+                          // 将来実装: SNS共有機能
+                        },
+                        borderRadius: BorderRadius.circular(30.0),
+                        child: SizedBox(
+                          height: 56,
+                          child: Center(
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.share,
+                                  color: AppColors.textPrimary.withValues(alpha: 0.5),
+                                  size: 18,
+                                ),
+                                SizedBox(width: AppSpacing.sm),
+                                Text(
+                                  'Share',
+                                  style: AppTextStyles.h3.copyWith(
+                                    color: AppColors.textPrimary.withValues(alpha: 0.5),
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                   SizedBox(height: AppSpacing.md),
                 ],
@@ -60,7 +91,7 @@ class EventScreenBase extends StatelessWidget {
                 Container(
                   decoration: BoxDecoration(
                     color: AppColors.textPrimary,
-                    borderRadius: BorderRadius.circular(AppRadius.medium),
+                    borderRadius: BorderRadius.circular(30.0),
                   ),
                   child: Material(
                     color: Colors.transparent,
@@ -74,7 +105,7 @@ class EventScreenBase extends StatelessWidget {
                               (route) => false,
                             );
                           },
-                      borderRadius: BorderRadius.circular(AppRadius.medium),
+                      borderRadius: BorderRadius.circular(30.0),
                       child: SizedBox(
                         height: 56,
                         child: Center(

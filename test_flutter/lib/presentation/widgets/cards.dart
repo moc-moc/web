@@ -29,7 +29,7 @@ class StandardCard extends StatelessWidget {
       height: height,
       margin: margin,
       decoration: BoxDecoration(
-        color: AppColors.backgroundCard,
+        color: AppColors.black,
         borderRadius: BorderRadius.circular(AppRadius.medium),
         boxShadow: [
           BoxShadow(

@@ -18,20 +18,50 @@ class AppBarWithBack extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AppBar(
-      backgroundColor: backgroundColor ?? AppColors.backgroundCard,
-      elevation: 0,
-      leading: IconButton(
-        icon: const Icon(Icons.arrow_back, color: AppColors.textPrimary),
-        onPressed: onBack ?? () => Navigator.of(context).pop(),
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: backgroundColor ?? AppColors.black,
+        border: Border(
+          bottom: BorderSide(
+            color: AppColors.lightblackgray.withValues(alpha: 0.4),
+            width: 1.5,
+          ),
+        ),
       ),
-      title: Text(title, style: AppTextStyles.h3),
-      actions: actions,
+      child: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        toolbarHeight: 48,
+        leading: IconButton(
+          icon: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.lightblackgray.withValues(alpha: 0.3),
+            ),
+            child: const Icon(
+              Icons.arrow_back,
+              color: AppColors.textSecondary,
+              size: 18,
+            ),
+          ),
+          onPressed: onBack ?? () => Navigator.of(context).pop(),
+        ),
+        title: Text(
+          title,
+          style: AppTextStyles.h3.copyWith(
+            color: AppColors.textSecondary,
+          ),
+        ),
+        actions: actions,
+      ),
     );
   }
 
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(48);
 }
 
 /// アクションボタン付きアプリバー

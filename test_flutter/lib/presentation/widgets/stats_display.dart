@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 
@@ -58,6 +60,12 @@ class CountdownDisplay extends StatelessWidget {
   final int minutes;
   final int seconds;
   final Color? accentColor;
+  final Color? borderColor;
+  final Color? backgroundColor;
+  final Color? titleColor;
+  final Color? labelColor;
+  final Color? valueTextColor;
+  final Color? valueBackgroundColor;
   final VoidCallback? onTap;
   final VoidCallback? onEdit;
 
@@ -69,6 +77,12 @@ class CountdownDisplay extends StatelessWidget {
     required this.minutes,
     required this.seconds,
     this.accentColor,
+    this.borderColor,
+    this.backgroundColor,
+    this.titleColor,
+    this.labelColor,
+    this.valueTextColor,
+    this.valueBackgroundColor,
     this.onTap,
     this.onEdit,
   });
@@ -76,73 +90,92 @@ class CountdownDisplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final effectiveAccentColor = accentColor ?? AppColors.blue;
+    final effectiveBorderColor = borderColor;
+    final effectiveBackgroundColor =
+        backgroundColor ?? AppColors.blackgray;
+    final effectiveTitleColor = titleColor ?? AppColors.textPrimary;
+    final effectiveLabelColor =
+        labelColor ?? effectiveAccentColor.withValues(alpha: 0.8);
+    final effectiveValueTextColor = valueTextColor ?? AppColors.white;
+    final effectiveValueBackgroundColor =
+        valueBackgroundColor ?? AppColors.lightblackgray;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: EdgeInsets.all(AppSpacing.lg),
+        padding: EdgeInsets.symmetric(
+          horizontal: AppSpacing.lg,
+          vertical: AppSpacing.md,
+        ),
         decoration: BoxDecoration(
-          color: AppColors.backgroundCard,
-          borderRadius: BorderRadius.circular(AppRadius.medium),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.black.withValues(alpha: 0.1),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
+          color: effectiveBackgroundColor,
+          borderRadius: BorderRadius.circular(AppRadius.large),
+          border: effectiveBorderColor != null
+              ? Border.all(color: effectiveBorderColor, width: 1.5)
+              : null,
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            if (eventName.isNotEmpty) ...[
+            Stack(
+              alignment: Alignment.center,
               children: [
-                Expanded(
+                Padding(
+                  padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
                   child: Text(
                     eventName,
-                    style: AppTextStyles.h3,
+                    style: AppTextStyles.body1.copyWith(
+                      color: effectiveTitleColor,
+                      fontWeight: FontWeight.w600,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ),
                 if (onEdit != null)
-                  IconButton(
-                    icon: Icon(
-                      Icons.edit,
-                      color: AppColors.textSecondary,
-                      size: 20,
+                  Positioned(
+                    right: 0,
+                    child: IconButton(
+                      icon: Icon(
+                        Icons.edit,
+                        color: AppColors.textSecondary,
+                        size: 20,
+                      ),
+                      onPressed: onEdit,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
                     ),
-                    onPressed: onEdit,
-                    padding: EdgeInsets.zero,
-                    constraints: BoxConstraints(),
                   ),
               ],
             ),
             SizedBox(height: AppSpacing.md),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                _CountdownUnit(
-                  value: days,
-                  label: 'Days',
-                  accentColor: effectiveAccentColor,
-                ),
-                _CountdownUnit(
-                  value: hours,
-                  label: 'Hours',
-                  accentColor: effectiveAccentColor,
-                ),
-                _CountdownUnit(
-                  value: minutes,
-                  label: 'Minutes',
-                  accentColor: effectiveAccentColor,
-                ),
-                _CountdownUnit(
-                  value: seconds,
-                  label: 'Seconds',
-                  accentColor: effectiveAccentColor,
-                ),
-              ],
-            ),
+            ],
+            Builder(builder: (context) {
+              final units = [
+                {'value': days, 'label': 'Days'},
+                {'value': hours, 'label': 'Hours'},
+                {'value': minutes, 'label': 'Minutes'},
+                {'value': seconds, 'label': 'Seconds'},
+              ];
+              return Row(
+                children: [
+                  for (var i = 0; i < units.length; i++) ...[
+                    Expanded(
+                      child: _CountdownUnit(
+                        value: units[i]['value'] as int,
+                        label: units[i]['label'] as String,
+                        labelColor: effectiveLabelColor,
+                        valueTextColor: effectiveValueTextColor,
+                        valueBackgroundColor: effectiveValueBackgroundColor,
+                      ),
+                    ),
+                    if (i < units.length - 1)
+                      SizedBox(width: AppSpacing.sm),
+                  ],
+                ],
+              );
+            }),
           ],
         ),
       ),
@@ -153,12 +186,16 @@ class CountdownDisplay extends StatelessWidget {
 class _CountdownUnit extends StatelessWidget {
   final int value;
   final String label;
-  final Color accentColor;
+  final Color labelColor;
+  final Color valueTextColor;
+  final Color valueBackgroundColor;
 
   const _CountdownUnit({
     required this.value,
     required this.label,
-    required this.accentColor,
+    required this.labelColor,
+    required this.valueTextColor,
+    required this.valueBackgroundColor,
   });
 
   @override
@@ -166,23 +203,100 @@ class _CountdownUnit extends StatelessWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: accentColor.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(AppRadius.small),
-          ),
-          child: Text(
-            value.toString().padLeft(2, '0'),
-            style: AppTextStyles.h2.copyWith(color: accentColor),
+        SizedBox(
+          height: 72,
+          child: _FlipCard(
+            value: value,
+            backgroundColor: valueBackgroundColor,
+            textColor: valueTextColor,
           ),
         ),
         SizedBox(height: AppSpacing.xs),
-        Text(label, style: AppTextStyles.caption),
+        Text(
+          label,
+          style: AppTextStyles.caption.copyWith(
+            color: labelColor,
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _FlipCard extends StatefulWidget {
+  final int value;
+  final Color backgroundColor;
+  final Color textColor;
+
+  const _FlipCard({
+    required this.value,
+    required this.backgroundColor,
+    required this.textColor,
+  });
+
+  @override
+  State<_FlipCard> createState() => _FlipCardState();
+}
+
+class _FlipCardState extends State<_FlipCard> {
+  late int _displayValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _displayValue = widget.value;
+  }
+
+  @override
+  void didUpdateWidget(covariant _FlipCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.value != oldWidget.value) {
+      setState(() {
+        _displayValue = widget.value;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final formatted = _displayValue.toString().padLeft(2, '0');
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 450),
+      transitionBuilder: (child, animation) {
+        final rotateAnimation =
+            Tween<double>(begin: math.pi / 2, end: 0).animate(
+          CurvedAnimation(parent: animation, curve: Curves.easeInOut),
+        );
+        return AnimatedBuilder(
+          animation: rotateAnimation,
+          child: child,
+          builder: (context, child) {
+            final tilt = (animation.value - 0.5).abs() - 0.5;
+            final transform = Matrix4.identity()
+              ..setEntry(3, 2, 0.002)
+              ..rotateX(rotateAnimation.value)
+              ..translate(0.0, tilt * 10);
+            return Transform(
+              transform: transform,
+              alignment: Alignment.center,
+              child: child,
+            );
+          },
+        );
+      },
+      child: Container(
+        key: ValueKey(formatted),
+        decoration: BoxDecoration(
+          color: widget.backgroundColor,
+          borderRadius: BorderRadius.circular(AppRadius.large * 2),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          formatted,
+          style: AppTextStyles.h2.copyWith(color: widget.textColor),
+        ),
+      ),
     );
   }
 }

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/buttons.dart';
-import 'package:test_flutter/presentation/widgets/input_fields.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 
 /// サインアップ/ログイン画面
@@ -42,10 +41,11 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundPrimary,
+    return AppScaffold(
+      backgroundColor: AppColors.black,
       body: SafeArea(
         child: ScrollableContent(
+          padding: EdgeInsets.all(AppSpacing.md),
           child: ConstrainedContent(
             maxWidth: 400,
             child: SpacedColumn(
@@ -99,9 +99,14 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
 
   Widget _buildTabSwitcher() {
     return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
       decoration: BoxDecoration(
-        color: AppColors.backgroundCard,
-        borderRadius: BorderRadius.circular(AppRadius.medium),
+        color: AppColors.black,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppColors.gray.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
@@ -114,19 +119,37 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
 
   Widget _buildTab(String text, bool isSelected) {
     return Material(
-      color: isSelected ? AppColors.blue : Colors.transparent,
-      borderRadius: BorderRadius.circular(AppRadius.medium),
+      color: Colors.transparent,
       child: InkWell(
+        borderRadius: BorderRadius.circular(24),
         onTap: _toggleMode,
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        child: Container(
-          padding: EdgeInsets.symmetric(vertical: AppSpacing.md),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: EdgeInsets.symmetric(
+            vertical: AppSpacing.sm,
+            horizontal: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.blue.withValues(alpha: 0.15)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isSelected ? AppColors.blue : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
           child: Text(
             text,
-            style: AppTextStyles.body1.copyWith(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            ),
             textAlign: TextAlign.center,
+            style: AppTextStyles.body2.copyWith(
+              color: isSelected
+                  ? AppColors.blue
+                  : AppColors.textSecondary,
+              fontWeight: isSelected
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+            ),
           ),
         ),
       ),
@@ -164,16 +187,16 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
       height: 48,
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        border: backgroundColor == AppColors.backgroundCard
-            ? Border.all(color: AppColors.textSecondary, width: 1)
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: backgroundColor == AppColors.black
+            ? Border.all(color: AppColors.gray.withValues(alpha: 0.35))
             : null,
       ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: _handleSubmit,
-          borderRadius: BorderRadius.circular(AppRadius.medium),
+          borderRadius: BorderRadius.circular(AppRadius.large),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -196,17 +219,27 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
   Widget _buildDivider() {
     return Row(
       children: [
-        Expanded(child: Divider(color: AppColors.textDisabled, thickness: 1)),
+        Expanded(
+          child: Divider(
+            color: AppColors.gray.withValues(alpha: 0.35),
+            thickness: 1,
+          ),
+        ),
         Padding(
           padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
           child: Text(
             'OR',
             style: AppTextStyles.caption.copyWith(
-              color: AppColors.textDisabled,
+              color: AppColors.textSecondary,
             ),
           ),
         ),
-        Expanded(child: Divider(color: AppColors.textDisabled, thickness: 1)),
+        Expanded(
+          child: Divider(
+            color: AppColors.gray.withValues(alpha: 0.35),
+            thickness: 1,
+          ),
+        ),
       ],
     );
   }
@@ -216,59 +249,155 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
       spacing: AppSpacing.md,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        AppTextField(
+        _buildColoredTextField(
           label: 'Email',
           placeholder: 'your.email@example.com',
           controller: _emailController,
           keyboardType: TextInputType.emailAddress,
-          prefixIcon: const Icon(Icons.email, color: AppColors.textSecondary),
+          icon: Icons.email,
+          focusColor: AppColors.blue,
         ),
         if (_isSignUp)
-          AppTextField(
+          _buildColoredTextField(
             label: 'Username',
             placeholder: 'your_username',
             controller: _usernameController,
-            prefixIcon: const Icon(
-              Icons.person,
-              color: AppColors.textSecondary,
-            ),
+            icon: Icons.person,
+            focusColor: AppColors.green,
           ),
-        AppTextField(
+        _buildColoredTextField(
           label: 'Password',
           placeholder: '••••••••',
           controller: _passwordController,
           obscureText: true,
-          prefixIcon: const Icon(Icons.lock, color: AppColors.textSecondary),
+          icon: Icons.lock,
+          focusColor: AppColors.orange,
         ),
         if (_isSignUp)
-          AppTextField(
+          _buildColoredTextField(
             label: 'Confirm Password',
             placeholder: '••••••••',
             controller: _passwordConfirmController,
             obscureText: true,
-            prefixIcon: const Icon(Icons.lock, color: AppColors.textSecondary),
+            icon: Icons.lock,
+            focusColor: AppColors.orange,
           ),
       ],
     );
   }
 
-  Widget _buildSubmitButton() {
-    return PrimaryButton(
-      text: _isSignUp ? 'Create Account' : 'Log In',
-      onPressed: _handleSubmit,
-      size: ButtonSize.large,
+  Widget _buildColoredTextField({
+    required String label,
+    required String placeholder,
+    required TextEditingController controller,
+    required IconData icon,
+    required Color focusColor,
+    TextInputType keyboardType = TextInputType.text,
+    bool obscureText = false,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: AppTextStyles.body2.copyWith(
+            color: AppColors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        SizedBox(height: AppSpacing.sm),
+        TextField(
+          controller: controller,
+          obscureText: obscureText,
+          keyboardType: keyboardType,
+          style: AppTextStyles.body1.copyWith(color: AppColors.white),
+          decoration: InputDecoration(
+            hintText: placeholder,
+            hintStyle: AppTextStyles.body1.copyWith(
+              color: AppColors.textDisabled,
+            ),
+            prefixIcon: Icon(icon, color: AppColors.gray),
+            filled: true,
+            fillColor: AppColors.backgroundCard,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.medium),
+              borderSide: BorderSide.none,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.medium),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(AppRadius.medium),
+              borderSide: BorderSide(color: focusColor, width: 2),
+            ),
+            contentPadding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.md,
+            ),
+          ),
+        ),
+      ],
     );
+  }
+
+  Widget _buildSubmitButton() {
+    if (_isSignUp) {
+      // Create Accountボタン: blue背景と枠、白テキスト
+      return Container(
+        height: 56.0,
+        decoration: BoxDecoration(
+          color: AppColors.blue.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(AppRadius.large),
+          border: Border.all(
+            color: AppColors.blue,
+            width: 1.5,
+          ),
+        ),
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: _handleSubmit,
+            borderRadius: BorderRadius.circular(AppRadius.large),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+              child: Center(
+                child: Text(
+                  'Create Account',
+                  style: AppTextStyles.body1.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18.0,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    } else {
+      return PrimaryButton(
+        text: 'Log In',
+        onPressed: _handleSubmit,
+        size: ButtonSize.large,
+      );
+    }
   }
 
   Widget _buildToggleText() {
     return Center(
-      child: AppTextButton(
-        text: _isSignUp
-            ? 'Already have an account? Log In'
-            : 'Don\'t have an account? Sign Up',
+      child: TextButton(
         onPressed: _toggleMode,
-        size: ButtonSize.small,
+        child: Text(
+          _isSignUp
+              ? 'Already have an account? Log In'
+              : 'Don\'t have an account? Sign Up',
+          style: AppTextStyles.body2.copyWith(
+            color: AppColors.gray,
+          ),
+        ),
       ),
     );
   }
 }
+

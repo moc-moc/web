@@ -16,12 +16,47 @@ class AppToggleSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Switch(
-      value: value,
-      onChanged: onChanged,
-      activeTrackColor: (activeColor ?? AppColors.blue).withValues(alpha: 0.5),
-      inactiveThumbColor: AppColors.textDisabled,
-      inactiveTrackColor: AppColors.backgroundSecondary,
+    final effectiveActiveColor = activeColor ?? AppColors.blue;
+    return GestureDetector(
+      onTap: () => onChanged(!value),
+      child: Container(
+        width: 52,
+        height: 32,
+        decoration: BoxDecoration(
+          color: value
+              ? effectiveActiveColor.withValues(alpha: 0.2)
+              : AppColors.blackgray,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: value
+                ? effectiveActiveColor
+                : AppColors.gray.withValues(alpha: 0.35),
+            width: 1.5,
+          ),
+        ),
+        child: Stack(
+          children: [
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeInOut,
+              left: value ? 22 : 2,
+              top: 2,
+              child: Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: value ? effectiveActiveColor : AppColors.gray,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: value ? effectiveActiveColor : AppColors.gray,
+                    width: 1.5,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -121,10 +156,10 @@ class AppChip extends StatelessWidget {
 
     return Material(
       color: effectiveBackgroundColor,
-      borderRadius: BorderRadius.circular(AppRadius.small),
+      borderRadius: BorderRadius.circular(AppRadius.large),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.small),
+        borderRadius: BorderRadius.circular(AppRadius.large),
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: AppSpacing.md,
@@ -182,10 +217,10 @@ class AppFilterChip extends StatelessWidget {
 
     return Material(
       color: selected ? effectiveSelectedColor : AppColors.backgroundCard,
-      borderRadius: BorderRadius.circular(AppRadius.small),
+      borderRadius: BorderRadius.circular(AppRadius.large),
       child: InkWell(
         onTap: () => onSelected(!selected),
-        borderRadius: BorderRadius.circular(AppRadius.small),
+        borderRadius: BorderRadius.circular(AppRadius.large),
         child: Container(
           padding: EdgeInsets.symmetric(
             horizontal: AppSpacing.md,

@@ -13,6 +13,8 @@ class AppTextField extends StatelessWidget {
   final Widget? prefixIcon;
   final Widget? suffixIcon;
   final ValueChanged<String>? onChanged;
+  final Color? fillColor;
+  final Color? labelColor;
 
   const AppTextField({
     super.key,
@@ -26,6 +28,8 @@ class AppTextField extends StatelessWidget {
     this.prefixIcon,
     this.suffixIcon,
     this.onChanged,
+    this.fillColor,
+    this.labelColor,
   });
 
   @override
@@ -37,7 +41,7 @@ class AppTextField extends StatelessWidget {
           Text(
             label!,
             style: AppTextStyles.body2.copyWith(
-              color: AppColors.textSecondary,
+              color: labelColor ?? AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -60,7 +64,7 @@ class AppTextField extends StatelessWidget {
             prefixIcon: prefixIcon,
             suffixIcon: suffixIcon,
             filled: true,
-            fillColor: AppColors.backgroundCard,
+            fillColor: fillColor ?? AppColors.backgroundCard,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(AppRadius.medium),
               borderSide: BorderSide.none,
@@ -100,6 +104,8 @@ class AppDatePicker extends StatelessWidget {
   final ValueChanged<DateTime> onDateSelected;
   final DateTime? firstDate;
   final DateTime? lastDate;
+  final Color? backgroundColor;
+  final Color? labelColor;
 
   const AppDatePicker({
     super.key,
@@ -109,6 +115,8 @@ class AppDatePicker extends StatelessWidget {
     required this.onDateSelected,
     this.firstDate,
     this.lastDate,
+    this.backgroundColor,
+    this.labelColor,
   });
 
   @override
@@ -120,7 +128,7 @@ class AppDatePicker extends StatelessWidget {
           Text(
             label!,
             style: AppTextStyles.body2.copyWith(
-              color: AppColors.textSecondary,
+              color: labelColor ?? AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -157,7 +165,7 @@ class AppDatePicker extends StatelessWidget {
               vertical: AppSpacing.md,
             ),
             decoration: BoxDecoration(
-              color: AppColors.backgroundCard,
+              color: backgroundColor ?? AppColors.backgroundCard,
               borderRadius: BorderRadius.circular(AppRadius.medium),
             ),
             child: Row(

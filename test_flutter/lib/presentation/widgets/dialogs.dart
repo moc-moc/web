@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/widgets/buttons.dart';
 import 'package:test_flutter/presentation/widgets/input_fields.dart';
-import 'package:test_flutter/presentation/widgets/toggles_chips.dart';
 
 /// ダイアログベース
 class AppDialogBase extends StatelessWidget {
@@ -24,7 +23,7 @@ class AppDialogBase extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: AppColors.backgroundCard,
+      backgroundColor: AppColors.blackgray,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.large),
       ),
@@ -85,13 +84,14 @@ class ConfirmDialog extends StatelessWidget {
       title: title,
       content: Text(message, style: AppTextStyles.body1),
       actions: [
-        AppTextButton(
+        SecondaryButton(
           text: cancelText,
           onPressed: () {
             Navigator.of(context).pop(false);
             onCancel?.call();
           },
           size: ButtonSize.small,
+          borderRadius: 30,
         ),
         SizedBox(width: AppSpacing.sm),
         PrimaryButton(
@@ -101,6 +101,7 @@ class ConfirmDialog extends StatelessWidget {
             onConfirm?.call();
           },
           size: ButtonSize.small,
+          borderRadius: 30,
         ),
       ],
     );
@@ -164,7 +165,7 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
   late TextEditingController _targetHoursController;
   late String _selectedCategory;
   late String _selectedPeriod;
-  late bool _isFocusedOnly;
+  late String _comparisonType;
 
   final List<Map<String, dynamic>> _categories = [
     {'id': 'study', 'label': 'Study', 'icon': Icons.menu_book},
@@ -188,7 +189,7 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
     );
     _selectedCategory = widget.initialCategory ?? 'study';
     _selectedPeriod = widget.initialPeriod ?? 'daily';
-    _isFocusedOnly = widget.initialIsFocusedOnly ?? true;
+    _comparisonType = widget.initialIsFocusedOnly == false ? 'below' : 'above';
   }
 
   @override
@@ -211,13 +212,17 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
             label: 'Goal Title',
             controller: _titleController,
             placeholder: 'e.g., Study Time',
+            fillColor: AppColors.lightblackgray,
           ),
           SizedBox(height: AppSpacing.lg),
 
           // カテゴリー選択
           Text(
             'Category',
-            style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.w600),
+            style: AppTextStyles.body1.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.gray,
+            ),
           ),
           SizedBox(height: AppSpacing.sm),
           Wrap(
@@ -225,6 +230,8 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
             runSpacing: AppSpacing.sm,
             children: _categories.map((category) {
               final isSelected = _selectedCategory == category['id'];
+              final Color backgroundColor =
+                  isSelected ? AppColors.blue : AppColors.lightblackgray;
               return GestureDetector(
                 onTap: () {
                   setState(() {
@@ -237,14 +244,23 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
                     vertical: AppSpacing.sm,
                   ),
                   decoration: BoxDecoration(
-                    color: isSelected
-                        ? AppColors.blue.withValues(alpha: 0.2)
-                        : AppColors.backgroundSecondary,
-                    borderRadius: BorderRadius.circular(AppRadius.medium),
+                    color: backgroundColor,
+                    borderRadius: BorderRadius.circular(30),
                     border: Border.all(
-                      color: isSelected ? AppColors.blue : Colors.transparent,
-                      width: 2,
+                      color: isSelected
+                          ? AppColors.blue.withValues(alpha: 0.6)
+                          : Colors.transparent,
+                      width: 1.5,
                     ),
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: AppColors.blue.withValues(alpha: 0.2),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ]
+                        : [],
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -253,7 +269,7 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
                         category['icon'] as IconData,
                         size: 20,
                         color: isSelected
-                            ? AppColors.blue
+                            ? AppColors.white
                             : AppColors.textSecondary,
                       ),
                       SizedBox(width: AppSpacing.xs),
@@ -261,10 +277,10 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
                         category['label'] as String,
                         style: AppTextStyles.body2.copyWith(
                           color: isSelected
-                              ? AppColors.blue
+                              ? AppColors.white
                               : AppColors.textPrimary,
                           fontWeight: isSelected
-                              ? FontWeight.w600
+                              ? FontWeight.bold
                               : FontWeight.normal,
                         ),
                       ),
@@ -279,7 +295,10 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
           // 期間選択
           Text(
             'Period',
-            style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.w600),
+            style: AppTextStyles.body1.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.gray,
+            ),
           ),
           SizedBox(height: AppSpacing.sm),
           Wrap(
@@ -287,14 +306,41 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
             runSpacing: AppSpacing.sm,
             children: _periods.map((period) {
               final isSelected = _selectedPeriod == period['id'];
-              return AppFilterChip(
-                label: period['label']!,
-                selected: isSelected,
-                onSelected: (selected) {
+              return GestureDetector(
+                onTap: () {
                   setState(() {
                     _selectedPeriod = period['id']!;
                   });
                 },
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? AppColors.blue
+                        : AppColors.lightblackgray,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.blue.withValues(alpha: 0.6)
+                          : Colors.transparent,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    period['label']!,
+                    style: AppTextStyles.body2.copyWith(
+                      color: isSelected
+                          ? AppColors.white
+                          : AppColors.textPrimary,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ),
               );
             }).toList(),
           ),
@@ -304,25 +350,117 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
           AppTextField(
             label: 'Target Hours',
             controller: _targetHoursController,
-            placeholder: '2.0',
+            placeholder: 'e.g., 12',
             keyboardType: TextInputType.numberWithOptions(decimal: true),
+            fillColor: AppColors.lightblackgray,
+            suffixIcon: Padding(
+              padding: EdgeInsets.only(
+                right: AppSpacing.md,
+                top: AppSpacing.sm,
+                bottom: AppSpacing.sm,
+              ),
+              child: Text(
+                'hrs',
+                style: AppTextStyles.body2.copyWith(
+                  color: AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          SizedBox(height: AppSpacing.xs),
+          Text(
+            'Set the total hours for the selected period.',
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.gray,
+            ),
           ),
           SizedBox(height: AppSpacing.lg),
 
-          // 集中時間のみ
-          Row(
+          // 比較タイプ選択
+          Text(
+            'Comparison Type',
+            style: AppTextStyles.body1.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.gray,
+            ),
+          ),
+          SizedBox(height: AppSpacing.sm),
+          Wrap(
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
             children: [
-              AppToggleSwitch(
-                value: _isFocusedOnly,
-                onChanged: (value) {
+              GestureDetector(
+                onTap: () {
                   setState(() {
-                    _isFocusedOnly = value;
+                    _comparisonType = 'above';
                   });
                 },
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _comparisonType == 'above'
+                        ? AppColors.blue
+                        : AppColors.lightblackgray,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: _comparisonType == 'above'
+                          ? AppColors.blue.withValues(alpha: 0.6)
+                          : Colors.transparent,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    'Above',
+                    style: AppTextStyles.body2.copyWith(
+                      color: _comparisonType == 'above'
+                          ? AppColors.white
+                          : AppColors.textPrimary,
+                      fontWeight: _comparisonType == 'above'
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ),
               ),
-              SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Text('Focused time only', style: AppTextStyles.body2),
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _comparisonType = 'below';
+                  });
+                },
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.md,
+                    vertical: AppSpacing.sm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: _comparisonType == 'below'
+                        ? AppColors.blue
+                        : AppColors.lightblackgray,
+                    borderRadius: BorderRadius.circular(30),
+                    border: Border.all(
+                      color: _comparisonType == 'below'
+                          ? AppColors.blue.withValues(alpha: 0.6)
+                          : Colors.transparent,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Text(
+                    'Below',
+                    style: AppTextStyles.body2.copyWith(
+                      color: _comparisonType == 'below'
+                          ? AppColors.white
+                          : AppColors.textPrimary,
+                      fontWeight: _comparisonType == 'below'
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
@@ -330,42 +468,119 @@ class _GoalSettingDialogState extends State<GoalSettingDialog> {
       ),
       actions: [
         if (widget.isEdit && widget.onDelete != null)
-          AppTextButton(
-            text: 'Delete',
-            textColor: AppColors.error,
-            onPressed: () {
-              Navigator.of(context).pop();
-              widget.onDelete?.call();
-            },
-            size: ButtonSize.small,
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: AppColors.error.withValues(alpha: 0.6),
+                width: 1,
+              ),
+            ),
+            child: Material(
+              color: AppColors.error.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(30),
+              child: InkWell(
+                onTap: () {
+                  Navigator.of(context).pop();
+                  widget.onDelete?.call();
+                },
+                borderRadius: BorderRadius.circular(30),
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                    vertical: AppSpacing.md,
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Delete',
+                      style: AppTextStyles.body1.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         Spacer(),
-        AppTextButton(
-          text: 'Cancel',
-          onPressed: () => Navigator.of(context).pop(),
-          size: ButtonSize.small,
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: AppColors.gray.withValues(alpha: 0.4),
+              width: 1,
+            ),
+          ),
+          child: Material(
+            color: AppColors.gray.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(30),
+            child: InkWell(
+              onTap: () => Navigator.of(context).pop(),
+              borderRadius: BorderRadius.circular(30),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.md,
+                ),
+                child: Center(
+                  child: Text(
+                    'Cancel',
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.gray,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
         SizedBox(width: AppSpacing.sm),
-        PrimaryButton(
-          text: 'Save',
-          onPressed: () {
-            // ダミー保存処理
-            Navigator.of(context).pop();
-            widget.onSave?.call();
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: AppColors.blue.withValues(alpha: 0.6),
+              width: 1,
+            ),
+          ),
+          child: Material(
+            color: AppColors.blue.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(30),
+            child: InkWell(
+              onTap: () {
+                // ダミー保存処理
+                Navigator.of(context).pop();
+                widget.onSave?.call();
 
-            // スナックバーで保存成功を表示
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  widget.isEdit
-                      ? 'Goal updated successfully!'
-                      : 'Goal created successfully!',
+                // スナックバーで保存成功を表示
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      widget.isEdit
+                          ? 'Goal updated successfully!'
+                          : 'Goal created successfully!',
+                    ),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(30),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.md,
                 ),
-                backgroundColor: AppColors.success,
+                child: Center(
+                  child: Text(
+                    'Save',
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.white,
+                    ),
+                  ),
+                ),
               ),
-            );
-          },
-          size: ButtonSize.small,
+            ),
+          ),
         ),
       ],
     );
@@ -415,8 +630,6 @@ class _CountdownSettingDialogState extends State<CountdownSettingDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final daysRemaining = _selectedDate.difference(DateTime.now()).inDays;
-
     return AppDialogBase(
       title: widget.isEdit ? 'Edit Countdown' : 'Set Countdown',
       content: Column(
@@ -428,86 +641,139 @@ class _CountdownSettingDialogState extends State<CountdownSettingDialog> {
             label: 'Event Name',
             controller: _eventNameController,
             placeholder: 'e.g., Mid-term Exams',
+            fillColor: AppColors.lightblackgray,
           ),
           SizedBox(height: AppSpacing.lg),
 
           // 日付選択
-          Text(
-            'Target Date',
-            style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.w600),
-          ),
-          SizedBox(height: AppSpacing.sm),
           AppDatePicker(
+            label: 'Target Date',
             selectedDate: _selectedDate,
             onDateSelected: (date) {
               setState(() {
                 _selectedDate = date;
               });
             },
-          ),
-          SizedBox(height: AppSpacing.md),
-
-          // 残り日数表示
-          Container(
-            padding: EdgeInsets.all(AppSpacing.md),
-            decoration: BoxDecoration(
-              color: AppColors.blue.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppRadius.medium),
-            ),
-            child: Row(
-              children: [
-                Icon(Icons.calendar_today, color: AppColors.blue, size: 20),
-                SizedBox(width: AppSpacing.sm),
-                Text(
-                  '$daysRemaining days remaining',
-                  style: AppTextStyles.body2.copyWith(
-                    color: AppColors.blue,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+            backgroundColor: AppColors.lightblackgray,
+            labelColor: AppColors.gray,
           ),
         ],
       ),
       actions: [
         if (widget.isEdit && widget.onDelete != null)
-          AppTextButton(
-            text: 'Delete',
-            textColor: AppColors.error,
-            onPressed: () {
-              Navigator.of(context).pop();
-              widget.onDelete?.call();
-            },
-            size: ButtonSize.small,
+          Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(30),
+              border: Border.all(
+                color: AppColors.error.withValues(alpha: 0.6),
+                width: 1,
+              ),
+            ),
+            child: Material(
+              color: AppColors.error.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(30),
+              child: InkWell(
+                onTap: () {
+                  Navigator.of(context).pop();
+                  widget.onDelete?.call();
+                },
+                borderRadius: BorderRadius.circular(30),
+                child: Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.lg,
+                    vertical: AppSpacing.md,
+                  ),
+                  child: Center(
+                    child: Text(
+                      'Delete',
+                      style: AppTextStyles.body1.copyWith(
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
           ),
         Spacer(),
-        AppTextButton(
-          text: 'Cancel',
-          onPressed: () => Navigator.of(context).pop(),
-          size: ButtonSize.small,
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: AppColors.gray.withValues(alpha: 0.4),
+              width: 1,
+            ),
+          ),
+          child: Material(
+            color: AppColors.gray.withValues(alpha: 0.2),
+            borderRadius: BorderRadius.circular(30),
+            child: InkWell(
+              onTap: () => Navigator.of(context).pop(),
+              borderRadius: BorderRadius.circular(30),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.md,
+                ),
+                child: Center(
+                  child: Text(
+                    'Cancel',
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.gray,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
         ),
         SizedBox(width: AppSpacing.sm),
-        PrimaryButton(
-          text: 'Save',
-          onPressed: () {
-            // ダミー保存処理
-            Navigator.of(context).pop();
-            widget.onSave?.call();
+        Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: AppColors.blue.withValues(alpha: 0.6),
+              width: 1,
+            ),
+          ),
+          child: Material(
+            color: AppColors.blue.withValues(alpha: 0.3),
+            borderRadius: BorderRadius.circular(30),
+            child: InkWell(
+              onTap: () {
+                // ダミー保存処理
+                Navigator.of(context).pop();
+                widget.onSave?.call();
 
-            // スナックバーで保存成功を表示
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(
-                  widget.isEdit
-                      ? 'Countdown updated successfully!'
-                      : 'Countdown created successfully!',
+                // スナックバーで保存成功を表示
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      widget.isEdit
+                          ? 'Countdown updated successfully!'
+                          : 'Countdown created successfully!',
+                    ),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(30),
+              child: Container(
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.lg,
+                  vertical: AppSpacing.md,
                 ),
-                backgroundColor: AppColors.success,
+                child: Center(
+                  child: Text(
+                    'Save',
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.white,
+                    ),
+                  ),
+                ),
               ),
-            );
-          },
-          size: ButtonSize.small,
+            ),
+          ),
         ),
       ],
     );

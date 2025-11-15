@@ -1,18 +1,289 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 
+// ========================================
+// 新しいデザインシステムに基づくカード
+// ========================================
+
+/// 標準カード（通常の情報表示）
+class StandardCard extends StatelessWidget {
+  final Widget child;
+  final double? width;
+  final double? height;
+  final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
+
+  const StandardCard({
+    super.key,
+    required this.child,
+    this.width,
+    this.height,
+    this.padding,
+    this.margin,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      margin: margin,
+      decoration: BoxDecoration(
+        color: AppColors.black,
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: padding ?? EdgeInsets.all(AppSpacing.md),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// グラデーションカード（イベント画面用）
+class GradientCard extends StatelessWidget {
+  final Widget child;
+  final List<Color> gradientColors;
+  final double? width;
+  final double? height;
+  final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
+
+  const GradientCard({
+    super.key,
+    required this.child,
+    required this.gradientColors,
+    this.width,
+    this.height,
+    this.padding,
+    this.margin,
+  });
+
+  /// 青色グラデーション
+  factory GradientCard.blue({
+    required Widget child,
+    double? width,
+    double? height,
+    EdgeInsetsGeometry? padding,
+    EdgeInsetsGeometry? margin,
+  }) {
+    return GradientCard(
+      gradientColors: const [Color(0xFF3B82F6), Color(0xFF1E40AF)],
+      width: width,
+      height: height,
+      padding: padding,
+      margin: margin,
+      child: child,
+    );
+  }
+
+  /// 紫色グラデーション
+  factory GradientCard.purple({
+    required Widget child,
+    double? width,
+    double? height,
+    EdgeInsetsGeometry? padding,
+    EdgeInsetsGeometry? margin,
+  }) {
+    return GradientCard(
+      gradientColors: const [Color(0xFF9E66D5), Color(0xFF7C3AED)],
+      width: width,
+      height: height,
+      padding: padding,
+      margin: margin,
+      child: child,
+    );
+  }
+
+  /// ピンク色グラデーション
+  factory GradientCard.pink({
+    required Widget child,
+    double? width,
+    double? height,
+    EdgeInsetsGeometry? padding,
+    EdgeInsetsGeometry? margin,
+  }) {
+    return GradientCard(
+      gradientColors: const [Color(0xFFEC4899), Color(0xFFC026D3)],
+      width: width,
+      height: height,
+      padding: padding,
+      margin: margin,
+      child: child,
+    );
+  }
+
+  /// 黄色グラデーション
+  factory GradientCard.yellow({
+    required Widget child,
+    double? width,
+    double? height,
+    EdgeInsetsGeometry? padding,
+    EdgeInsetsGeometry? margin,
+  }) {
+    return GradientCard(
+      gradientColors: const [Color(0xFFFBBF24), Color(0xFFF59E0B)],
+      width: width,
+      height: height,
+      padding: padding,
+      margin: margin,
+      child: child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      margin: margin,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradientColors,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.2),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Padding(
+        padding: padding ?? EdgeInsets.all(AppSpacing.md),
+        child: child,
+      ),
+    );
+  }
+}
+
+/// インタラクティブカード（タップ可能）
+class InteractiveCard extends StatelessWidget {
+  final Widget child;
+  final VoidCallback onTap;
+  final double? width;
+  final double? height;
+  final EdgeInsetsGeometry? padding;
+  final EdgeInsetsGeometry? margin;
+  final Color? backgroundColor;
+
+  const InteractiveCard({
+    super.key,
+    required this.child,
+    required this.onTap,
+    this.width,
+    this.height,
+    this.padding,
+    this.margin,
+    this.backgroundColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: width,
+      height: height,
+      margin: margin,
+      decoration: BoxDecoration(
+        color: backgroundColor ?? AppColors.backgroundCard,
+        borderRadius: BorderRadius.circular(AppRadius.medium),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.black.withValues(alpha: 0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.medium),
+          child: Padding(
+            padding: padding ?? EdgeInsets.all(AppSpacing.md),
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 統計表示カード（アイコン、数値、ラベル）
+class StatCard extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String value;
+  final String label;
+  final double? width;
+  final double? height;
+
+  const StatCard({
+    super.key,
+    required this.icon,
+    required this.iconColor,
+    required this.value,
+    required this.label,
+    this.width,
+    this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return StandardCard(
+      width: width,
+      height: height,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: iconColor, size: 32),
+          SizedBox(height: AppSpacing.sm),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: AppTextStyles.h3,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          SizedBox(height: AppSpacing.xs),
+          Flexible(
+            child: Text(
+              label,
+              style: AppTextStyles.caption,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ========================================
+// 既存のカード（互換性のために保持）
+// ========================================
+
 /// カード
 class CustomCard extends StatelessWidget {
   final Widget child;
   final double? width;
   final double? height;
 
-  const CustomCard({
-    super.key,
-    required this.child,
-    this.width,
-    this.height,
-  });
+  const CustomCard({super.key, required this.child, this.width, this.height});
 
   @override
   Widget build(BuildContext context) {
@@ -32,7 +303,7 @@ class CustomCard extends StatelessWidget {
 }
 
 /// 時間入力カード（トラッキング用）
-/// 
+///
 /// カテゴリごとに時間（分単位）を入力するカードです。
 class TimeInputCard extends StatelessWidget {
   final String label;
@@ -58,11 +329,7 @@ class TimeInputCard extends StatelessWidget {
             CircleAvatar(
               backgroundColor: iconColor,
               radius: 24,
-              child: Icon(
-                icon,
-                color: AppColors.white,
-                size: 24,
-              ),
+              child: Icon(icon, color: AppColors.white, size: 24),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -113,7 +380,7 @@ class TimeInputCard extends StatelessWidget {
 }
 
 /// 累計データ表示カード
-/// 
+///
 /// 総ログイン日数と総作業時間を横並びで表示します。
 class TotalStatsCard extends StatelessWidget {
   final int totalLoginDays;
@@ -156,10 +423,7 @@ class TotalStatsCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     const Text(
                       '総ログイン',
-                      style: TextStyle(
-                        color: AppColors.gray,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: AppColors.gray, fontSize: 12),
                     ),
                   ],
                 ),
@@ -175,11 +439,7 @@ class TotalStatsCard extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(
-                      Icons.timer,
-                      color: AppColors.green,
-                      size: 28,
-                    ),
+                    const Icon(Icons.timer, color: AppColors.green, size: 28),
                     const SizedBox(height: 6),
                     Text(
                       totalWorkTime,
@@ -195,10 +455,7 @@ class TotalStatsCard extends StatelessWidget {
                     const SizedBox(height: 2),
                     const Text(
                       '総作業時間',
-                      style: TextStyle(
-                        color: AppColors.gray,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: AppColors.gray, fontSize: 12),
                     ),
                   ],
                 ),

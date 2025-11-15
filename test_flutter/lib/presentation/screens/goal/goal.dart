@@ -1,653 +1,586 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:test_flutter/core/theme.dart';
-import 'package:test_flutter/presentation/widgets/buttons.dart';
-import 'package:test_flutter/presentation/widgets/cards.dart';
 import 'package:test_flutter/core/route.dart';
-import 'package:test_flutter/feature/goals/goal_functions.dart';
-import 'package:test_flutter/feature/goals/goal_data_manager.dart' as goal_model;
-import 'package:test_flutter/feature/countdown/countdown_functions.dart';
-import 'package:test_flutter/feature/countdown/countdowndata.dart';
+import 'package:test_flutter/core/theme.dart';
+import 'package:test_flutter/presentation/widgets/layouts.dart';
+import 'package:test_flutter/presentation/widgets/dialogs.dart';
+import 'package:test_flutter/presentation/widgets/stats_display.dart';
+import 'package:test_flutter/presentation/widgets/navigation.dart';
+import 'package:test_flutter/presentation/widgets/goal_progress_card.dart';
+import 'package:test_flutter/dummy_data/goal_data.dart';
+import 'package:test_flutter/dummy_data/countdown_data.dart';
 
-class Goal extends ConsumerStatefulWidget {
-  const Goal({super.key});
-
-  @override
-  ConsumerState<Goal> createState() => _GoalState();
-}
-
-class _GoalState extends ConsumerState<Goal> {
-  Timer? _timer;
-  List<Countdown> _localCountdowns = [];
-  List<goal_model.Goal> _localGoals = [];
-  bool _isLoadingLocal = true;
-  bool _showLocalData = false;
-
-  @override
-  void initState() {
-    super.initState();
-    // 毎秒更新のタイマーを開始
-    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() {});
-      }
-    });
-    // ローカルデータを読み込み
-    _loadLocalData();
-  }
-
-  Future<void> _loadLocalData() async {
-    final countdownManager = CountdownDataManager();
-    final goalManager = goal_model.GoalDataManager();
-    
-    final localCountdowns = await countdownManager.getLocalCountdowns();
-    final localGoals = await goalManager.getLocalGoals();
-    
-    // ログに出力
-    debugPrint('📱 ===== Countdown & Goal ローカルデータ確認 =====');
-    debugPrint('✅ ローカルカウントダウン数: ${localCountdowns.length}件');
-    for (var i = 0; i < localCountdowns.length; i++) {
-      debugPrint('  - ${i + 1}. ${localCountdowns[i].title}: ${localCountdowns[i].targetDate}');
-    }
-    debugPrint('✅ ローカルゴール数: ${localGoals.length}件');
-    for (var i = 0; i < localGoals.length; i++) {
-      debugPrint('  - ${i + 1}. ${localGoals[i].tag}: ${localGoals[i].targetTime}分');
-    }
-    debugPrint('============================');
-    
-    if (mounted) {
-      setState(() {
-        _localCountdowns = localCountdowns;
-        _localGoals = localGoals;
-        _isLoadingLocal = false;
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  String _getDetectionItemText(goal_model.DetectionItem item) {
-    switch (item) {
-      case goal_model.DetectionItem.book:
-        return '本';
-      case goal_model.DetectionItem.smartphone:
-        return 'スマホ';
-      case goal_model.DetectionItem.pc:
-        return 'パソコン';
-    }
-  }
-
-  String _getComparisonTypeText(goal_model.ComparisonType type) {
-    switch (type) {
-      case goal_model.ComparisonType.above:
-        return '以上';
-      case goal_model.ComparisonType.below:
-        return '以下';
-    }
-  }
-
-  String _formatCountdown(Duration difference) {
-    if (difference.isNegative) {
-      return '期限切れ';
-    }
-
-    final days = difference.inDays;
-    final hours = difference.inHours % 24;
-    final minutes = difference.inMinutes % 60;
-    final seconds = difference.inSeconds % 60;
-
-    // 状況に応じた最適表示
-    if (days > 0) {
-      return '残り $days日 $hours時間 $minutes分 $seconds秒';
-    } else if (hours > 0) {
-      return '残り $hours時間 $minutes分 $seconds秒';
-    } else if (minutes > 0) {
-      return '残り $minutes分 $seconds秒';
-    } else {
-      return '残り $seconds秒';
-    }
-  }
+/// 目標画面（新デザインシステム版）
+class GoalScreenNew extends StatelessWidget {
+  const GoalScreenNew({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final goals = ref.watch(goalsListProvider);
-    final countdowns = ref.watch(countdownsListProvider);
-    
-    // 期限切れカウントダウンを削除（画面表示後に実行）
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      await deleteExpiredCountdownsHelper(ref);
-    });
-    
-    debugPrint('🎯 [Goal画面] Goals: ${goals.length}件, Countdowns: ${countdowns.length}件');
-
-    return Scaffold(
+    return AppScaffold(
       backgroundColor: AppColors.black,
-      appBar: AppBar(
-        title: const Text('Goal'),
-        backgroundColor: AppColors.black,
-        foregroundColor: AppColors.white,
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
+      bottomNavigationBar: _buildBottomNavigationBar(context),
+      body: SafeArea(
+        child: Stack(
+          children: [
+            ScrollableContent(
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // カウントダウンセクション
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                  const Text(
-                    'カウントダウン',
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                      ),
-                      CustomIconButton(
-                        icon: Icons.add,
-                        onPressed: () {
-                          Navigator.pushNamed(context, AppRoutes.setgoal);
-                        },
-                        color: AppColors.blue,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  if (countdowns.isEmpty)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20, horizontal: 16),
-                        child: Text(
-                          '新しいカウントダウンを追加して、大切なイベントまでの日数を確認しましょう！',
-                          style: TextStyle(
-                            color: AppColors.gray,
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                    )
-                  else
-                    ...countdowns.map((countdown) {
-                      final now = DateTime.now();
-                      final difference = countdown.targetDate.difference(now);
+                  // やる気の出る名言バナー
+                  _buildQuoteSection(),
 
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: CustomCard(
-                          width: double.infinity,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  countdown.title,
-                                  style: const TextStyle(
-                                    color: AppColors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _formatCountdown(difference),
-                                  style: const TextStyle(
-                                    color: AppColors.blue,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
-                  
-                  // ローカルデータ表示セクション
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'ローカルデータ確認',
-                        style: TextStyle(
-                          color: AppColors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      TextButton.icon(
-                        onPressed: () {
-                          setState(() {
-                            _showLocalData = !_showLocalData;
-                          });
-                        },
-                        icon: Icon(
-                          _showLocalData ? Icons.visibility_off : Icons.visibility,
-                          color: AppColors.white,
-                          size: 16,
-                        ),
-                        label: Text(
-                          _showLocalData ? '非表示' : '表示',
-                          style: const TextStyle(
-                            color: AppColors.white,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  if (_showLocalData)
-                    CustomCard(
-                      width: double.infinity,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.smartphone,
-                                  color: AppColors.blue,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'ローカルカウントダウンデータ',
-                                  style: TextStyle(
-                                    color: AppColors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            if (_isLoadingLocal)
-                              const Center(child: CircularProgressIndicator())
-                            else if (_localCountdowns.isEmpty)
-                              const Text(
-                                'ローカルカウントダウンデータなし',
-                                style: TextStyle(color: AppColors.gray, fontSize: 12),
-                              )
-                            else ...[
-                              Text(
-                                '保存されているカウントダウン: ${_localCountdowns.length}件',
-                                style: const TextStyle(
-                                  color: AppColors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              ..._localCountdowns.map((cd) {
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.black.withValues(alpha: 0.3),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          cd.title,
-                                          style: const TextStyle(
-                                            color: AppColors.white,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '目標日時: ${cd.targetDate.toString().split('.')[0]}',
-                                          style: const TextStyle(
-                                            color: AppColors.blue,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                        Text(
-                                          'ID: ${cd.id}',
-                                          style: const TextStyle(
-                                            color: AppColors.gray,
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                        Text(
-                                          '削除済み: ${cd.isDeleted ? "はい" : "いいえ"}',
-                                          style: TextStyle(
-                                            color: cd.isDeleted ? Colors.red : Colors.green,
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                              const SizedBox(height: 8),
-                              const Divider(color: AppColors.gray, height: 1),
-                              const SizedBox(height: 8),
-                              if (countdowns.length == _localCountdowns.where((c) => !c.isDeleted).length)
-                                Row(
-                                  children: [
-                                    Icon(Icons.check_circle, color: Colors.green, size: 16),
-                                    const SizedBox(width: 6),
-                                    const Expanded(
-                                      child: Text(
-                                        'Providerと一致',
-                                        style: TextStyle(color: Colors.green, fontSize: 11),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else
-                                Row(
-                                  children: [
-                                    Icon(Icons.warning, color: Colors.orange, size: 16),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        'Provider: ${countdowns.length}件、ローカル(アクティブ): ${_localCountdowns.where((c) => !c.isDeleted).length}件',
-                                        style: const TextStyle(color: Colors.orange, fontSize: 11),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  
-                  if (_showLocalData)
-                    const SizedBox(height: 12),
-                  
-                  // ローカルゴールデータカード
-                  if (_showLocalData)
-                    CustomCard(
-                      width: double.infinity,
-                      child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Icon(
-                                  Icons.smartphone,
-                                  color: AppColors.green,
-                                  size: 20,
-                                ),
-                                const SizedBox(width: 8),
-                                const Text(
-                                  'ローカルゴールデータ',
-                                  style: TextStyle(
-                                    color: AppColors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 12),
-                            if (_isLoadingLocal)
-                              const Center(child: CircularProgressIndicator())
-                            else if (_localGoals.isEmpty)
-                              const Text(
-                                'ローカルゴールデータなし',
-                                style: TextStyle(color: AppColors.gray, fontSize: 12),
-                              )
-                            else ...[
-                              Text(
-                                '保存されているゴール: ${_localGoals.length}件',
-                                style: const TextStyle(
-                                  color: AppColors.white,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              ..._localGoals.map((goal) {
-                                final now = DateTime.now();
-                                final endDate = goal.startDate.add(Duration(days: goal.durationDays));
-                                final daysLeft = endDate.difference(now).inDays;
-                                
-                                return Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.black.withValues(alpha: 0.3),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          goal.tag,
-                                          style: const TextStyle(
-                                            color: AppColors.white,
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${_getDetectionItemText(goal.detectionItem)}: ${goal.targetTime}分${_getComparisonTypeText(goal.comparisonType)}',
-                                          style: const TextStyle(
-                                            color: AppColors.blue,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                        Text(
-                                          '期間: ${daysLeft >= 0 ? "残り${daysLeft}日" : "期間終了"}',
-                                          style: TextStyle(
-                                            color: daysLeft >= 0 ? AppColors.green : Colors.red,
-                                            fontSize: 11,
-                                          ),
-                                        ),
-                                        Text(
-                                          '連続達成: ${goal.consecutiveAchievements}回',
-                                          style: const TextStyle(
-                                            color: AppColors.yellow,
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                        Text(
-                                          'ID: ${goal.id}',
-                                          style: const TextStyle(
-                                            color: AppColors.gray,
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                        Text(
-                                          '削除済み: ${goal.isDeleted ? "はい" : "いいえ"}',
-                                          style: TextStyle(
-                                            color: goal.isDeleted ? Colors.red : Colors.green,
-                                            fontSize: 10,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              }),
-                              const SizedBox(height: 8),
-                              const Divider(color: AppColors.gray, height: 1),
-                              const SizedBox(height: 8),
-                              if (goals.length == _localGoals.where((g) => !g.isDeleted).length)
-                                Row(
-                                  children: [
-                                    Icon(Icons.check_circle, color: Colors.green, size: 16),
-                                    const SizedBox(width: 6),
-                                    const Expanded(
-                                      child: Text(
-                                        'Providerと一致',
-                                        style: TextStyle(color: Colors.green, fontSize: 11),
-                                      ),
-                                    ),
-                                  ],
-                                )
-                              else
-                                Row(
-                                  children: [
-                                    Icon(Icons.warning, color: Colors.orange, size: 16),
-                                    const SizedBox(width: 6),
-                                    Expanded(
-                                      child: Text(
-                                        'Provider: ${goals.length}件、ローカル(アクティブ): ${_localGoals.where((g) => !g.isDeleted).length}件',
-                                        style: const TextStyle(color: Colors.orange, fontSize: 11),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  
-                  const SizedBox(height: 32),
-                  
-                  // 目標セクション
-                  const Text(
-                    '目標',
-                    style: TextStyle(
-                      color: AppColors.white,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  
-                  if (goals.isEmpty)
-                    const Center(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(vertical: 20),
-                        child: Text(
-                          '目標がありません',
-                          style: TextStyle(
-                            color: AppColors.gray,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ),
-                    )
-                  else
-                    ...goals.map((goal) {
-                      final now = DateTime.now();
-                      final endDate = goal.startDate.add(Duration(days: goal.durationDays));
-                      final daysLeft = endDate.difference(now).inDays;
+                  SizedBox(height: AppSpacing.md),
 
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: CustomCard(
-                          width: double.infinity,
-                          child: Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                // タグ
-                                if (goal.tag.isNotEmpty)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.blue,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Text(
-                                      goal.tag,
-                                      style: const TextStyle(
-                                        color: AppColors.white,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ),
-                                const SizedBox(height: 8),
-                                
-                                // タイトル
-                                Text(
-                                  goal.title,
-                                  style: const TextStyle(
-                                    color: AppColors.white,
-                                    fontSize: 18,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                
-                                // 目標情報
-                                Text(
-                                  '${_getDetectionItemText(goal.detectionItem)}: ${goal.targetTime}分${_getComparisonTypeText(goal.comparisonType)}',
-                                  style: const TextStyle(
-                                    color: AppColors.blue,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                
-                                // 期間情報
-                                Text(
-                                  daysLeft >= 0
-                                      ? '残り $daysLeft日'
-                                      : '期間終了',
-                                  style: TextStyle(
-                                    color: daysLeft >= 0
-                                        ? AppColors.green
-                                        : Colors.red,
-                                    fontSize: 14,
-                                  ),
-                                ),
-                                
-                                // 連続達成回数
-                                if (goal.consecutiveAchievements > 0)
-                                  Text(
-                                    '連続達成: ${goal.consecutiveAchievements}回',
-                                    style: const TextStyle(
-                                      color: AppColors.yellow,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
+                  // カウントダウン表示
+                  _buildCountdownSection(context),
+
+                  SizedBox(height: AppSpacing.md),
+
+                  // 目標一覧
+                  _buildGoalsList(context),
+
+                  SizedBox(height: AppSpacing.xxl * 2), // FABのスペース確保
                 ],
               ),
             ),
+
+            // 右下の＋ボタン
+            Positioned(
+              right: AppSpacing.md,
+              bottom: AppSpacing.md,
+              child: Container(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: AppColors.blue.withValues(alpha: 0.6),
+                    width: 2,
+                  ),
+                ),
+                child: FloatingActionButton(
+                  backgroundColor: AppColors.blue.withValues(alpha: 0.3),
+                  shape: const CircleBorder(),
+                  elevation: 8,
+                  onPressed: () {
+                    _showAddEditDialog(context);
+                  },
+                  child: const Icon(Icons.add, color: AppColors.white),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+
+  Widget _buildQuoteSection() {
+    const quotes = [
+      {
+        'quote': 'Build momentum. Design tomorrow.',
+        'author': 'Studio Nova',
+      },
+      {
+        'quote': 'Make bold moves. Iterate relentlessly.',
+        'author': 'Future Lab',
+      },
+      {
+        'quote': 'Slow is smooth. Smooth becomes fast.',
+        'author': 'Modern Craft',
+      },
+    ];
+    final quoteData = quotes[DateTime.now().day % quotes.length];
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Container(
+        height: 180,
+        padding: EdgeInsets.all(AppSpacing.lg),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [
+              Color(0xFF4A5568), // グレー
+              Color(0xFF2D3748), // ダークグレー
+              Color(0xFFF97316), // オレンジ
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            stops: [0.0, 0.5, 1.0],
           ),
-          const SizedBox(height: 20),
-          CustomPushButton(
-            icon: Icons.add,
-            routeName: AppRoutes.settinggoal,
-            color: AppColors.blue,
+          borderRadius: BorderRadius.circular(AppRadius.large),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.black.withValues(alpha: 0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'Motivational Quote',
+              style: AppTextStyles.caption.copyWith(
+                letterSpacing: 2,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary.withValues(alpha: 0.75),
+              ),
+            ),
+            SizedBox(height: AppSpacing.sm),
+            Expanded(
+              child: ShaderMask(
+                shaderCallback: (bounds) => const LinearGradient(
+                  colors: [
+                    Color(0xFFB8C1EC),
+                    Color(0xFFFDE68A),
+                  ],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ).createShader(bounds),
+                blendMode: BlendMode.srcIn,
+              child: Text(
+                  quoteData['quote'] as String,
+                  style: AppTextStyles.h2.copyWith(
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 0.8,
+                    height: 1.2,
+                  ),
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ),
+            SizedBox(height: AppSpacing.xs),
+            Text(
+              quoteData['author'] as String,
+              style: AppTextStyles.body2.copyWith(
+                fontStyle: FontStyle.italic,
+                color: AppColors.textPrimary.withValues(alpha: 0.9),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCountdownSection(BuildContext context) {
+    final countdown = activeCountdown;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: CountdownDisplay(
+        eventName: countdown.eventName,
+        days: _nonNegative(countdown.remainingDays),
+        hours: _nonNegative(countdown.remainingHours),
+        minutes: _nonNegative(countdown.remainingMinutes),
+        seconds: _nonNegative(countdown.remainingSeconds),
+        accentColor: AppColors.blue,
+        borderColor: AppColors.blue.withValues(alpha: 0.45),
+        backgroundColor: AppColors.black,
+        titleColor: AppColors.white,
+        labelColor: AppColors.gray,
+        valueTextColor: AppColors.white,
+        valueBackgroundColor: AppColors.middleblackgray,
+      ),
+    );
+  }
+
+  int _nonNegative(int value) => value < 0 ? 0 : value;
+
+  Widget _buildGoalsList(BuildContext context) {
+    // 写真のデザインに合わせて、最初の4つの目標を表示
+    final displayGoals = dummyGoals.take(4).toList();
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...displayGoals.map(
+            (goal) => Padding(
+              padding: EdgeInsets.only(bottom: AppSpacing.md),
+              child: _buildGoalCard(context, goal),
+            ),
           ),
-          const SizedBox(height: 20),
         ],
+      ),
+    );
+  }
+
+  Widget _buildGoalCard(BuildContext context, DummyGoal goal) {
+    final color = _getGoalColor(goal.category);
+    final icon = _getGoalIcon(goal.category);
+    
+    // ラベルの決定（表示しない）
+    List<String> labels = [];
+
+    // Goalテキストの生成（Goal:を削除）
+    String goalText;
+    if (goal.comparisonType == 'below') {
+      goalText = '< ${goal.targetHours.toStringAsFixed(0)} hour${goal.targetHours == 1 ? '' : 's'}';
+    } else {
+      goalText = '${goal.targetHours.toStringAsFixed(0)} hour${goal.targetHours == 1 ? '' : 's'}';
+    }
+
+    // 時間数値を「2h/5h」形式で生成
+    String progressText;
+    final currentHours = goal.currentHours.toInt();
+    final targetHours = goal.targetHours.toInt();
+    progressText = '${currentHours}h/${targetHours}h';
+
+    // 期間ラベル
+    String periodLabel = _getPeriodLabel(goal.period);
+
+    // 日数テキスト
+    String daysText;
+    if (goal.remainingDays >= 30) {
+      final months = (goal.remainingDays / 30).floor();
+      daysText = months == 1 ? '1 month' : '$months months';
+    } else if (goal.remainingDays >= 7) {
+      final weeks = (goal.remainingDays / 7).floor();
+      daysText = weeks == 1 ? '1 week' : '$weeks weeks';
+    } else {
+      daysText = goal.remainingDays == 1 ? '1 day' : '${goal.remainingDays} days';
+    }
+
+    // ストリーク番号（写真のデザインに合わせて設定）
+    int streakNumber;
+    switch (goal.category) {
+      case 'study':
+        streakNumber = 3;
+        break;
+      case 'pc':
+        streakNumber = 5;
+        break;
+      case 'smartphone':
+        streakNumber = 1;
+        break;
+      case 'work':
+        streakNumber = 2;
+        break;
+      default:
+        streakNumber = goal.consecutiveAchievements;
+    }
+
+    return GestureDetector(
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (context) => GoalSettingDialog(
+            isEdit: true,
+            initialTitle: goal.title,
+            initialCategory: goal.category,
+            initialPeriod: goal.period,
+            initialTargetHours: goal.targetHours,
+            initialIsFocusedOnly: goal.isFocusedOnly,
+            onDelete: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Goal deleted successfully!'),
+                  backgroundColor: AppColors.success,
+                ),
+              );
+            },
+          ),
+        );
+      },
+      child: GoalProgressCardNew(
+        title: goal.title,
+        icon: icon,
+        iconColor: color,
+        streakNumber: streakNumber,
+        labels: labels,
+        goalText: goalText,
+        progressText: progressText,
+        periodLabel: periodLabel,
+        percentage: goal.progress.clamp(0.0, 1.0),
+        progressColor: color,
+        daysText: daysText,
+      ),
+    );
+  }
+
+  IconData _getGoalIcon(String category) {
+    switch (category) {
+      case 'study':
+        return Icons.school;
+      case 'pc':
+        return Icons.computer;
+      case 'smartphone':
+        return Icons.smartphone;
+      case 'work':
+        return Icons.work;
+      default:
+        return Icons.flag;
+    }
+  }
+
+  Color _getGoalColor(String category) {
+    switch (category) {
+      case 'study':
+        return AppColors.green;
+      case 'pc':
+        return AppColors.blue;
+      case 'smartphone':
+        return AppColors.orange;
+      case 'work':
+        return AppColors.purple;
+      default:
+        return AppColors.blue;
+    }
+  }
+
+  String _getPeriodLabel(String period) {
+    switch (period) {
+      case 'daily':
+        return 'Daily';
+      case 'weekly':
+        return 'Weekly';
+      case 'monthly':
+        return 'Monthly';
+      default:
+        return period;
+    }
+  }
+
+  Widget _buildBottomNavigationBar(BuildContext context) {
+    return AppBottomNavigationBar(
+      currentIndex: 1,
+      items: AppBottomNavigationBar.defaultItems,
+      onTap: (index) => _handleNavigationTap(context, index),
+    );
+  }
+
+  void _handleNavigationTap(BuildContext context, int index) {
+    if (index == 1) return;
+    switch (index) {
+      case 0:
+        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        break;
+      case 2:
+        Navigator.pushReplacementNamed(context, AppRoutes.report);
+        break;
+      case 3:
+        Navigator.pushReplacementNamed(context, AppRoutes.settings);
+        break;
+    }
+  }
+
+  void _showAddEditDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => _AddEditSelectionDialog(
+        onCountdownAdd: () {
+          Navigator.of(context).pop();
+          showDialog(
+            context: context,
+            builder: (context) => const CountdownSettingDialog(),
+          );
+        },
+        onCountdownEdit: () {
+          Navigator.of(context).pop();
+          showDialog(
+            context: context,
+            builder: (context) => CountdownSettingDialog(
+              isEdit: true,
+              initialEventName: activeCountdown.eventName,
+              onDelete: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Countdown deleted successfully!'),
+                    backgroundColor: AppColors.success,
+                  ),
+                );
+              },
+            ),
+          );
+        },
+        onGoalAdd: () {
+          Navigator.of(context).pop();
+          showDialog(
+            context: context,
+            builder: (context) => const GoalSettingDialog(),
+          );
+        },
+        onGoalEdit: () {
+          Navigator.of(context).pop();
+          // 最初のゴールを編集する（実際の実装では選択ダイアログを表示する）
+          if (dummyGoals.isNotEmpty) {
+            final goal = dummyGoals.first;
+            showDialog(
+              context: context,
+              builder: (context) => GoalSettingDialog(
+                isEdit: true,
+                initialTitle: goal.title,
+                initialCategory: goal.category,
+                initialPeriod: goal.period,
+                initialTargetHours: goal.targetHours,
+                initialIsFocusedOnly: goal.isFocusedOnly,
+                onDelete: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Goal deleted successfully!'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                },
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+}
+
+/// 追加/編集選択ダイアログ
+class _AddEditSelectionDialog extends StatelessWidget {
+  final VoidCallback onCountdownAdd;
+  final VoidCallback onCountdownEdit;
+  final VoidCallback onGoalAdd;
+  final VoidCallback onGoalEdit;
+
+  const _AddEditSelectionDialog({
+    required this.onCountdownAdd,
+    required this.onCountdownEdit,
+    required this.onGoalAdd,
+    required this.onGoalEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dialog(
+      backgroundColor: AppColors.blackgray,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(AppRadius.large),
+      ),
+      child: Container(
+        padding: EdgeInsets.all(AppSpacing.lg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Add or Edit',
+              style: AppTextStyles.h2,
+            ),
+            SizedBox(height: AppSpacing.lg),
+            _buildOptionButton(
+              context: context,
+              icon: Icons.timer,
+              label: 'Add Countdown',
+              iconColor: AppColors.blue,
+              onTap: onCountdownAdd,
+            ),
+            SizedBox(height: AppSpacing.md),
+            _buildOptionButton(
+              context: context,
+              icon: Icons.edit,
+              label: 'Edit Countdown',
+              iconColor: AppColors.purple,
+              onTap: onCountdownEdit,
+            ),
+            SizedBox(height: AppSpacing.md),
+            _buildOptionButton(
+              context: context,
+              icon: Icons.flag,
+              label: 'Add Goal',
+              iconColor: AppColors.green,
+              onTap: onGoalAdd,
+            ),
+            SizedBox(height: AppSpacing.md),
+            _buildOptionButton(
+              context: context,
+              icon: Icons.edit_outlined,
+              label: 'Edit Goal',
+              iconColor: AppColors.orange,
+              onTap: onGoalEdit,
+            ),
+            SizedBox(height: AppSpacing.lg),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(30),
+                border: Border.all(
+                  color: AppColors.error.withValues(alpha: 0.6),
+                  width: 1,
+                ),
+              ),
+              child: Material(
+                color: AppColors.error.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(30),
+                child: InkWell(
+                  onTap: () => Navigator.of(context).pop(),
+                  borderRadius: BorderRadius.circular(30),
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.lg,
+                      vertical: AppSpacing.md,
+                    ),
+                    child: Center(
+                      child: Text(
+                        'Cancel',
+                        style: AppTextStyles.body1.copyWith(
+                          color: AppColors.error,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOptionButton({
+    required BuildContext context,
+    required IconData icon,
+    required String label,
+    required Color iconColor,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(30),
+        child: Container(
+          padding: EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.lightblackgray,
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: AppColors.gray.withValues(alpha: 0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                color: iconColor,
+                size: 24,
+              ),
+              SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  label,
+                  style: AppTextStyles.body1.copyWith(
+                    color: AppColors.white,
+                  ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                color: AppColors.textSecondary,
+                size: 20,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -61,8 +61,9 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
   @override
   void dispose() {
     _timer?.cancel();
+    // カメラリソースはStop Trackingボタンで解放するため、ここでは解放しない
+    // ただし、画面が閉じられる場合（例：戻るボタン）は検出コントローラーのみ解放
     _detectionController?.dispose();
-    _cameraManager?.dispose();
     super.dispose();
   }
 
@@ -209,6 +210,16 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
     // 検出を停止
     await _detectionController?.stop();
     
+    // カメラリソースを解放
+    await _detectionController?.dispose();
+    await _cameraManager?.dispose();
+    
+    // 状態をクリア
+    setState(() {
+      _detectionController = null;
+      _cameraManager = null;
+    });
+    
     // 次の画面へ遷移
     if (mounted) {
       NavigationHelper.push(context, AppRoutes.trackingFinishedNew);
@@ -298,9 +309,12 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
               ),
             )
           else if (_cameraManager != null)
-            CameraPreviewWidget(
-              cameraManager: _cameraManager!,
-              isVisible: _isCameraOn,
+            RepaintBoundary(
+              child: CameraPreviewWidget(
+                key: ValueKey('camera-preview-${_cameraManager.hashCode}'),
+                cameraManager: _cameraManager!,
+                isVisible: _isCameraOn,
+              ),
             )
           else
             Center(

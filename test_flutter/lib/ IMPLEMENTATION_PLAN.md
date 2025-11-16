@@ -14,16 +14,21 @@
 
 **実装内容**:
 - [ ] 多ラベル分類モデルの選定・統合
-  - 既存モデルの調査（TensorFlow Lite、MediaPipeなど）
-  - Flutterプラグインまたはネイティブ実装の検討
+  - **採用モデル**: EfficientDet-Lite2（最高精度重視）
+  - TensorFlow Lite（iOS/Android）+ TensorFlow.js（Web）のハイブリッドアプローチ
+  - `tflite_flutter`パッケージの統合（iOS/Android）
+  - `tensorflow_js`または`tflite_flutter_web`パッケージの統合（Web）
+  - モデルファイルの準備（EfficientDet-Lite2、サイズ: 12-20MB）
 - [ ] カメラアクセス権限の実装
   - `camera`パッケージの統合
   - 権限要求ロジック（トラッキング開始時）
   - 権限拒否時のエラーハンドリング
 - [ ] 検出タイミングの制御
-  - 省電力モード: 5秒間隔での検出
-  - 通常モード: リアルタイム検出
+  - **省電力モード（デフォルト）**: 5秒間隔での検出（EfficientDet-Lite2の推奨使用モード）
+  - **通常モード（オプション）**: 可能な限り高速検出（バッテリー消費に注意）
   - 検出タイミングの切り替え機能
+  - モデル読み込みの遅延読み込み実装
+  - メモリ管理の最適化（検出処理後のメモリ解放）
 - [ ] 信頼度フィルタリング
   - 信頼度0.7以上の検出結果のみ有効化
   - 信頼度が低い場合は無視
@@ -42,7 +47,12 @@ lib/
 
 **依存関係**:
 - `camera`パッケージ（カメラアクセス）
-- AIモデルライブラリ（未決定）
+- `tflite_flutter`パッケージ（iOS/Android用のTensorFlow Lite）
+- `tensorflow_js`または`tflite_flutter_web`パッケージ（Web用）
+- EfficientDet-Lite2モデルファイル（12-20MB）
+
+**参考資料**:
+- `lib/feature/tracking/detection/MODEL_SELECTION_RESEARCH.md`（モデル選定調査レポート）
 
 ---
 

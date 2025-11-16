@@ -89,10 +89,6 @@ class DetectionProcessor {
 
       // 信頼度フィルタリング
       if (bestResult.confidence < _confidenceThreshold) {
-        LogMk.logDebug(
-          '信頼度が閾値以下: ${bestResult.confidence} < $_confidenceThreshold',
-          tag: 'DetectionProcessor.processImage',
-        );
         return DetectionResult(
           category: DetectionCategory.nothingDetected,
           confidence: bestResult.confidence,

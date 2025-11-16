@@ -131,9 +131,37 @@ class CameraManagerWeb implements CameraManager {
               reader.onLoad.listen((event) {
                 final result = reader.result;
                 if (result != null) {
-                  // ArrayBufferをUint8Listに変換
-                  // ignore: avoid_web_libraries_in_flutter
-                  final bytes = Uint8List.view(result as dynamic);
+                  // FileReader.readAsArrayBuffer()の結果はUint8ListまたはNativeUint8Listとして返される
+                  // Web版では、readAsArrayBuffer()の結果は既にUint8Listとして扱える
+                  Uint8List bytes;
+                  if (result is Uint8List) {
+                    // 既にUint8Listの場合はそのまま使用
+                    bytes = result;
+                  } else {
+                    // その他の型の場合は、バイト配列として扱う
+                    // ignore: avoid_web_libraries_in_flutter
+                    try {
+                      // dynamic型からUint8Listに変換を試みる
+                      final dynamicResult = result as dynamic;
+                      // NativeUint8ListやArrayBufferの場合の処理
+                      if (dynamicResult is List<int>) {
+                        bytes = Uint8List.fromList(dynamicResult);
+                      } else {
+                        // 予期しない型の場合はスキップ
+                        LogMk.logError(
+                          '予期しない型: ${result.runtimeType}',
+                          tag: 'CameraManagerWeb._startImageCapture',
+                        );
+                        return;
+                      }
+                    } catch (e) {
+                      LogMk.logError(
+                        '型変換エラー: $e',
+                        tag: 'CameraManagerWeb._startImageCapture',
+                      );
+                      return;
+                    }
+                  }
                   
                   if (!_imageStreamController!.isClosed) {
                     _imageStreamController!.add(

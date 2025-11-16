@@ -3,7 +3,7 @@
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
-part of 'goal_data_manager.dart';
+part of 'goal_model.dart';
 
 // **************************************************************************
 // FreezedGenerator
@@ -13,7 +13,7 @@ part of 'goal_data_manager.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
-mixin _$Goal implements DiagnosticableTreeMixin {
+mixin _$Goal {
 
  String get id; String get tag; String get title; int get targetTime; ComparisonType get comparisonType; DetectionItem get detectionItem; DateTime get startDate; int get durationDays; int get consecutiveAchievements; int? get achievedTime; bool get isDeleted; DateTime get lastModified;
 /// Create a copy of Goal
@@ -25,12 +25,6 @@ $GoalCopyWith<Goal> get copyWith => _$GoalCopyWithImpl<Goal>(this as Goal, _$ide
   /// Serializes this Goal to a JSON map.
   Map<String, dynamic> toJson();
 
-@override
-void debugFillProperties(DiagnosticPropertiesBuilder properties) {
-  properties
-    ..add(DiagnosticsProperty('type', 'Goal'))
-    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('tag', tag))..add(DiagnosticsProperty('title', title))..add(DiagnosticsProperty('targetTime', targetTime))..add(DiagnosticsProperty('comparisonType', comparisonType))..add(DiagnosticsProperty('detectionItem', detectionItem))..add(DiagnosticsProperty('startDate', startDate))..add(DiagnosticsProperty('durationDays', durationDays))..add(DiagnosticsProperty('consecutiveAchievements', consecutiveAchievements))..add(DiagnosticsProperty('achievedTime', achievedTime))..add(DiagnosticsProperty('isDeleted', isDeleted))..add(DiagnosticsProperty('lastModified', lastModified));
-}
 
 @override
 bool operator ==(Object other) {
@@ -42,7 +36,7 @@ bool operator ==(Object other) {
 int get hashCode => Object.hash(runtimeType,id,tag,title,targetTime,comparisonType,detectionItem,startDate,durationDays,consecutiveAchievements,achievedTime,isDeleted,lastModified);
 
 @override
-String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+String toString() {
   return 'Goal(id: $id, tag: $tag, title: $title, targetTime: $targetTime, comparisonType: $comparisonType, detectionItem: $detectionItem, startDate: $startDate, durationDays: $durationDays, consecutiveAchievements: $consecutiveAchievements, achievedTime: $achievedTime, isDeleted: $isDeleted, lastModified: $lastModified)';
 }
 
@@ -225,7 +219,7 @@ return $default(_that.id,_that.tag,_that.title,_that.targetTime,_that.comparison
 /// @nodoc
 @JsonSerializable()
 
-class _Goal with DiagnosticableTreeMixin implements Goal {
+class _Goal implements Goal {
   const _Goal({required this.id, required this.tag, required this.title, required this.targetTime, required this.comparisonType, required this.detectionItem, required this.startDate, required this.durationDays, this.consecutiveAchievements = 0, this.achievedTime, this.isDeleted = false, required this.lastModified});
   factory _Goal.fromJson(Map<String, dynamic> json) => _$GoalFromJson(json);
 
@@ -252,12 +246,6 @@ _$GoalCopyWith<_Goal> get copyWith => __$GoalCopyWithImpl<_Goal>(this, _$identit
 Map<String, dynamic> toJson() {
   return _$GoalToJson(this, );
 }
-@override
-void debugFillProperties(DiagnosticPropertiesBuilder properties) {
-  properties
-    ..add(DiagnosticsProperty('type', 'Goal'))
-    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('tag', tag))..add(DiagnosticsProperty('title', title))..add(DiagnosticsProperty('targetTime', targetTime))..add(DiagnosticsProperty('comparisonType', comparisonType))..add(DiagnosticsProperty('detectionItem', detectionItem))..add(DiagnosticsProperty('startDate', startDate))..add(DiagnosticsProperty('durationDays', durationDays))..add(DiagnosticsProperty('consecutiveAchievements', consecutiveAchievements))..add(DiagnosticsProperty('achievedTime', achievedTime))..add(DiagnosticsProperty('isDeleted', isDeleted))..add(DiagnosticsProperty('lastModified', lastModified));
-}
 
 @override
 bool operator ==(Object other) {
@@ -269,7 +257,7 @@ bool operator ==(Object other) {
 int get hashCode => Object.hash(runtimeType,id,tag,title,targetTime,comparisonType,detectionItem,startDate,durationDays,consecutiveAchievements,achievedTime,isDeleted,lastModified);
 
 @override
-String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+String toString() {
   return 'Goal(id: $id, tag: $tag, title: $title, targetTime: $targetTime, comparisonType: $comparisonType, detectionItem: $detectionItem, startDate: $startDate, durationDays: $durationDays, consecutiveAchievements: $consecutiveAchievements, achievedTime: $achievedTime, isDeleted: $isDeleted, lastModified: $lastModified)';
 }
 

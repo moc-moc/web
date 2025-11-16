@@ -64,6 +64,10 @@ abstract class BaseDataManager<T> {
       await manager.update(userId, item);
   Future<bool> updateWithAuth(T item) async =>
       await manager.updateWithAuth(item);
+  Future<bool> deleteWithAuth(String id) async =>
+      await manager.deleteWithAuth(id);
+  Future<bool> updatePartialWithAuth(String id, Map<String, dynamic> updates) async =>
+      await manager.updatePartialWithAuth(id, updates);
 
   Future<List<T>> getLocalAll() async =>
       await manager.getLocalAll();

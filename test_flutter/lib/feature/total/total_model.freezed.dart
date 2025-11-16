@@ -3,7 +3,7 @@
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
-part of 'total_data_manager.dart';
+part of 'total_model.dart';
 
 // **************************************************************************
 // FreezedGenerator
@@ -13,7 +13,7 @@ part of 'total_data_manager.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
-mixin _$TotalData implements DiagnosticableTreeMixin {
+mixin _$TotalData {
 
  String get id; int get totalLoginDays; int get totalWorkTimeMinutes; DateTime get lastTrackedDate; DateTime get lastModified;
 /// Create a copy of TotalData
@@ -25,12 +25,6 @@ $TotalDataCopyWith<TotalData> get copyWith => _$TotalDataCopyWithImpl<TotalData>
   /// Serializes this TotalData to a JSON map.
   Map<String, dynamic> toJson();
 
-@override
-void debugFillProperties(DiagnosticPropertiesBuilder properties) {
-  properties
-    ..add(DiagnosticsProperty('type', 'TotalData'))
-    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('totalLoginDays', totalLoginDays))..add(DiagnosticsProperty('totalWorkTimeMinutes', totalWorkTimeMinutes))..add(DiagnosticsProperty('lastTrackedDate', lastTrackedDate))..add(DiagnosticsProperty('lastModified', lastModified));
-}
 
 @override
 bool operator ==(Object other) {
@@ -42,7 +36,7 @@ bool operator ==(Object other) {
 int get hashCode => Object.hash(runtimeType,id,totalLoginDays,totalWorkTimeMinutes,lastTrackedDate,lastModified);
 
 @override
-String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+String toString() {
   return 'TotalData(id: $id, totalLoginDays: $totalLoginDays, totalWorkTimeMinutes: $totalWorkTimeMinutes, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified)';
 }
 
@@ -218,7 +212,7 @@ return $default(_that.id,_that.totalLoginDays,_that.totalWorkTimeMinutes,_that.l
 /// @nodoc
 @JsonSerializable()
 
-class _TotalData with DiagnosticableTreeMixin implements TotalData {
+class _TotalData implements TotalData {
   const _TotalData({required this.id, required this.totalLoginDays, required this.totalWorkTimeMinutes, required this.lastTrackedDate, required this.lastModified});
   factory _TotalData.fromJson(Map<String, dynamic> json) => _$TotalDataFromJson(json);
 
@@ -238,12 +232,6 @@ _$TotalDataCopyWith<_TotalData> get copyWith => __$TotalDataCopyWithImpl<_TotalD
 Map<String, dynamic> toJson() {
   return _$TotalDataToJson(this, );
 }
-@override
-void debugFillProperties(DiagnosticPropertiesBuilder properties) {
-  properties
-    ..add(DiagnosticsProperty('type', 'TotalData'))
-    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('totalLoginDays', totalLoginDays))..add(DiagnosticsProperty('totalWorkTimeMinutes', totalWorkTimeMinutes))..add(DiagnosticsProperty('lastTrackedDate', lastTrackedDate))..add(DiagnosticsProperty('lastModified', lastModified));
-}
 
 @override
 bool operator ==(Object other) {
@@ -255,7 +243,7 @@ bool operator ==(Object other) {
 int get hashCode => Object.hash(runtimeType,id,totalLoginDays,totalWorkTimeMinutes,lastTrackedDate,lastModified);
 
 @override
-String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+String toString() {
   return 'TotalData(id: $id, totalLoginDays: $totalLoginDays, totalWorkTimeMinutes: $totalWorkTimeMinutes, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified)';
 }
 

@@ -3,6 +3,12 @@ import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/buttons.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
+import 'package:test_flutter/presentation/widgets/input_fields.dart';
+import 'package:test_flutter/presentation/widgets/tab_bars.dart';
+import 'package:test_flutter/presentation/widgets/dialogs.dart';
+import 'package:test_flutter/presentation/widgets/auth/auth_form_helper.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
+import 'package:test_flutter/data/repositories/auth_repository.dart';
 
 /// サインアップ/ログイン画面
 class SignupLoginScreen extends StatefulWidget {
@@ -14,6 +20,7 @@ class SignupLoginScreen extends StatefulWidget {
 
 class _SignupLoginScreenState extends State<SignupLoginScreen> {
   bool _isSignUp = true;
+  bool _isLoading = false;
   final _emailController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -35,8 +42,51 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
   }
 
   void _handleSubmit() {
+    // バリデーション
+    final validationError = AuthFormHelper.validateForm(
+      email: _emailController.text,
+      password: _passwordController.text,
+      confirmPassword: _isSignUp ? _passwordConfirmController.text : null,
+      username: _isSignUp ? _usernameController.text : null,
+      isSignUp: _isSignUp,
+    );
+
+    if (validationError != null) {
+      showErrorSnackBar(context, validationError);
+      return;
+    }
+
     // ダミー認証: 次の画面へ遷移
-    Navigator.pushNamed(context, AppRoutes.initialSetup);
+    NavigationHelper.push(context, AppRoutes.initialSetup);
+  }
+
+  Future<void> _handleGoogleSignIn() async {
+    if (_isLoading) return;
+
+    setState(() {
+      _isLoading = true;
+    });
+
+    await AuthFormHelper.handleFormSubmit(
+      context: context,
+      submitFunction: () async {
+        final result = await AuthServiceUN.signInWithGoogle();
+
+        if (result.success && mounted) {
+          NavigationHelper.pushReplacement(context, AppRoutes.home);
+        } else if (mounted) {
+          showErrorSnackBar(context, result.message);
+        }
+        return result.success;
+      },
+      errorMessage: '認証エラーが発生しました',
+    );
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -57,13 +107,22 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
                 _buildHeader(),
                 SizedBox(height: AppSpacing.lg),
                 // Tab Switcher
-                _buildTabSwitcher(),
+                TabSwitcher(
+                  firstTab: 'Sign Up',
+                  secondTab: 'Log In',
+                  isFirstSelected: _isSignUp,
+                  onTabChanged: (isFirst) {
+                    setState(() {
+                      _isSignUp = isFirst;
+                    });
+                  },
+                ),
                 SizedBox(height: AppSpacing.xl),
                 // Social Login Buttons
                 _buildSocialLogins(),
                 SizedBox(height: AppSpacing.lg),
                 // Divider
-                _buildDivider(),
+                const OrDivider(),
                 SizedBox(height: AppSpacing.lg),
                 // Input Fields
                 _buildInputFields(),
@@ -97,148 +156,25 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
     );
   }
 
-  Widget _buildTabSwitcher() {
-    return Container(
-      padding: EdgeInsets.symmetric(
-        horizontal: AppSpacing.sm,
-        vertical: AppSpacing.xs,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.black,
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(color: AppColors.gray.withValues(alpha: 0.35)),
-      ),
-      child: Row(
-        children: [
-          Expanded(child: _buildTab('Sign Up', _isSignUp)),
-          Expanded(child: _buildTab('Log In', !_isSignUp)),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTab(String text, bool isSelected) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: _toggleMode,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(
-            vertical: AppSpacing.sm,
-            horizontal: AppSpacing.xs,
-          ),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.blue.withValues(alpha: 0.15)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isSelected ? AppColors.blue : Colors.transparent,
-              width: 1.5,
-            ),
-          ),
-          child: Text(
-            text,
-            textAlign: TextAlign.center,
-            style: AppTextStyles.body2.copyWith(
-              color: isSelected
-                  ? AppColors.blue
-                  : AppColors.textSecondary,
-              fontWeight: isSelected
-                  ? FontWeight.bold
-                  : FontWeight.normal,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _buildSocialLogins() {
     return SpacedColumn(
       spacing: AppSpacing.md,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildSocialButton(
-          'Sign in with Apple',
-          Icons.apple,
-          Colors.white,
-          Colors.black,
-        ),
-        _buildSocialButton(
-          'Sign in with Google',
-          Icons.g_mobiledata,
-          AppColors.textPrimary,
-          AppColors.backgroundCard,
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSocialButton(
-    String text,
-    IconData icon,
-    Color textColor,
-    Color backgroundColor,
-  ) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(AppRadius.large),
-        border: backgroundColor == AppColors.black
-            ? Border.all(color: AppColors.gray.withValues(alpha: 0.35))
-            : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
+        SocialLoginButton(
+          text: 'Sign in with Apple',
+          icon: Icons.apple,
+          textColor: Colors.white,
+          backgroundColor: Colors.black,
           onTap: _handleSubmit,
-          borderRadius: BorderRadius.circular(AppRadius.large),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: textColor, size: 24),
-              SizedBox(width: AppSpacing.sm),
-              Text(
-                text,
-                style: AppTextStyles.body1.copyWith(
-                  color: textColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildDivider() {
-    return Row(
-      children: [
-        Expanded(
-          child: Divider(
-            color: AppColors.gray.withValues(alpha: 0.35),
-            thickness: 1,
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-          child: Text(
-            'OR',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ),
-        Expanded(
-          child: Divider(
-            color: AppColors.gray.withValues(alpha: 0.35),
-            thickness: 1,
-          ),
+        SocialLoginButton(
+          text: 'Sign in with Google',
+          icon: Icons.g_mobiledata,
+          textColor: AppColors.textPrimary,
+          backgroundColor: AppColors.backgroundCard,
+          onTap: _handleGoogleSignIn,
+          isLoading: _isLoading,
         ),
       ],
     );
@@ -249,7 +185,7 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
       spacing: AppSpacing.md,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _buildColoredTextField(
+        ColoredTextField(
           label: 'Email',
           placeholder: 'your.email@example.com',
           controller: _emailController,
@@ -258,14 +194,14 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
           focusColor: AppColors.blue,
         ),
         if (_isSignUp)
-          _buildColoredTextField(
+          ColoredTextField(
             label: 'Username',
             placeholder: 'your_username',
             controller: _usernameController,
             icon: Icons.person,
             focusColor: AppColors.green,
           ),
-        _buildColoredTextField(
+        ColoredTextField(
           label: 'Password',
           placeholder: '••••••••',
           controller: _passwordController,
@@ -274,7 +210,7 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
           focusColor: AppColors.orange,
         ),
         if (_isSignUp)
-          _buildColoredTextField(
+          ColoredTextField(
             label: 'Confirm Password',
             placeholder: '••••••••',
             controller: _passwordConfirmController,
@@ -282,61 +218,6 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
             icon: Icons.lock,
             focusColor: AppColors.orange,
           ),
-      ],
-    );
-  }
-
-  Widget _buildColoredTextField({
-    required String label,
-    required String placeholder,
-    required TextEditingController controller,
-    required IconData icon,
-    required Color focusColor,
-    TextInputType keyboardType = TextInputType.text,
-    bool obscureText = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: AppTextStyles.body2.copyWith(
-            color: AppColors.white,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        SizedBox(height: AppSpacing.sm),
-        TextField(
-          controller: controller,
-          obscureText: obscureText,
-          keyboardType: keyboardType,
-          style: AppTextStyles.body1.copyWith(color: AppColors.white),
-          decoration: InputDecoration(
-            hintText: placeholder,
-            hintStyle: AppTextStyles.body1.copyWith(
-              color: AppColors.textDisabled,
-            ),
-            prefixIcon: Icon(icon, color: AppColors.gray),
-            filled: true,
-            fillColor: AppColors.backgroundCard,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.medium),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.medium),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(AppRadius.medium),
-              borderSide: BorderSide(color: focusColor, width: 2),
-            ),
-            contentPadding: EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: AppSpacing.md,
-            ),
-          ),
-        ),
       ],
     );
   }

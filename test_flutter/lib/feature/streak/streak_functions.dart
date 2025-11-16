@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 // 内部パッケージ（プロジェクト内）
-import 'package:test_flutter/feature/Streak/streak_data_manager.dart';
+import 'package:test_flutter/feature/base/data_helper_functions.dart';
+import 'package:test_flutter/feature/streak/streak_model.dart';
+import 'package:test_flutter/feature/streak/streak_data_manager.dart';
 
 part 'streak_functions.g.dart';
 
@@ -89,36 +91,16 @@ class StreakDataNotifier extends _$StreakDataNotifier {
 /// await loadStreakDataHelper(ref);
 /// ```
 Future<StreakData> loadStreakDataHelper(dynamic ref) async {
-  debugPrint('🔍 [loadStreakDataHelper] 開始');
-  
   final manager = StreakDataManager();
 
-  // Firestoreから取得を試みる（Firestore優先）
-  final streakData = await manager.getStreakDataWithAuth();
-  
-  if (streakData != null) {
-    debugPrint('🔍 [loadStreakDataHelper] Firestoreから取得: ${streakData.currentStreak}日連続');
-  } else {
-    // Firestoreから取得できない場合はデフォルト値
-    final defaultData = await manager.getStreakDataOrDefault();
-    debugPrint('🔍 [loadStreakDataHelper] デフォルト値を使用: ${defaultData.currentStreak}日連続');
-    
-    // Notifierを使用してProviderを更新
-    ref.read(streakDataProvider.notifier).updateStreak(defaultData);
-    debugPrint('🔍 [loadStreakDataHelper] Provider更新完了');
-    
-    return defaultData;
-  }
-
-  // Notifierを使用してProviderを更新
-  ref.read(streakDataProvider.notifier).updateStreak(streakData);
-  debugPrint('🔍 [loadStreakDataHelper] Provider更新完了');
-  
-  // 更新後の状態を確認
-  final updatedState = ref.read(streakDataProvider);
-  debugPrint('🔍 [loadStreakDataHelper] Provider更新後の状態: ${updatedState.currentStreak}日連続');
-
-  return streakData;
+  return await loadSingleDataHelper<StreakData>(
+    ref: ref,
+    manager: manager,
+    getWithAuth: () => manager.getStreakDataWithAuth(),
+    getDefault: () => manager.getStreakDataOrDefault(),
+    updateProvider: (data) => ref.read(streakDataProvider.notifier).updateStreak(data),
+    functionName: 'loadStreakDataHelper',
+  );
 }
 
 /// 連続継続日数データを同期するヘルパー関数
@@ -136,28 +118,14 @@ Future<StreakData> loadStreakDataHelper(dynamic ref) async {
 /// await syncStreakDataHelper(ref);
 /// ```
 Future<StreakData> syncStreakDataHelper(dynamic ref) async {
-  debugPrint('🔍 [syncStreakDataHelper] 開始');
-  
   final manager = StreakDataManager();
 
-  // Firestoreと同期（認証自動取得版）
-  final syncedList = await manager.syncStreakDataWithAuth();
-  debugPrint('🔍 [syncStreakDataHelper] 同期で取得: ${syncedList.length}件');
-
-  // Streakは1つだけなので、リストから取得またはデフォルト値
-  final streakData = syncedList.isNotEmpty 
-      ? syncedList.first 
-      : await manager.getStreakDataOrDefault();
-  
-  debugPrint('🔍 [syncStreakDataHelper] 最終データ: ${streakData.currentStreak}日連続');
-
-  // Notifierを使用してProviderを更新
-  ref.read(streakDataProvider.notifier).updateStreak(streakData);
-  debugPrint('🔍 [syncStreakDataHelper] Provider更新完了');
-  
-  // 更新後の状態を確認
-  final updatedState = ref.read(streakDataProvider);
-  debugPrint('🔍 [syncStreakDataHelper] Provider更新後の状態: ${updatedState.currentStreak}日連続');
-
-  return streakData;
+  return await syncSingleDataHelper<StreakData>(
+    ref: ref,
+    manager: manager,
+    syncWithAuth: () => manager.syncStreakDataWithAuth(),
+    getDefault: () => manager.getStreakDataOrDefault(),
+    updateProvider: (data) => ref.read(streakDataProvider.notifier).updateStreak(data),
+    functionName: 'syncStreakDataHelper',
+  );
 }

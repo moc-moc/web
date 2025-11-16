@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/screens/event/event_screen_base.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
+import 'package:test_flutter/presentation/widgets/event_content_builder.dart';
 import 'package:test_flutter/dummy_data/event_data.dart';
 
 /// 目標期間終了イベント画面
@@ -35,8 +36,6 @@ class GoalPeriodEndedEventScreen extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           SizedBox(height: AppSpacing.xl),
-
-          // 円形プログレスバー
           CircularProgressBar(
             percentage: progress,
             size: 160,
@@ -44,10 +43,7 @@ class GoalPeriodEndedEventScreen extends StatelessWidget {
             progressColor: AppColors.textPrimary,
             backgroundColor: AppColors.textPrimary.withValues(alpha: 0.2),
           ),
-
           SizedBox(height: AppSpacing.xl),
-
-          // 目標詳細
           Container(
             padding: EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
@@ -56,37 +52,22 @@ class GoalPeriodEndedEventScreen extends StatelessWidget {
             ),
             child: Column(
               children: [
-                _buildDetailRow('Goal', goalName),
-                _buildDetailRow(
+                EventContentBuilder.buildDetailRow('Goal', goalName),
+                EventContentBuilder.buildDetailRow(
                   'Hours',
                   '${achievedHours.toStringAsFixed(1)}h / ${targetHours.toStringAsFixed(1)}h',
                 ),
-                _buildDetailRow('Achievement', '${(progress * 100).toInt()}%'),
-                _buildDetailRow('Consecutive Days', '$consecutiveDays days'),
-                _buildDetailRow('Goal Period', period),
+                EventContentBuilder.buildDetailRow(
+                  'Achievement',
+                  '${(progress * 100).toInt()}%',
+                ),
+                EventContentBuilder.buildDetailRow(
+                  'Consecutive Days',
+                  '$consecutiveDays days',
+                ),
+                EventContentBuilder.buildDetailRow('Goal Period', period),
               ],
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Text(
-            label,
-            style: AppTextStyles.body1.copyWith(
-              color: AppColors.textPrimary.withValues(alpha: 0.7),
-            ),
-          ),
-          Text(
-            value,
-            style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
           ),
         ],
       ),

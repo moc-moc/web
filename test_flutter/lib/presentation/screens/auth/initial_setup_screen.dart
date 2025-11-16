@@ -4,6 +4,9 @@ import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/input_fields.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/app_bars.dart';
+import 'package:test_flutter/presentation/widgets/cards.dart';
+import 'package:test_flutter/presentation/widgets/toggles_chips.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 
 /// 初期設定画面
 class InitialSetupScreen extends StatefulWidget {
@@ -35,7 +38,7 @@ class _InitialSetupScreenState extends State<InitialSetupScreen> {
 
   void _handleNext() {
     // ダミー: 次の画面へ遷移
-    Navigator.pushNamed(context, AppRoutes.initialGoal);
+    NavigationHelper.push(context, AppRoutes.initialGoal);
   }
 
   @override
@@ -44,7 +47,7 @@ class _InitialSetupScreenState extends State<InitialSetupScreen> {
       backgroundColor: AppColors.black,
       appBar: AppBarWithBack(
         title: 'Setup Profile',
-        onBack: () => Navigator.pop(context),
+        onBack: () => NavigationHelper.pop(context),
       ),
       body: SafeArea(
         child: ScrollableContent(
@@ -88,136 +91,80 @@ class _InitialSetupScreenState extends State<InitialSetupScreen> {
   }
 
   Widget _buildBirthdateSection() {
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.black,
-        borderRadius: BorderRadius.circular(AppRadius.large),
-        border: Border.all(
-          color: AppColors.blue,
-          width: 3.0,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Birthdate',
-            style: AppTextStyles.body1.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.white,
-            ),
-          ),
-          SizedBox(height: AppSpacing.md),
-          AppDatePicker(
-            placeholder: 'Select your birthdate',
-            selectedDate: _selectedDate,
-            onDateSelected: (date) {
-              setState(() {
-                _selectedDate = date;
-              });
-            },
-            firstDate: DateTime(1900),
-            lastDate: DateTime.now(),
-          ),
-        ],
+    return FormSection(
+      title: 'Birthdate',
+      backgroundColor: AppColors.black,
+      borderColor: AppColors.blue,
+      borderWidth: 3.0,
+      child: AppDatePicker(
+        placeholder: 'Select your birthdate',
+        selectedDate: _selectedDate,
+        onDateSelected: (date) {
+          setState(() {
+            _selectedDate = date;
+          });
+        },
+        firstDate: DateTime(1900),
+        lastDate: DateTime.now(),
       ),
     );
   }
 
   Widget _buildGenderSection() {
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.black,
-        borderRadius: BorderRadius.circular(AppRadius.large),
-        border: Border.all(
-          color: AppColors.green,
-          width: 3.0,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Gender',
-            style: AppTextStyles.body1.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.white,
-            ),
-          ),
-          SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: _genderOptions.map((gender) {
-              final isSelected = _selectedGender == gender;
-              return _buildCustomChip(
-                label: gender,
-                isSelected: isSelected,
-                onTap: () {
-                  setState(() {
-                    _selectedGender = isSelected ? null : gender;
-                  });
-                },
-              );
-            }).toList(),
-          ),
-        ],
+    return FormSection(
+      title: 'Gender',
+      backgroundColor: AppColors.black,
+      borderColor: AppColors.green,
+      borderWidth: 3.0,
+      child: Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
+        children: _genderOptions.map((gender) {
+          final isSelected = _selectedGender == gender;
+          return SelectableButton(
+            label: gender,
+            isSelected: isSelected,
+            onTap: () {
+              setState(() {
+                _selectedGender = isSelected ? null : gender;
+              });
+            },
+            selectedColor: AppColors.blue,
+            showCheckmark: true,
+          );
+        }).toList(),
       ),
     );
   }
 
   Widget _buildPurposeSection() {
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
-      decoration: BoxDecoration(
-        color: AppColors.black,
-        borderRadius: BorderRadius.circular(AppRadius.large),
-        border: Border.all(
-          color: AppColors.orange,
-          width: 3.0,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Purpose of Use',
-            style: AppTextStyles.body1.copyWith(
-              fontWeight: FontWeight.w600,
-              color: AppColors.white,
-            ),
-          ),
-          SizedBox(height: AppSpacing.sm),
-          Text(
-            'Select all that apply',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          SizedBox(height: AppSpacing.md),
-          Wrap(
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: _purposeOptions.map((purpose) {
-              final isSelected = _selectedPurposes.contains(purpose);
-              return _buildCustomChip(
-                label: purpose,
-                isSelected: isSelected,
-                onTap: () {
-                  setState(() {
-                    if (isSelected) {
-                      _selectedPurposes.remove(purpose);
-                    } else {
-                      _selectedPurposes.add(purpose);
-                    }
-                  });
-                },
-              );
-            }).toList(),
-          ),
-        ],
+    return FormSection(
+      title: 'Purpose of Use',
+      backgroundColor: AppColors.black,
+      borderColor: AppColors.orange,
+      borderWidth: 3.0,
+      subtitleText: 'Select all that apply',
+      child: Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
+        children: _purposeOptions.map((purpose) {
+          final isSelected = _selectedPurposes.contains(purpose);
+          return SelectableButton(
+            label: purpose,
+            isSelected: isSelected,
+            onTap: () {
+              setState(() {
+                if (isSelected) {
+                  _selectedPurposes.remove(purpose);
+                } else {
+                  _selectedPurposes.add(purpose);
+                }
+              });
+            },
+            selectedColor: AppColors.blue,
+            showCheckmark: true,
+          );
+        }).toList(),
       ),
     );
   }
@@ -259,63 +206,6 @@ class _InitialSetupScreenState extends State<InitialSetupScreen> {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCustomChip({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(24),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? AppColors.blue.withValues(alpha: 0.15)
-                : AppColors.black,
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: isSelected
-                  ? AppColors.blue
-                  : AppColors.gray.withValues(alpha: 0.35),
-              width: 1.5,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: AppTextStyles.body2.copyWith(
-                  color: isSelected
-                      ? AppColors.blue
-                      : AppColors.textSecondary,
-                  fontWeight: isSelected
-                      ? FontWeight.bold
-                      : FontWeight.normal,
-                ),
-              ),
-              if (isSelected) ...[
-                SizedBox(width: AppSpacing.xs),
-                Icon(
-                  Icons.check,
-                  size: 16,
-                  color: AppColors.blue,
-                ),
-              ],
-            ],
           ),
         ),
       ),

@@ -5,6 +5,7 @@ import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/dialogs.dart';
 import 'package:test_flutter/presentation/widgets/stats_display.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/presentation/widgets/goal_progress_card.dart';
 import 'package:test_flutter/dummy_data/goal_data.dart';
 import 'package:test_flutter/dummy_data/countdown_data.dart';
@@ -356,13 +357,13 @@ class GoalScreenNew extends StatelessWidget {
     if (index == 1) return;
     switch (index) {
       case 0:
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        NavigationHelper.pushReplacement(context, AppRoutes.home);
         break;
       case 2:
-        Navigator.pushReplacementNamed(context, AppRoutes.report);
+        NavigationHelper.pushReplacement(context, AppRoutes.report);
         break;
       case 3:
-        Navigator.pushReplacementNamed(context, AppRoutes.settings);
+        NavigationHelper.pushReplacement(context, AppRoutes.settings);
         break;
     }
   }
@@ -372,14 +373,14 @@ class GoalScreenNew extends StatelessWidget {
       context: context,
       builder: (context) => _AddEditSelectionDialog(
         onCountdownAdd: () {
-          Navigator.of(context).pop();
+          NavigationHelper.pop(context);
           showDialog(
             context: context,
             builder: (context) => const CountdownSettingDialog(),
           );
         },
         onCountdownEdit: () {
-          Navigator.of(context).pop();
+          NavigationHelper.pop(context);
           showDialog(
             context: context,
             builder: (context) => CountdownSettingDialog(
@@ -397,14 +398,14 @@ class GoalScreenNew extends StatelessWidget {
           );
         },
         onGoalAdd: () {
-          Navigator.of(context).pop();
+          NavigationHelper.pop(context);
           showDialog(
             context: context,
             builder: (context) => const GoalSettingDialog(),
           );
         },
         onGoalEdit: () {
-          Navigator.of(context).pop();
+          NavigationHelper.pop(context);
           // 最初のゴールを編集する（実際の実装では選択ダイアログを表示する）
           if (dummyGoals.isNotEmpty) {
             final goal = dummyGoals.first;
@@ -510,7 +511,7 @@ class _AddEditSelectionDialog extends StatelessWidget {
                 color: AppColors.error.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(30),
                 child: InkWell(
-                  onTap: () => Navigator.of(context).pop(),
+                  onTap: () => NavigationHelper.pop(context),
                   borderRadius: BorderRadius.circular(30),
                   child: Container(
                     padding: EdgeInsets.symmetric(

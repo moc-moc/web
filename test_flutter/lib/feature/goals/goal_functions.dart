@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 // 内部パッケージ（プロジェクト内）
+import 'package:test_flutter/feature/base/base_list_notifier.dart';
+import 'package:test_flutter/feature/base/data_helper_functions.dart';
+import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/goals/goal_data_manager.dart';
 import 'package:test_flutter/feature/tracking/state_management.dart';
 
@@ -29,23 +32,22 @@ class GoalsList extends _$GoalsList {
 
   /// リストに目標を追加
   void addGoal(Goal goal) {
-    state = [...state, goal];
+    BaseListNotifierHelper.addItem(this, goal);
   }
 
   /// リスト全体を更新
   void updateList(List<Goal> newList) {
-    debugPrint('🔍 [GoalsList.updateList] 更新: ${state.length}件 → ${newList.length}件');
-    state = newList;
+    BaseListNotifierHelper.updateList(this, newList);
   }
 
   /// IDで目標を削除
   void removeGoal(String id) {
-    state = state.where((g) => g.id != id).toList();
+    BaseListNotifierHelper.removeById<Goal>(this, id, (g) => g.id);
   }
 
   /// リストをクリア
   void clear() {
-    state = [];
+    BaseListNotifierHelper.clear<Goal>(this);
   }
 }
 
@@ -61,48 +63,18 @@ class GoalsList extends _$GoalsList {
 /// 2. 取得成功時はローカルにも保存してProviderに反映
 /// 3. 取得失敗時（オフライン等）はローカルを使用
 Future<List<Goal>> loadGoalsHelper(dynamic ref) async {
-  debugPrint('🔍 [loadGoalsHelper] 開始');
-  
   final manager = GoalDataManager();
 
-  // Firestoreから取得を試みる（Firestore優先）
-  try {
-    final goals = await manager.getAllGoalsWithAuth();
-    if (goals.isNotEmpty || goals.isEmpty) {  // Firestoreから取得成功（空リストも含む）
-      debugPrint('🔍 [loadGoalsHelper] Firestoreから取得: ${goals.length}件');
-      
-      // ローカルにも保存
-      await manager.saveLocalGoals(goals);
-      debugPrint('✅ [loadGoalsHelper] ローカルに保存完了');
-      
-      // アクティブな目標のみをフィルタリング
-      final activeGoals = goals.where((g) => !g.isDeleted).toList();
-      debugPrint('🔍 [loadGoalsHelper] フィルタ後: ${activeGoals.length}件');
-
-      // Providerを更新
-      ref.read(goalsListProvider.notifier).updateList(activeGoals);
-      debugPrint('🔍 [loadGoalsHelper] Provider更新完了');
-
-      return activeGoals;
-    }
-  } catch (e) {
-    debugPrint('⚠️ [loadGoalsHelper] Firestore取得失敗（オフライン？）: $e');
-  }
-
-  // Firestoreから取得できない場合はローカルを使用
-  debugPrint('📱 [loadGoalsHelper] ローカルデータを使用');
-  final goals = await manager.getLocalGoals();
-  debugPrint('🔍 [loadGoalsHelper] ローカルから取得: ${goals.length}件');
-
-  // アクティブな目標のみをフィルタリング
-  final activeGoals = goals.where((g) => !g.isDeleted).toList();
-  debugPrint('🔍 [loadGoalsHelper] フィルタ後: ${activeGoals.length}件');
-
-  // Providerを更新
-  ref.read(goalsListProvider.notifier).updateList(activeGoals);
-  debugPrint('🔍 [loadGoalsHelper] Provider更新完了');
-
-  return activeGoals;
+  return await loadListDataHelper<Goal>(
+    ref: ref,
+    manager: manager,
+    getAllWithAuth: () => manager.getAllGoalsWithAuth(),
+    getLocalAll: () => manager.getLocalGoals(),
+    saveLocal: (items) => manager.saveLocalGoals(items),
+    updateProvider: (items) => ref.read(goalsListProvider.notifier).updateList(items),
+    filter: (g) => !g.isDeleted,
+    functionName: 'loadGoalsHelper',
+  );
 }
 
 /// 目標を同期するヘルパー関数
@@ -287,4 +259,3 @@ Future<bool> recordAchievementHelper({
 
   return success;
 }
-

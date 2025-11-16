@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'streak_data_manager.dart';
+part of 'streak_model.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator

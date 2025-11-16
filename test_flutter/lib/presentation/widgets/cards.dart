@@ -379,6 +379,164 @@ class TimeInputCard extends StatelessWidget {
   }
 }
 
+/// カテゴリ選択カード（アイコン、ラベル、選択状態を持つ）
+class CategoryCard extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final String? subtitle;
+
+  const CategoryCard({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? color.withValues(alpha: 0.2)
+            : AppColors.black,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: Border.all(
+          color: isSelected
+              ? color
+              : AppColors.gray.withValues(alpha: 0.35),
+          width: isSelected ? 1.5 : 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.large),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      color: isSelected ? color : AppColors.textSecondary,
+                      size: 20,
+                    ),
+                    SizedBox(width: AppSpacing.sm),
+                    Text(
+                      label,
+                      style: AppTextStyles.body2.copyWith(
+                        color: isSelected
+                            ? AppColors.textPrimary
+                            : AppColors.textSecondary,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+                if (subtitle != null) ...[
+                  SizedBox(height: AppSpacing.xs),
+                  Text(
+                    subtitle!,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.gray,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// フォームセクション（タイトルと子ウィジェットを持つセクションコンテナ）
+class FormSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final Color? backgroundColor;
+  final Color? borderColor;
+  final double? borderWidth;
+  final Widget? subtitle;
+  final String? subtitleText;
+
+  const FormSection({
+    super.key,
+    required this.title,
+    required this.child,
+    this.padding,
+    this.backgroundColor,
+    this.borderColor,
+    this.borderWidth,
+    this.subtitle,
+    this.subtitleText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveBackgroundColor = backgroundColor ?? AppColors.blackgray;
+    final effectiveBorderColor =
+        borderColor ?? AppColors.gray.withValues(alpha: 0.35);
+    final effectiveBorderWidth = borderWidth ?? 1.5;
+
+    return Container(
+      padding: padding ?? EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: effectiveBackgroundColor,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: Border.all(
+          color: effectiveBorderColor,
+          width: effectiveBorderWidth,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AppTextStyles.body1.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.white,
+            ),
+          ),
+          if (subtitle != null) ...[
+            SizedBox(height: AppSpacing.sm),
+            subtitle!,
+          ] else if (subtitleText != null) ...[
+            SizedBox(height: AppSpacing.sm),
+            Text(
+              subtitleText!,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+          SizedBox(height: AppSpacing.md),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
 /// 累計データ表示カード
 ///
 /// 総ログイン日数と総作業時間を横並びで表示します。

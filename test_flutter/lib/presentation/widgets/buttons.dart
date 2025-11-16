@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 
 // ========================================
 // 新しいデザインシステムに基づくボタン
@@ -557,7 +558,7 @@ class CustomPushButton extends StatelessWidget {
       shadowColor: AppColors.black.withValues(alpha: 0.3),
       child: InkWell(
         onTap: () {
-          Navigator.pushNamed(context, routeName);
+          NavigationHelper.push(context, routeName);
         },
         customBorder: const CircleBorder(),
         child: SizedBox(
@@ -605,7 +606,7 @@ class CustomReplacementButton extends StatelessWidget {
       shadowColor: AppColors.black.withValues(alpha: 0.3),
       child: InkWell(
         onTap: () {
-          Navigator.pushReplacementNamed(context, routeName);
+          NavigationHelper.pushReplacement(context, routeName);
         },
         borderRadius: BorderRadius.circular(30.0),
         child: Container(
@@ -647,7 +648,7 @@ class CustomPopAndPushButton extends StatelessWidget {
       shadowColor: AppColors.black.withValues(alpha: 0.3),
       child: InkWell(
         onTap: () {
-          Navigator.popAndPushNamed(context, routeName);
+          NavigationHelper.popAndPush(context, routeName);
         },
         borderRadius: BorderRadius.circular(30.0),
         child: Container(
@@ -683,7 +684,7 @@ class CustomBackToHomeButton extends StatelessWidget {
       shadowColor: AppColors.black.withValues(alpha: 0.3),
       child: InkWell(
         onTap: () {
-          Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+          NavigationHelper.pushAndRemoveUntil(context, '/');
         },
         borderRadius: BorderRadius.circular(30.0),
         child: Container(
@@ -695,6 +696,73 @@ class CustomBackToHomeButton extends StatelessWidget {
               fontSize: 24,
               fontWeight: FontWeight.bold,
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// ソーシャルログインボタン（Apple、Googleなど）
+class SocialLoginButton extends StatelessWidget {
+  final String text;
+  final IconData icon;
+  final Color textColor;
+  final Color backgroundColor;
+  final VoidCallback onTap;
+  final bool isLoading;
+
+  const SocialLoginButton({
+    super.key,
+    required this.text,
+    required this.icon,
+    required this.textColor,
+    required this.backgroundColor,
+    required this.onTap,
+    this.isLoading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 48,
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: backgroundColor == AppColors.black
+            ? Border.all(color: AppColors.gray.withValues(alpha: 0.35))
+            : null,
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: isLoading ? null : onTap,
+          borderRadius: BorderRadius.circular(AppRadius.large),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isLoading)
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(textColor),
+                  ),
+                )
+              else
+                Icon(icon, color: textColor, size: 24),
+              SizedBox(width: AppSpacing.sm),
+              Text(
+                text,
+                style: AppTextStyles.body1.copyWith(
+                  color: isLoading
+                      ? textColor.withValues(alpha: 0.6)
+                      : textColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
       ),

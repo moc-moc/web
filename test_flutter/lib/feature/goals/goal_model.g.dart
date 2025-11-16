@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'goal_data_manager.dart';
+part of 'goal_model.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator

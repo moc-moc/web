@@ -27,7 +27,7 @@ class AuthServiceUN {
         photoUrl: user.photoURL,
       );
       
-      debugPrint('✅ Google認証成功 & データ保存完了: ${user.email}');
+      debugPrint('✅ [AuthServiceUN] Google認証成功: ${user.email}');
       
       return AuthResult(
         success: true,
@@ -41,8 +41,9 @@ class AuthServiceUN {
           token: token,
         ),
       );
-    } catch (e) {
-      debugPrint('❌ ログインエラー: $e');
+    } catch (e, stackTrace) {
+      debugPrint('💥 [AuthServiceUN] ログイン処理エラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
       return AuthResult(
         success: false,
         message: 'ログイン処理中にエラーが発生しました: $e',

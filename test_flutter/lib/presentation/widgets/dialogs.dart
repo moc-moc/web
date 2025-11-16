@@ -779,3 +779,13 @@ class _CountdownSettingDialogState extends State<CountdownSettingDialog> {
     );
   }
 }
+
+/// エラーメッセージを表示するSnackBarを表示するヘルパー関数
+void showErrorSnackBar(BuildContext context, String message) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(message),
+      backgroundColor: AppColors.gray,
+    ),
+  );
+}

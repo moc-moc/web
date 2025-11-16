@@ -3,6 +3,7 @@ import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
 import 'package:test_flutter/dummy_data/user_data.dart';
 import 'package:test_flutter/dummy_data/goal_data.dart';
@@ -252,7 +253,7 @@ class HomeScreenNew extends StatelessWidget {
         child: InkWell(
           borderRadius: borderRadius,
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.trackingSettingNew);
+            NavigationHelper.push(context, AppRoutes.trackingSettingNew);
           },
           child: Container(
             decoration: BoxDecoration(
@@ -308,7 +309,7 @@ class HomeScreenNew extends StatelessWidget {
         child: InkWell(
           borderRadius: borderRadius,
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.trackingNew);
+            NavigationHelper.push(context, AppRoutes.trackingNew);
           },
           child: Container(
             decoration: BoxDecoration(
@@ -387,13 +388,13 @@ class HomeScreenNew extends StatelessWidget {
     if (index == 0) return;
     switch (index) {
       case 1:
-        Navigator.pushReplacementNamed(context, AppRoutes.goal);
+        NavigationHelper.pushReplacement(context, AppRoutes.goal);
         break;
       case 2:
-        Navigator.pushReplacementNamed(context, AppRoutes.report);
+        NavigationHelper.pushReplacement(context, AppRoutes.report);
         break;
       case 3:
-        Navigator.pushReplacementNamed(context, AppRoutes.settings);
+        NavigationHelper.pushReplacement(context, AppRoutes.settings);
         break;
     }
   }

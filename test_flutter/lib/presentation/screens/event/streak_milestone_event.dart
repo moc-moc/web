@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/screens/event/event_screen_base.dart';
+import 'package:test_flutter/presentation/widgets/event_content_builder.dart';
 import 'package:test_flutter/dummy_data/event_data.dart';
 
 /// 連続日数大台イベント画面
@@ -26,59 +27,17 @@ class StreakMilestoneEventScreen extends StatelessWidget {
             color: AppColors.textPrimary,
           ),
           SizedBox(height: AppSpacing.xl),
-
-          // 大きな数字
-          Text(
-            '$days',
-            style: TextStyle(
-              fontSize: 120,
-              fontWeight: FontWeight.bold,
-              color: AppColors.textPrimary,
-              height: 1.0,
-            ),
+          EventContentBuilder.buildNumberContent(
+            number: '$days',
+            label: 'Days Streak',
+            title: eventData.title,
+            message: eventData.message,
+            titleFontSize: 36,
           ),
-          SizedBox(height: AppSpacing.md),
-          Text(
-            'Days Streak',
-            style: AppTextStyles.h2,
-            textAlign: TextAlign.center,
-          ),
-
           SizedBox(height: AppSpacing.xl),
-
-          Text(
-            eventData.title,
-            style: AppTextStyles.h1.copyWith(fontSize: 36),
-            textAlign: TextAlign.center,
-          ),
-          SizedBox(height: AppSpacing.md),
-          Text(
-            eventData.message,
-            style: AppTextStyles.body1,
-            textAlign: TextAlign.center,
-          ),
-
-          SizedBox(height: AppSpacing.xl),
-
-          Container(
-            padding: EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.textPrimary.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(AppRadius.medium),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.arrow_forward, color: AppColors.textPrimary),
-                SizedBox(width: AppSpacing.sm),
-                Text(
-                  'Next Milestone: $nextMilestone Days',
-                  style: AppTextStyles.body1.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+          EventContentBuilder.buildMilestoneCard(
+            nextMilestoneText: 'Next Milestone: $nextMilestone Days',
+            icon: Icons.arrow_forward,
           ),
         ],
       ),

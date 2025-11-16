@@ -4,6 +4,7 @@ import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/app_bars.dart';
 import 'package:test_flutter/presentation/widgets/toggles_chips.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/dummy_data/goal_data.dart';
 
 /// トラッキング設定画面（新デザインシステム版）
@@ -402,7 +403,7 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
       child: InkWell(
         borderRadius: borderRadius,
         onTap: () {
-          Navigator.pushNamed(context, AppRoutes.trackingNew);
+          NavigationHelper.push(context, AppRoutes.trackingNew);
         },
         child: Container(
           padding: EdgeInsets.symmetric(

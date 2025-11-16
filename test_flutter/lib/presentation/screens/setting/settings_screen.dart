@@ -3,6 +3,7 @@ import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/dummy_data/user_data.dart';
 
 /// メイン設定画面（新デザインシステム版）
@@ -102,7 +103,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Account Settings',
           subtitle: 'Profile, bio, and more',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.accountSettingsNew);
+            NavigationHelper.push(context, AppRoutes.accountSettingsNew);
           },
         ),
 
@@ -113,7 +114,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Notification Settings',
           subtitle: 'Manage your notifications',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.notificationSettingsNew);
+            NavigationHelper.push(context, AppRoutes.notificationSettingsNew);
           },
         ),
 
@@ -124,7 +125,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Display Settings',
           subtitle: 'Category names and reset time',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.displaySettingsNew);
+            NavigationHelper.push(context, AppRoutes.displaySettingsNew);
           },
         ),
 
@@ -135,7 +136,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Subscribe',
           subtitle: 'Unlock premium features',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.subscriptionNew);
+            NavigationHelper.push(context, AppRoutes.subscriptionNew);
           },
         ),
 
@@ -146,7 +147,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Contact Us',
           subtitle: 'Get help and support',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.contactUsNew);
+            NavigationHelper.push(context, AppRoutes.contactUsNew);
           },
         ),
 
@@ -157,7 +158,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Event Preview',
           subtitle: 'View all event screens',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.eventPreviewNew);
+            NavigationHelper.push(context, AppRoutes.eventPreviewNew);
           },
         ),
       ],
@@ -247,7 +248,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Sign Up & Login',
           subtitle: 'Preview authentication entry screen',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.signupLogin);
+            NavigationHelper.push(context, AppRoutes.signupLogin);
           },
         ),
         _buildSettingItem(
@@ -257,7 +258,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Initial Setup',
           subtitle: 'Initial preferences flow',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.initialSetup);
+            NavigationHelper.push(context, AppRoutes.initialSetup);
           },
         ),
         _buildSettingItem(
@@ -267,7 +268,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Initial Goal Setup',
           subtitle: 'Set the first goal during onboarding',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.initialGoal);
+            NavigationHelper.push(context, AppRoutes.initialGoal);
           },
         ),
 
@@ -283,7 +284,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Widget Catalog',
           subtitle: 'Component showcase for the new design system',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.widgetCatalog);
+            NavigationHelper.push(context, AppRoutes.widgetCatalog);
           },
         ),
         _buildSettingItem(
@@ -293,7 +294,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Color Palette',
           subtitle: 'Preview application color variations',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.colorPreview);
+            NavigationHelper.push(context, AppRoutes.colorPreview);
           },
         ),
 
@@ -309,7 +310,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Goal Set',
           subtitle: 'Event screen when a new goal is created',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.goalSetEvent);
+            NavigationHelper.push(context, AppRoutes.goalSetEvent);
           },
         ),
         _buildSettingItem(
@@ -319,7 +320,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Goal Achieved',
           subtitle: 'Celebrate reaching a goal',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.goalAchievedEvent);
+            NavigationHelper.push(context, AppRoutes.goalAchievedEvent);
           },
         ),
         _buildSettingItem(
@@ -329,7 +330,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Goal Period Ended',
           subtitle: 'Display when a goal period is complete',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.goalPeriodEndedEvent);
+            NavigationHelper.push(context, AppRoutes.goalPeriodEndedEvent);
           },
         ),
         _buildSettingItem(
@@ -339,7 +340,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Streak Milestone',
           subtitle: 'Milestone event for streak achievements',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.streakMilestoneEvent);
+            NavigationHelper.push(context, AppRoutes.streakMilestoneEvent);
           },
         ),
         _buildSettingItem(
@@ -349,7 +350,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Total Hours Milestone',
           subtitle: 'Celebrate total focused hours milestones',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.totalHoursMilestoneEvent);
+            NavigationHelper.push(context, AppRoutes.totalHoursMilestoneEvent);
           },
         ),
         _buildSettingItem(
@@ -359,7 +360,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Countdown Set',
           subtitle: 'Event when a countdown timer is created',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.countdownSetEvent);
+            NavigationHelper.push(context, AppRoutes.countdownSetEvent);
           },
         ),
         _buildSettingItem(
@@ -369,7 +370,7 @@ class SettingsScreenNew extends StatelessWidget {
           title: 'Countdown Ended',
           subtitle: 'Event when a countdown reaches zero',
           onTap: () {
-            Navigator.pushNamed(context, AppRoutes.countdownEndedEvent);
+            NavigationHelper.push(context, AppRoutes.countdownEndedEvent);
           },
         ),
       ],
@@ -388,13 +389,13 @@ class SettingsScreenNew extends StatelessWidget {
     if (index == 3) return;
     switch (index) {
       case 0:
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        NavigationHelper.pushReplacement(context, AppRoutes.home);
         break;
       case 1:
-        Navigator.pushReplacementNamed(context, AppRoutes.goal);
+        NavigationHelper.pushReplacement(context, AppRoutes.goal);
         break;
       case 2:
-        Navigator.pushReplacementNamed(context, AppRoutes.report);
+        NavigationHelper.pushReplacement(context, AppRoutes.report);
         break;
     }
   }

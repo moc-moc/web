@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'total_data_manager.dart';
+part of 'total_model.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator

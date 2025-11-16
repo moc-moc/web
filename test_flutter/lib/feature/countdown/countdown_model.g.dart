@@ -1,6 +1,6 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'countdowndata.dart';
+part of 'countdown_model.dart';
 
 // **************************************************************************
 // JsonSerializableGenerator

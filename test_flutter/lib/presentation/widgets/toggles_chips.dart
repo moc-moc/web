@@ -201,6 +201,8 @@ class AppFilterChip extends StatelessWidget {
   final ValueChanged<bool> onSelected;
   final IconData? icon;
   final Color? selectedColor;
+  final Color? backgroundColor;
+  final Color? textColor;
 
   const AppFilterChip({
     super.key,
@@ -209,14 +211,18 @@ class AppFilterChip extends StatelessWidget {
     required this.onSelected,
     this.icon,
     this.selectedColor,
+    this.backgroundColor,
+    this.textColor,
   });
 
   @override
   Widget build(BuildContext context) {
     final effectiveSelectedColor = selectedColor ?? AppColors.blue;
+    final effectiveBackgroundColor = backgroundColor ?? AppColors.backgroundCard;
+    final effectiveTextColor = textColor ?? AppColors.textPrimary;
 
     return Material(
-      color: selected ? effectiveSelectedColor : AppColors.backgroundCard,
+      color: selected ? effectiveSelectedColor : effectiveBackgroundColor,
       borderRadius: BorderRadius.circular(AppRadius.large),
       child: InkWell(
         onTap: () => onSelected(!selected),
@@ -230,19 +236,98 @@ class AppFilterChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (icon != null) ...[
-                Icon(icon, size: 16, color: AppColors.textPrimary),
+                Icon(icon, size: 16, color: effectiveTextColor),
                 SizedBox(width: AppSpacing.xs),
               ],
               Text(
                 label,
                 style: AppTextStyles.body2.copyWith(
-                  color: AppColors.textPrimary,
+                  color: effectiveTextColor,
                   fontWeight: selected ? FontWeight.bold : FontWeight.w600,
                 ),
               ),
               if (selected) ...[
                 SizedBox(width: AppSpacing.xs),
-                const Icon(Icons.check, size: 16, color: AppColors.textPrimary),
+                Icon(Icons.check, size: 16, color: effectiveTextColor),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 選択可能なボタン（トグル機能付き）
+class SelectableButton extends StatelessWidget {
+  final String label;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final Color? selectedColor;
+  final EdgeInsetsGeometry? padding;
+  final bool showCheckmark;
+
+  const SelectableButton({
+    super.key,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    this.selectedColor,
+    this.padding,
+    this.showCheckmark = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveSelectedColor = selectedColor ?? AppColors.purple;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: padding ??
+              EdgeInsets.symmetric(
+                vertical: AppSpacing.sm,
+                horizontal: AppSpacing.xs,
+              ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? effectiveSelectedColor.withValues(alpha: 0.15)
+                : AppColors.black,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isSelected
+                  ? effectiveSelectedColor
+                  : AppColors.gray.withValues(alpha: 0.35),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: AppTextStyles.body2.copyWith(
+                  color: isSelected
+                      ? effectiveSelectedColor
+                      : AppColors.textSecondary,
+                  fontWeight: isSelected
+                      ? FontWeight.bold
+                      : FontWeight.normal,
+                ),
+              ),
+              if (showCheckmark && isSelected) ...[
+                SizedBox(width: AppSpacing.xs),
+                Icon(
+                  Icons.check,
+                  size: 16,
+                  color: effectiveSelectedColor,
+                ),
               ],
             ],
           ),

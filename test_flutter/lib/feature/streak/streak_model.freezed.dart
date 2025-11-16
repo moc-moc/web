@@ -3,7 +3,7 @@
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
-part of 'streak_data_manager.dart';
+part of 'streak_model.dart';
 
 // **************************************************************************
 // FreezedGenerator
@@ -13,7 +13,7 @@ part of 'streak_data_manager.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
-mixin _$StreakData implements DiagnosticableTreeMixin {
+mixin _$StreakData {
 
  String get id; int get currentStreak; int get longestStreak; DateTime get lastTrackedDate; DateTime get lastModified;
 /// Create a copy of StreakData
@@ -25,12 +25,6 @@ $StreakDataCopyWith<StreakData> get copyWith => _$StreakDataCopyWithImpl<StreakD
   /// Serializes this StreakData to a JSON map.
   Map<String, dynamic> toJson();
 
-@override
-void debugFillProperties(DiagnosticPropertiesBuilder properties) {
-  properties
-    ..add(DiagnosticsProperty('type', 'StreakData'))
-    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('currentStreak', currentStreak))..add(DiagnosticsProperty('longestStreak', longestStreak))..add(DiagnosticsProperty('lastTrackedDate', lastTrackedDate))..add(DiagnosticsProperty('lastModified', lastModified));
-}
 
 @override
 bool operator ==(Object other) {
@@ -42,7 +36,7 @@ bool operator ==(Object other) {
 int get hashCode => Object.hash(runtimeType,id,currentStreak,longestStreak,lastTrackedDate,lastModified);
 
 @override
-String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+String toString() {
   return 'StreakData(id: $id, currentStreak: $currentStreak, longestStreak: $longestStreak, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified)';
 }
 
@@ -218,7 +212,7 @@ return $default(_that.id,_that.currentStreak,_that.longestStreak,_that.lastTrack
 /// @nodoc
 @JsonSerializable()
 
-class _StreakData with DiagnosticableTreeMixin implements StreakData {
+class _StreakData implements StreakData {
   const _StreakData({required this.id, required this.currentStreak, required this.longestStreak, required this.lastTrackedDate, required this.lastModified});
   factory _StreakData.fromJson(Map<String, dynamic> json) => _$StreakDataFromJson(json);
 
@@ -238,12 +232,6 @@ _$StreakDataCopyWith<_StreakData> get copyWith => __$StreakDataCopyWithImpl<_Str
 Map<String, dynamic> toJson() {
   return _$StreakDataToJson(this, );
 }
-@override
-void debugFillProperties(DiagnosticPropertiesBuilder properties) {
-  properties
-    ..add(DiagnosticsProperty('type', 'StreakData'))
-    ..add(DiagnosticsProperty('id', id))..add(DiagnosticsProperty('currentStreak', currentStreak))..add(DiagnosticsProperty('longestStreak', longestStreak))..add(DiagnosticsProperty('lastTrackedDate', lastTrackedDate))..add(DiagnosticsProperty('lastModified', lastModified));
-}
 
 @override
 bool operator ==(Object other) {
@@ -255,7 +243,7 @@ bool operator ==(Object other) {
 int get hashCode => Object.hash(runtimeType,id,currentStreak,longestStreak,lastTrackedDate,lastModified);
 
 @override
-String toString({ DiagnosticLevel minLevel = DiagnosticLevel.info }) {
+String toString() {
   return 'StreakData(id: $id, currentStreak: $currentStreak, longestStreak: $longestStreak, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified)';
 }
 

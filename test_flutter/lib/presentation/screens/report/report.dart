@@ -6,6 +6,7 @@ import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/charts.dart';
 import 'package:test_flutter/dummy_data/report_data.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 
 /// レポート画面（新デザインシステム版）
 class ReportScreenNew extends StatefulWidget {
@@ -356,7 +357,7 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
   }) {
     final prefix = value > 0 ? '+' : '';
     final formatted = isPercentage
-        ? value.toStringAsFixed(0) + '%'
+        ? '${value.toStringAsFixed(0)}%'
         : value.toStringAsFixed(0);
     return '$prefix$formatted$unit';
   }
@@ -810,13 +811,13 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
     if (index == 2) return;
     switch (index) {
       case 0:
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        NavigationHelper.pushReplacement(context, AppRoutes.home);
         break;
       case 1:
-        Navigator.pushReplacementNamed(context, AppRoutes.goal);
+        NavigationHelper.pushReplacement(context, AppRoutes.goal);
         break;
       case 3:
-        Navigator.pushReplacementNamed(context, AppRoutes.settings);
+        NavigationHelper.pushReplacement(context, AppRoutes.settings);
         break;
     }
   }

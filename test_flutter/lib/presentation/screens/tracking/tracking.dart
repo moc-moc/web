@@ -4,7 +4,13 @@ import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
+import 'package:test_flutter/presentation/widgets/camera_preview_widget.dart';
 import 'package:test_flutter/dummy_data/goal_data.dart';
+import 'package:test_flutter/feature/tracking/tracking_functions.dart';
+import 'package:test_flutter/feature/tracking/detection/detection_result.dart';
+import 'package:test_flutter/feature/tracking/detection/detection_controller.dart';
+import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
 
 /// トラッキング中画面（新デザインシステム版）
 class TrackingScreenNew extends StatefulWidget {
@@ -20,14 +26,24 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
   bool _isCameraOn = true;
   bool _isPowerSavingMode = false;
 
-  // 現在検出されているカテゴリ（'study', 'pc', 'smartphone', 'person', null）
+  // カメラ関連
+  DetectionController? _detectionController;
+  CameraManager? _cameraManager;
+  bool _isCameraInitializing = false;
+  String? _cameraError;
+
+  // 現在検出されているカテゴリ（'study', 'pc', 'smartphone', 'personOnly', null）
   String? _currentDetection;
 
-  // ダミー計測時間（秒単位でカウントアップ）
+  // 計測時間（分単位）
   double _studyMinutes = 0;
   double _pcMinutes = 0;
   double _smartphoneMinutes = 0;
-  final double _personOnlyMinutes = 0;
+  double _personOnlyMinutes = 0;
+  
+  // 各カテゴリの開始時刻
+  DateTime? _categoryStartTime;
+  String? _lastCategory;
 
   // カテゴリのテーマカラー
   static const Color _studyColor = AppColors.green; // 緑
@@ -38,36 +54,107 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
   @override
   void initState() {
     super.initState();
-    _currentDetection = 'study'; // デフォルトは勉強
+    _initializeCamera();
     _startTimer();
   }
 
   @override
   void dispose() {
     _timer?.cancel();
+    _detectionController?.dispose();
+    _cameraManager?.dispose();
     super.dispose();
+  }
+
+  /// カメラの初期化
+  Future<void> _initializeCamera() async {
+    setState(() {
+      _isCameraInitializing = true;
+      _cameraError = null;
+    });
+
+    try {
+      final controller = await initializeDetection();
+      
+      if (controller == null) {
+        setState(() {
+          _isCameraInitializing = false;
+          _cameraError = 'カメラの初期化に失敗しました';
+        });
+        return;
+      }
+
+      // カメラマネージャーを取得
+      final cameraManager = controller.cameraManager;
+
+      setState(() {
+        _detectionController = controller;
+        _cameraManager = cameraManager;
+        _isCameraInitializing = false;
+      });
+
+      // 検出を開始
+      await controller.start(powerSavingMode: _isPowerSavingMode);
+
+      // 検出結果を監視
+      controller.resultStream.listen((result) {
+        _handleDetectionResult(result);
+      });
+    } catch (e) {
+      setState(() {
+        _isCameraInitializing = false;
+        _cameraError = 'カメラエラー: $e';
+      });
+    }
+  }
+
+  /// 検出結果の処理
+  void _handleDetectionResult(DetectionResult result) {
+    if (!mounted) return;
+
+    final now = DateTime.now();
+    final categoryString = result.categoryString;
+
+    // カテゴリが変わった場合、前のカテゴリの時間を加算
+    if (_lastCategory != null && _lastCategory != categoryString && _categoryStartTime != null) {
+      final duration = now.difference(_categoryStartTime!);
+      final minutes = duration.inSeconds / 60.0;
+
+      setState(() {
+        switch (_lastCategory) {
+          case 'study':
+            _studyMinutes += minutes;
+            break;
+          case 'pc':
+            _pcMinutes += minutes;
+            break;
+          case 'smartphone':
+            _smartphoneMinutes += minutes;
+            break;
+          case 'personOnly':
+            _personOnlyMinutes += minutes;
+            break;
+        }
+      });
+    }
+
+    // 新しいカテゴリの開始
+    setState(() {
+      _currentDetection = categoryString;
+      _lastCategory = categoryString;
+      _categoryStartTime = now;
+    });
   }
 
   void _startTimer() {
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
       setState(() {
         _elapsedSeconds++;
-        // ダミー: 各カテゴリーの時間を秒単位で増加
-        if (_elapsedSeconds % 3 == 0) _studyMinutes += 1 / 60; // 1秒 = 1/60分
-        if (_elapsedSeconds % 5 == 0) _pcMinutes += 1 / 60;
-        if (_elapsedSeconds % 7 == 0) _smartphoneMinutes += 1 / 60;
-        
-        // ダミー: 検出カテゴリをランダムに変更（デモ用）
-        final cycle = _elapsedSeconds % 20;
-        if (cycle < 8) {
-          _currentDetection = 'study';
-        } else if (cycle < 12) {
-          _currentDetection = 'pc';
-        } else if (cycle < 16) {
-          _currentDetection = 'smartphone';
-        } else {
-          _currentDetection = 'person';
-        }
       });
     });
   }
@@ -94,9 +181,38 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
     }
   }
 
-  void _handleStop() {
+  void _handleStop() async {
     _timer?.cancel();
-    Navigator.pushNamed(context, AppRoutes.trackingFinishedNew);
+    
+    // 最後のカテゴリの時間を加算
+    if (_categoryStartTime != null && _lastCategory != null) {
+      final now = DateTime.now();
+      final duration = now.difference(_categoryStartTime!);
+      final minutes = duration.inSeconds / 60.0;
+
+      switch (_lastCategory) {
+        case 'study':
+          _studyMinutes += minutes;
+          break;
+        case 'pc':
+          _pcMinutes += minutes;
+          break;
+        case 'smartphone':
+          _smartphoneMinutes += minutes;
+          break;
+        case 'personOnly':
+          _personOnlyMinutes += minutes;
+          break;
+      }
+    }
+
+    // 検出を停止
+    await _detectionController?.stop();
+    
+    // 次の画面へ遷移
+    if (mounted) {
+      NavigationHelper.push(context, AppRoutes.trackingFinishedNew);
+    }
   }
 
   @override
@@ -138,26 +254,74 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
       ),
       child: Stack(
         children: [
-          // カメラプレースホルダー
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  _isCameraOn ? Icons.videocam : Icons.videocam_off,
-                  size: 64,
-                  color: AppColors.textDisabled,
-                ),
-                SizedBox(height: AppSpacing.md),
-                Text(
-                  _isCameraOn ? 'Camera Active' : 'Camera Off',
-                  style: AppTextStyles.body1.copyWith(
+          // カメラプレビューまたはエラー表示
+          if (_isCameraInitializing)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const CircularProgressIndicator(),
+                  SizedBox(height: AppSpacing.md),
+                  Text(
+                    'カメラを初期化中...',
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.textDisabled,
+                    ),
+                  ),
+                ],
+              ),
+            )
+          else if (_cameraError != null)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: AppColors.red,
+                  ),
+                  SizedBox(height: AppSpacing.md),
+                  Text(
+                    _cameraError!,
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.red,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: AppSpacing.md),
+                  ElevatedButton(
+                    onPressed: _initializeCamera,
+                    child: const Text('再試行'),
+                  ),
+                ],
+              ),
+            )
+          else if (_cameraManager != null)
+            CameraPreviewWidget(
+              cameraManager: _cameraManager!,
+              isVisible: _isCameraOn,
+            )
+          else
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.videocam_off,
+                    size: 64,
                     color: AppColors.textDisabled,
                   ),
-                ),
-              ],
+                  SizedBox(height: AppSpacing.md),
+                  Text(
+                    'カメラが利用できません',
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.textDisabled,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
           // タイマー表示（左上）
           Positioned(
             top: AppSpacing.md,
@@ -199,10 +363,12 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
                   icon: Icons.battery_saver,
                   isActive: _isPowerSavingMode,
                   isPowerSaving: true,
-                  onTap: () {
+                  onTap: () async {
                     setState(() {
                       _isPowerSavingMode = !_isPowerSavingMode;
                     });
+                    // 省電力モードを切り替え
+                    await _detectionController?.setPowerSavingMode(_isPowerSavingMode);
                   },
                 ),
               ],
@@ -289,7 +455,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
             SizedBox(width: AppSpacing.md),
             Expanded(
               child: _buildCategoryButton(
-                category: 'person',
+                category: 'personOnly',
                 icon: Icons.person,
                 label: 'Person',
                 color: _personColor,
@@ -310,6 +476,14 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
     required double minutes,
   }) {
     final isDetected = _currentDetection == category;
+    
+    // 現在のカテゴリの場合は、追加で経過時間を加算
+    double displayMinutes = minutes;
+    if (isDetected && _categoryStartTime != null) {
+      final now = DateTime.now();
+      final duration = now.difference(_categoryStartTime!);
+      displayMinutes += duration.inSeconds / 60.0;
+    }
 
     return Container(
       decoration: BoxDecoration(
@@ -365,7 +539,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
             ),
             SizedBox(height: AppSpacing.xs),
             Text(
-              _formatTimeWithSeconds(minutes),
+              _formatTimeWithSeconds(displayMinutes),
               style: AppTextStyles.caption.copyWith(
                 color: isDetected 
                     ? color.withValues(alpha: 1.0)
@@ -484,7 +658,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
       ),

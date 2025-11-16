@@ -4,6 +4,7 @@ import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/app_bars.dart';
 import 'package:test_flutter/presentation/widgets/cards.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/dummy_data/event_data.dart';
 
 /// イベントプレビュー画面（新デザインシステム版）
@@ -65,7 +66,7 @@ class EventPreviewScreenNew extends StatelessWidget {
             routeName = AppRoutes.countdownSetEvent;
             break;
         }
-        Navigator.pushNamed(context, routeName);
+        NavigationHelper.push(context, routeName);
       },
       padding: EdgeInsets.all(AppSpacing.md),
       child: Row(

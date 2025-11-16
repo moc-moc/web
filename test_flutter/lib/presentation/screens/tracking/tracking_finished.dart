@@ -3,6 +3,7 @@ import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/dummy_data/tracking_data.dart';
 import 'package:test_flutter/dummy_data/goal_data.dart';
 
@@ -578,10 +579,9 @@ class TrackingFinishedScreenNew extends StatelessWidget {
               shadowColor: AppColors.blue.withValues(alpha: 0.3),
               child: InkWell(
                 onTap: () {
-                  Navigator.pushNamedAndRemoveUntil(
+                  NavigationHelper.pushAndRemoveUntil(
                     context,
                     AppRoutes.home,
-                    (route) => false,
                   );
                 },
                 borderRadius: borderRadiusValue,

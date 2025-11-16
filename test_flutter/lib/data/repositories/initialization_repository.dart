@@ -7,7 +7,7 @@ import 'package:test_flutter/feature/countdown/countdown_functions.dart';
 import 'package:test_flutter/feature/streak/streak_functions.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/setting/settings_functions.dart';
-import 'package:test_flutter/Feature/Total/total_functions.dart';
+import 'package:test_flutter/feature/total/total_functions.dart';
 
 /// アプリ全体で1回だけ呼び出すグローバル初期化関数
 class AppInitUN {

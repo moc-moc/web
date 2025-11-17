@@ -370,6 +370,17 @@ class TFLiteDetectionService implements DetectionService {
   }
   
   @override
+  Future<bool> switchModel({required bool powerSavingMode}) async {
+    // TFLiteDetectionServiceはモデル切り替えをサポートしていません
+    // 常に同じモデルを使用します
+    LogMk.logDebug(
+      'TFLite検出サービス: モデル切り替えはサポートされていません (省電力モード: $powerSavingMode)',
+      tag: 'TFLiteDetectionService.switchModel',
+    );
+    return true;
+  }
+
+  @override
   Future<void> dispose() async {
     _interpreter?.close();
     _interpreter = null;

@@ -6,7 +6,6 @@ import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_service.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_processor.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_controller.dart';
-import 'package:test_flutter/feature/tracking/detection/dummy_detection_service.dart';
 import 'package:test_flutter/feature/tracking/detection/tflite_detection_service.dart';
 import 'package:test_flutter/feature/tracking/detection/onnx_detection_service.dart';
 import 'package:test_flutter/feature/tracking/detection/tfjs_detection_service.dart';
@@ -14,9 +13,6 @@ import 'package:test_flutter/data/services/log_service.dart';
 
 /// 検出サービスの種類
 enum DetectionServiceType {
-  /// ダミーサービス（テスト用）
-  dummy,
-  
   /// TensorFlow Lite（モバイル用）
   tflite,
   
@@ -51,13 +47,6 @@ DetectionService createDetectionService({
   
   // 手動で指定された場合
   switch (type) {
-    case DetectionServiceType.dummy:
-      LogMk.logDebug(
-        'ダミー検出サービスを使用します',
-        tag: 'createDetectionService',
-      );
-      return DummyDetectionService();
-    
     case DetectionServiceType.tflite:
       if (kIsWeb) {
         LogMk.logWarning(
@@ -88,7 +77,7 @@ DetectionService createDetectionService({
     
     case DetectionServiceType.auto:
       // 上記で処理済み
-      return DummyDetectionService();
+      return ONNXDetectionService();
   }
 }
 

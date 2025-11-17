@@ -92,7 +92,7 @@ class CameraManagerWeb implements CameraManager {
         tag: 'CameraManagerWeb.initialize',
       );
 
-      // ビデオが読み込まれるまで待機
+      // ビデオのメタデータが読み込まれるまで待機
       await _videoElement!.onLoadedMetadata.first;
 
       // 画像サイズを取得
@@ -103,6 +103,81 @@ class CameraManagerWeb implements CameraManager {
         '📷 [CameraManagerWeb] ビデオサイズ取得: ${_imageWidth}x${_imageHeight}',
         tag: 'CameraManagerWeb.initialize',
       );
+      
+      // 明示的にビデオ再生を開始（autoplayが動作しない場合に備えて）
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] ビデオ再生開始...',
+        tag: 'CameraManagerWeb.initialize',
+      );
+      
+      try {
+        await _videoElement!.play();
+        LogMk.logDebug(
+          '✅ [CameraManagerWeb] ビデオ再生開始成功',
+          tag: 'CameraManagerWeb.initialize',
+        );
+      } catch (e) {
+        LogMk.logWarning(
+          '⚠️ [CameraManagerWeb] ビデオ再生開始エラー（autoplayで再生される可能性あり）: $e',
+          tag: 'CameraManagerWeb.initialize',
+        );
+      }
+      
+      // ビデオが実際に再生開始されるまで待機
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] ビデオの再生開始イベント待機中...',
+        tag: 'CameraManagerWeb.initialize',
+      );
+      
+      // onPlayingイベントを待機（タイムアウト付き）
+      final playingCompleter = Completer<void>();
+      late StreamSubscription playingSub;
+      
+      playingSub = _videoElement!.onPlaying.listen((event) {
+        if (!playingCompleter.isCompleted) {
+          LogMk.logDebug(
+            '✅ [CameraManagerWeb] ビデオ再生開始イベント受信',
+            tag: 'CameraManagerWeb.initialize',
+          );
+          playingCompleter.complete();
+          playingSub.cancel();
+        }
+      });
+      
+      // タイムアウト設定（3秒）
+      Timer(const Duration(seconds: 3), () {
+        if (!playingCompleter.isCompleted) {
+          LogMk.logWarning(
+            '⚠️ [CameraManagerWeb] ビデオ再生開始イベントのタイムアウト（3秒）- 続行します',
+            tag: 'CameraManagerWeb.initialize',
+          );
+          playingCompleter.complete();
+          playingSub.cancel();
+        }
+      });
+      
+      await playingCompleter.future;
+      
+      // ビデオの再生状態を確認
+      if (_videoElement!.paused) {
+        LogMk.logWarning(
+          '⚠️ [CameraManagerWeb] ビデオがpaused状態です。再生を試みます...',
+          tag: 'CameraManagerWeb.initialize',
+        );
+        try {
+          await _videoElement!.play();
+        } catch (e) {
+          LogMk.logError(
+            '❌ [CameraManagerWeb] ビデオ再生失敗: $e',
+            tag: 'CameraManagerWeb.initialize',
+          );
+        }
+      } else {
+        LogMk.logDebug(
+          '✅ [CameraManagerWeb] ビデオ再生中（paused: false）',
+          tag: 'CameraManagerWeb.initialize',
+        );
+      }
 
       // 画像ストリームの設定
       LogMk.logDebug(
@@ -183,6 +258,27 @@ class CameraManagerWeb implements CameraManager {
               );
               timer.cancel();
               return;
+            }
+            
+            // 最初のキャプチャ時にビデオの再生状態を確認
+            if (_videoElement!.paused) {
+              LogMk.logWarning(
+                '⚠️ [CameraManagerWeb] ビデオがpaused状態です。再生を試みます...',
+                tag: 'CameraManagerWeb._startImageCapture',
+              );
+              try {
+                _videoElement!.play();
+              } catch (e) {
+                LogMk.logError(
+                  '❌ [CameraManagerWeb] ビデオ再生失敗: $e',
+                  tag: 'CameraManagerWeb._startImageCapture',
+                );
+              }
+            } else {
+              LogMk.logDebug(
+                '✅ [CameraManagerWeb] ビデオ再生中（readyState: ${_videoElement!.readyState}, paused: ${_videoElement!.paused}, currentTime: ${_videoElement!.currentTime}）',
+                tag: 'CameraManagerWeb._startImageCapture',
+              );
             }
           }
 

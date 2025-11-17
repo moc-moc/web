@@ -250,6 +250,17 @@ class TFJSDetectionService implements DetectionService {
   }
   
   @override
+  Future<bool> switchModel({required bool powerSavingMode}) async {
+    // TFJSDetectionServiceはモデル切り替えをサポートしていません
+    // 常に同じモデル（COCO-SSD）を使用します
+    LogMk.logDebug(
+      'TFJS検出サービス: モデル切り替えはサポートされていません (省電力モード: $powerSavingMode)',
+      tag: 'TFJSDetectionService.switchModel',
+    );
+    return true;
+  }
+
+  @override
   Future<void> dispose() async {
     if (_model != null) {
       try {

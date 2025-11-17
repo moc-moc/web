@@ -17,6 +17,11 @@ class TFJSDetectionService implements DetectionService {
   }
   
   @override
+  Future<bool> switchModel({required bool powerSavingMode}) async {
+    throw UnsupportedError('TensorFlow.jsはWeb版でのみサポートされています');
+  }
+  
+  @override
   Future<void> dispose() async {
     // スタブ実装
   }

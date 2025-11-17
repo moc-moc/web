@@ -35,30 +35,51 @@ class ONNXDetectionService implements DetectionService {
       // ONNX Runtimeの初期化
       OrtEnv.instance.init();
       
-      // モデルファイルの読み込み
-      // assets/models/yolo11l.onnx（large版、高精度）
+      // モデルファイルの読み込み（優先順位: medium → large → nano）
+      final modelPaths = [
+        'assets/models/yolo11m.onnx',  // YOLO11m（推奨：精度とスピードのバランス）
+        'assets/models/yolo11l.onnx',  // YOLO11l（高精度）
+        'assets/models/yolo11n.onnx',  // YOLO11n（軽量版）
+      ];
+      
       late File modelFile;
-      try {
-        modelFile = await _loadModelFromAsset('assets/models/yolo11l.onnx');
-        final sessionOptions = OrtSessionOptions();
-        _session = OrtSession.fromFile(modelFile, sessionOptions);
-      } catch (e) {
-        LogMk.logDebug(
-          'YOLO11l（large）モデルが見つかりません。他のバリエーションを試行します: $e',
-          tag: 'ONNXDetectionService.initialize',
-        );
-        // フォールバック: nano版を試行（軽量版）
+      bool modelLoaded = false;
+      String? loadedModelPath;
+      
+      for (final modelPath in modelPaths) {
         try {
-          modelFile = await _loadModelFromAsset('assets/models/yolo11n.onnx');
-          final sessionOptions = OrtSessionOptions();
-          _session = OrtSession.fromFile(modelFile, sessionOptions);
-        } catch (e) {
-          LogMk.logError(
-            'モデルファイルの読み込みに失敗: $e',
+          LogMk.logDebug(
+            'モデル読み込み試行: $modelPath',
             tag: 'ONNXDetectionService.initialize',
           );
-          return false;
+          
+          modelFile = await _loadModelFromAsset(modelPath);
+          final sessionOptions = OrtSessionOptions();
+          _session = OrtSession.fromFile(modelFile, sessionOptions);
+          
+          loadedModelPath = modelPath;
+          modelLoaded = true;
+          
+          LogMk.logDebug(
+            'モデル読み込み成功: $modelPath',
+            tag: 'ONNXDetectionService.initialize',
+          );
+          break;
+        } catch (e) {
+          LogMk.logDebug(
+            'モデル読み込み失敗、次を試行: $modelPath - $e',
+            tag: 'ONNXDetectionService.initialize',
+          );
+          continue;
         }
+      }
+      
+      if (!modelLoaded) {
+        LogMk.logError(
+          'すべてのモデルの読み込みに失敗',
+          tag: 'ONNXDetectionService.initialize',
+        );
+        return false;
       }
       
       // ラベルファイルの読み込み
@@ -72,8 +93,10 @@ class ONNXDetectionService implements DetectionService {
         return false;
       }
       
+      // 使用モデル名を抽出して表示
+      final modelName = loadedModelPath?.split('/').last.replaceAll('.onnx', '') ?? 'unknown';
       LogMk.logDebug(
-        'ONNX Runtime初期化完了 (モデル: ${modelFile.path}, ラベル数: ${_labels!.length})',
+        'ONNX Runtime初期化完了 (モデル: $modelName, ラベル数: ${_labels!.length})',
         tag: 'ONNXDetectionService.initialize',
       );
       
@@ -283,6 +306,27 @@ class ONNXDetectionService implements DetectionService {
     // NMS（Non-Maximum Suppression）で重複を除去
     final filteredDetections = _applyNMS(detections);
     
+    // 検出結果のサマリーをログ出力
+    LogMk.logDebug(
+      '✅ [ONNXDetectionService] 検出完了: 候補数 → NMS後${filteredDetections.length}個',
+      tag: 'ONNXDetectionService._parseOutputs',
+    );
+    
+    // NMS後の各検出結果をログ出力（デバッグ用）
+    if (filteredDetections.isNotEmpty) {
+      LogMk.logDebug(
+        '🔍 [ONNXDetectionService] NMS後の検出結果一覧:',
+        tag: 'ONNXDetectionService._parseOutputs',
+      );
+      for (int i = 0; i < filteredDetections.length; i++) {
+        final det = filteredDetections[i];
+        LogMk.logDebug(
+          '  #${i + 1}: ${det.label} (信頼度: ${det.confidence.toStringAsFixed(3)})',
+          tag: 'ONNXDetectionService._parseOutputs',
+        );
+      }
+    }
+    
     return filteredDetections;
   }
   
@@ -366,8 +410,41 @@ class ONNXDetectionService implements DetectionService {
     // 検出されたラベルを集約
     final detectedLabels = detections.map((d) => d.label).toList();
     
+    // すべての検出結果をログに出力（省電力モード用）
+    LogMk.logDebug(
+      '🔍 [ONNXDetectionService] ===== 検出結果詳細 =====',
+      tag: 'ONNXDetectionService._mapToDetectionResults',
+    );
+    LogMk.logDebug(
+      '🔍 [ONNXDetectionService] 検出数: ${detections.length}個 (NMS後)',
+      tag: 'ONNXDetectionService._mapToDetectionResults',
+    );
+    
+    // すべての検出結果を信頼度順にログ出力
+    for (int i = 0; i < detections.length; i++) {
+      final detection = detections[i];
+      LogMk.logDebug(
+        '🔍 [ONNXDetectionService] #${i + 1}: ${detection.label} (信頼度: ${detection.confidence.toStringAsFixed(3)}, バウンディングボックス: [${detection.boundingBox[0].toStringAsFixed(1)}, ${detection.boundingBox[1].toStringAsFixed(1)}, ${detection.boundingBox[2].toStringAsFixed(1)}, ${detection.boundingBox[3].toStringAsFixed(1)}])',
+        tag: 'ONNXDetectionService._mapToDetectionResults',
+      );
+    }
+    
+    LogMk.logDebug(
+      '🔍 [ONNXDetectionService] 検出ラベル一覧: ${detectedLabels.join(", ")}',
+      tag: 'ONNXDetectionService._mapToDetectionResults',
+    );
+    
     // 最も信頼度の高い検出結果を返す
     final bestDetection = detections.first;
+    
+    LogMk.logDebug(
+      '🔍 [ONNXDetectionService] 選択された検出: ${bestDetection.label} (信頼度: ${bestDetection.confidence.toStringAsFixed(3)})',
+      tag: 'ONNXDetectionService._mapToDetectionResults',
+    );
+    LogMk.logDebug(
+      '🔍 [ONNXDetectionService] ========================',
+      tag: 'ONNXDetectionService._mapToDetectionResults',
+    );
     
     return [
       DetectionResult(
@@ -405,6 +482,85 @@ class ONNXDetectionService implements DetectionService {
     return DetectionCategory.nothingDetected;
   }
   
+  @override
+  Future<bool> switchModel({required bool powerSavingMode}) async {
+    try {
+      LogMk.logDebug(
+        '🔄 [ONNXDetectionService] モデル切り替え開始 (省電力モード: $powerSavingMode)',
+        tag: 'ONNXDetectionService.switchModel',
+      );
+      
+      // 現在のセッションを解放
+      _session?.release();
+      _session = null;
+      
+      // 省電力モードに応じてモデルを選択
+      // 省電力ON（10秒間隔）→ yolo11l（高精度、時間的余裕あり）
+      // 省電力OFF（3秒間隔）→ yolo11m（バランス、閾値0.7で高精度化）
+      final modelPaths = powerSavingMode
+          ? [
+              'assets/models/yolo11l.onnx',  // 高精度版（省電力モード用）
+              'assets/models/yolo11m.onnx',  // フォールバック
+            ]
+          : [
+              'assets/models/yolo11m.onnx',  // バランス版（通常モード用）
+              'assets/models/yolo11l.onnx',  // フォールバック
+            ];
+      
+      late File modelFile;
+      bool modelLoaded = false;
+      String? loadedModelPath;
+      
+      for (final modelPath in modelPaths) {
+        try {
+          LogMk.logDebug(
+            'モデル読み込み試行: $modelPath',
+            tag: 'ONNXDetectionService.switchModel',
+          );
+          
+          final loadStartTime = DateTime.now();
+          modelFile = await _loadModelFromAsset(modelPath);
+          final sessionOptions = OrtSessionOptions();
+          _session = OrtSession.fromFile(modelFile, sessionOptions);
+          final loadDuration = DateTime.now().difference(loadStartTime).inMilliseconds;
+          
+          loadedModelPath = modelPath;
+          modelLoaded = true;
+          
+          final modelName = modelPath.split('/').last.replaceAll('.onnx', '');
+          LogMk.logDebug(
+            '✅ モデル切り替え成功: $modelName (所要時間: ${loadDuration}ms, 省電力モード: $powerSavingMode)',
+            tag: 'ONNXDetectionService.switchModel',
+          );
+          break;
+        } catch (e) {
+          LogMk.logDebug(
+            'モデル読み込み失敗、次を試行: $modelPath - $e',
+            tag: 'ONNXDetectionService.switchModel',
+          );
+          continue;
+        }
+      }
+      
+      if (!modelLoaded) {
+        LogMk.logError(
+          'すべてのモデルの読み込みに失敗',
+          tag: 'ONNXDetectionService.switchModel',
+        );
+        return false;
+      }
+      
+      return true;
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        'モデル切り替えエラー: $e',
+        tag: 'ONNXDetectionService.switchModel',
+        stackTrace: stackTrace,
+      );
+      return false;
+    }
+  }
+
   @override
   Future<void> dispose() async {
     _session?.release();

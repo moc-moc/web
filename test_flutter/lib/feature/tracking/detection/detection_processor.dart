@@ -14,6 +14,9 @@ class DetectionProcessor {
   /// 信頼度の閾値（0.7以上で有効）
   static const double _confidenceThreshold = 0.7;
 
+  /// 検出サービスを取得（モデル切り替え用）
+  DetectionService get detectionService => _detectionService;
+
   DetectionProcessor({
     required DetectionService detectionService,
     required CameraManager cameraManager, // 将来の拡張用に保持
@@ -75,6 +78,10 @@ class DetectionProcessor {
       final results = await _detectionService.detect(imageBytes);
       
       if (results.isEmpty) {
+        LogMk.logDebug(
+          '🔍 [DetectionProcessor] 検出結果なし',
+          tag: 'DetectionProcessor.processImage',
+        );
         return DetectionResult(
           category: DetectionCategory.nothingDetected,
           confidence: 0.0,
@@ -87,8 +94,21 @@ class DetectionProcessor {
       results.sort((a, b) => b.confidence.compareTo(a.confidence));
       final bestResult = results.first;
 
+      // 検出結果の詳細をログ出力
+      LogMk.logDebug(
+        '🔍 [DetectionProcessor] 検出結果: ${bestResult.categoryString} '
+        '(信頼度: ${bestResult.confidence.toStringAsFixed(3)}, '
+        '検出ラベル: ${bestResult.detectedLabels.join(", ")})',
+        tag: 'DetectionProcessor.processImage',
+      );
+
       // 信頼度フィルタリング
       if (bestResult.confidence < _confidenceThreshold) {
+        LogMk.logDebug(
+          '⚠️ [DetectionProcessor] 信頼度が閾値未満のため無効化 '
+          '(信頼度: ${bestResult.confidence.toStringAsFixed(3)} < $_confidenceThreshold)',
+          tag: 'DetectionProcessor.processImage',
+        );
         return DetectionResult(
           category: DetectionCategory.nothingDetected,
           confidence: bestResult.confidence,
@@ -99,6 +119,13 @@ class DetectionProcessor {
 
       // カテゴリマッピング
       final category = _mapToCategory(bestResult.detectedLabels);
+
+      LogMk.logDebug(
+        '✅ [DetectionProcessor] 最終結果: $category '
+        '(信頼度: ${bestResult.confidence.toStringAsFixed(3)}, '
+        '検出ラベル: ${bestResult.detectedLabels.join(", ")})',
+        tag: 'DetectionProcessor.processImage',
+      );
 
       return DetectionResult(
         category: category,

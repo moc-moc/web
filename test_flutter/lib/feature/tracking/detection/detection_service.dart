@@ -25,5 +25,15 @@ abstract class DetectionService {
   /// 
   /// メモリリークを防ぐため、使用後は必ず呼び出す
   Future<void> dispose();
+
+  /// モデルを切り替える
+  /// 
+  /// 省電力モードに応じて異なるモデルを読み込む
+  /// 
+  /// **パラメータ**:
+  /// - `powerSavingMode`: trueの場合は高精度モデル（yolo11l）、falseの場合はバランスモデル（yolo11m）
+  /// 
+  /// **戻り値**: 切り替え成功時true、失敗時false
+  Future<bool> switchModel({required bool powerSavingMode});
 }
 

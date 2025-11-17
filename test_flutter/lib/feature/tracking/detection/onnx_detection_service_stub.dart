@@ -17,6 +17,11 @@ class ONNXDetectionService implements DetectionService {
   }
   
   @override
+  Future<bool> switchModel({required bool powerSavingMode}) async {
+    throw UnsupportedError('このスタブは使用されるべきではありません');
+  }
+  
+  @override
   Future<void> dispose() async {
     // スタブ実装
   }

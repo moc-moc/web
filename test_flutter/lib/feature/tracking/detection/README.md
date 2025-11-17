@@ -4,18 +4,13 @@
 
 ## 実装されたサービス
 
-### 1. DummyDetectionService（ダミー検出サービス）
-- **ファイル**: `dummy_detection_service.dart`
-- **用途**: テスト・開発用
-- **説明**: ランダムな検出結果を返すダミー実装
-
-### 2. TFLiteDetectionService（TensorFlow Lite検出サービス）
+### 1. TFLiteDetectionService（TensorFlow Lite検出サービス）
 - **ファイル**: `tflite_detection_service.dart`
 - **プラットフォーム**: iOS/Android（モバイル版）
 - **モデル**: YOLOv11n、EfficientDet-Lite2
 - **説明**: モバイル端末でTensorFlow Liteを使用して物体検出を実行
 
-### 3. ONNXDetectionService（ONNX Runtime検出サービス）
+### 2. ONNXDetectionService（ONNX Runtime検出サービス）
 - **ファイル**: `onnx_detection_service.dart` (条件付きエクスポート)
   - モバイル版: `onnx_detection_service_mobile.dart`
   - Web版: `onnx_detection_service_web.dart`
@@ -23,7 +18,7 @@
 - **モデル**: YOLO11l（推奨）、YOLO11n、YOLOv8n
 - **説明**: ONNX Runtime / ONNX Runtime Webを使用して高精度な物体検出を実行
 
-### 4. TFJSDetectionService（TensorFlow.js検出サービス）
+### 3. TFJSDetectionService（TensorFlow.js検出サービス）
 - **ファイル**: `tfjs_detection_service_web.dart` / `tfjs_detection_service_stub.dart` / `tfjs_detection_service.dart`
 - **プラットフォーム**: Web版
 - **モデル**: COCO-SSD
@@ -39,43 +34,59 @@
 
 YOLO11には5つのサイズバリエーションがあります：
 
-| モデル | ファイル名 | サイズ | 推論時間（目安） | 精度 | 推奨用途 |
-|--------|-----------|--------|-----------------|------|---------|
-| **YOLO11n** (nano) | `yolo11n.onnx` | 約6MB | 30-50ms | 中 | 低スペック端末、リアルタイム重視 |
-| **YOLO11s** (small) | `yolo11s.onnx` | 約20MB | 50-80ms | 中〜高 | バランス型 |
-| **YOLO11m** (medium) | `yolo11m.onnx` | 約40MB | 80-120ms | 高 | 精度重視 |
-| **YOLO11l** (large) | `yolo11l.onnx` | 約80MB | 120-200ms | 最高 | 最高精度、高スペック端末 |
-| **YOLO11x** (xlarge) | `yolo11x.onnx` | 約130MB | 200-300ms | 最高+ | サーバー推論向け |
+| モデル | ファイル名 | サイズ | 推論時間（WebGPU） | 推論時間（CPU/モバイル） | 精度 | 推奨用途 |
+|--------|-----------|--------|------------------|---------------------|------|---------|
+| **YOLO11n** (nano) | `yolo11n.onnx` | 約6MB | 50-100ms | 30-50ms | ⭐⭐ | 低スペック端末、超高速検出 |
+| **YOLO11s** (small) | `yolo11s.onnx` | 約20MB | 80-150ms | 50-80ms | ⭐⭐⭐ | 軽量・バランス型 |
+| **YOLO11m** (medium) | `yolo11m.onnx` | 約40MB | **100-200ms** | 80-120ms | ⭐⭐⭐⭐ | **精度とスピードの最適バランス（推奨）** |
+| **YOLO11l** (large) | `yolo11l.onnx` | 約80MB | 200-400ms | 120-200ms | ⭐⭐⭐⭐⭐ | 最高精度、高スペック端末 |
+| **YOLO11x** (xlarge) | `yolo11x.onnx` | 約130MB | 500ms+ | 200-300ms | ⭐⭐⭐⭐⭐+ | サーバー推論向け |
 
-**現在のデフォルト**: `yolo11l.onnx`（large版、高精度）
+**現在のデフォルト**: `yolo11m.onnx`（medium版、精度とスピードの最適バランス）
+**フォールバック**: 存在しない場合は`yolo11l.onnx` → `yolo11n.onnx`の順で自動選択
 
 #### モデルファイルのダウンロード
 
-1. **YOLO11 ONNX**（推奨）
-   - ファイル名: `yolo11l.onnx`（またはお好みのサイズ）
+1. **YOLO11m ONNX**（推奨）
+   - ファイル名: `yolo11m.onnx`
    - ダウンロード: [YOLOv11 公式サイト](https://github.com/ultralytics/ultralytics)
    - または、Pythonで変換:
      ```python
      from ultralytics import YOLO
-     model = YOLO('yolo11l.pt')
-     model.export(format='onnx')
+     # YOLO11m（推奨：1秒間隔での検出に最適）
+     model = YOLO('yolo11m.pt')
+     model.export(format='onnx', simplify=True, opset=12)
      ```
 
-2. **YOLO11 TFLite**（オプション）
-   - ファイル名: `yolo11l.tflite`（またはお好みのサイズ）
+2. **YOLO11l ONNX**（高精度版、オプション）
+   - ファイル名: `yolo11l.onnx`
+   - 最高精度が必要な場合のみ
+   - Pythonで変換:
+     ```python
+     from ultralytics import YOLO
+     # YOLO11l（最高精度、やや重い）
+     model = YOLO('yolo11l.pt')
+     model.export(format='onnx', simplify=True, opset=12)
+     ```
+
+3. **YOLO11 TFLite**（オプション）
+   - ファイル名: `yolo11m.tflite` または `yolo11l.tflite`
    - ONNX版から変換する必要があります
    - TensorFlow Liteを優先的に使いたい場合のみ
 
-3. **ラベルファイル**（オプション）
+4. **ラベルファイル**（オプション）
    - ファイル名: `labels.txt`
    - 説明: COCOデータセットの80クラスのラベル
    - 注: コードに埋め込まれているため、不要
 
 ### Web版（ONNX Runtime Web）
 
-**現在のデフォルト設定**: Web版でもYOLO11lを使用します
+**現在のデフォルト設定**: Web版でもYOLO11mを使用します（WebGPU対応）
 
-Web版では、ONNX Runtime Webを使用してYOLO11lモデルを実行します。
+Web版では、ONNX Runtime WebをWebGPUバックエンドで使用してYOLO11mモデルを実行します。
+- **推論速度**: 100-200ms（WebGPU使用時）
+- **1秒間隔での検出**: 余裕を持って動作
+- **省電力モード**: 10秒間隔で安定動作
 
 #### 必要な設定
 
@@ -138,11 +149,6 @@ final controller = await initializeDetection();
 
 ```dart
 import 'package:test_flutter/feature/tracking/tracking_functions.dart';
-
-// ダミーサービス（テスト用）
-final controller = await initializeDetection(
-  serviceType: DetectionServiceType.dummy,
-);
 
 // ONNX Runtime（モバイル用）
 final controller = await initializeDetection(

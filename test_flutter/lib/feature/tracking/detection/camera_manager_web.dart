@@ -16,6 +16,9 @@ class CameraManagerWeb implements CameraManager {
   Timer? _imageCaptureTimer;
   int _imageWidth = 640;
   int _imageHeight = 480;
+  
+  /// ストリーム閉鎖警告のカウント（最初の3回のみ警告）
+  static int _closedWarningCount = 0;
 
   @override
   bool get isInitialized => _isInitialized && _videoElement != null;
@@ -29,18 +32,53 @@ class CameraManagerWeb implements CameraManager {
   @override
   Future<bool> initialize() async {
     try {
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] カメラ初期化開始',
+        tag: 'CameraManagerWeb.initialize',
+      );
+      
       // ブラウザのgetUserMedia APIを使用してカメラにアクセス
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] mediaDevices確認中...',
+        tag: 'CameraManagerWeb.initialize',
+      );
+      
       if (html.window.navigator.mediaDevices == null) {
         LogMk.logError(
-          'このブラウザはカメラアクセスをサポートしていません',
+          '❌ [CameraManagerWeb] このブラウザはカメラアクセスをサポートしていません',
           tag: 'CameraManagerWeb.initialize',
         );
         return false;
       }
 
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] getUserMedia呼び出し開始（権限要求）',
+        tag: 'CameraManagerWeb.initialize',
+      );
+      
       // カメラ権限の要求（ブラウザが自動でダイアログを表示）
+      final requestStartTime = DateTime.now();
       _stream = await html.window.navigator.mediaDevices!
           .getUserMedia({'video': true});
+      final requestDuration = DateTime.now().difference(requestStartTime).inMilliseconds;
+      
+      LogMk.logDebug(
+        '✅ [CameraManagerWeb] getUserMedia成功 (所要時間: ${requestDuration}ms)',
+        tag: 'CameraManagerWeb.initialize',
+      );
+      
+      if (_stream == null) {
+        LogMk.logError(
+          '❌ [CameraManagerWeb] ストリームがnullです',
+          tag: 'CameraManagerWeb.initialize',
+        );
+        return false;
+      }
+      
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] VideoElement作成開始',
+        tag: 'CameraManagerWeb.initialize',
+      );
 
       // ビデオ要素を作成してストリームを設定
       _videoElement = html.VideoElement()
@@ -49,26 +87,41 @@ class CameraManagerWeb implements CameraManager {
         ..setAttribute('playsinline', 'true')
         ..srcObject = _stream;
 
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] ビデオメタデータ読み込み待機中...',
+        tag: 'CameraManagerWeb.initialize',
+      );
+
       // ビデオが読み込まれるまで待機
       await _videoElement!.onLoadedMetadata.first;
 
       // 画像サイズを取得
       _imageWidth = _videoElement!.videoWidth;
       _imageHeight = _videoElement!.videoHeight;
+      
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] ビデオサイズ取得: ${_imageWidth}x${_imageHeight}',
+        tag: 'CameraManagerWeb.initialize',
+      );
 
       // 画像ストリームの設定
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] 画像ストリーム設定開始',
+        tag: 'CameraManagerWeb.initialize',
+      );
+      
       _imageStreamController = StreamController<CameraImageData>.broadcast();
       _startImageCapture();
 
       _isInitialized = true;
       LogMk.logDebug(
-        'カメラ初期化完了（Web版）',
+        '✅ [CameraManagerWeb] カメラ初期化完了（Web版）',
         tag: 'CameraManagerWeb.initialize',
       );
       return true;
     } catch (e, stackTrace) {
       LogMk.logError(
-        'カメラ初期化エラー: $e',
+        '❌ [CameraManagerWeb] カメラ初期化エラー: $e',
         tag: 'CameraManagerWeb.initialize',
         stackTrace: stackTrace,
       );
@@ -84,6 +137,11 @@ class CameraManagerWeb implements CameraManager {
     html.CanvasElement? canvas;
     html.CanvasRenderingContext2D? ctx;
 
+    LogMk.logDebug(
+      '📷 [CameraManagerWeb] 画像キャプチャ開始 (10FPS, 100ms間隔)',
+      tag: 'CameraManagerWeb._startImageCapture',
+    );
+
     _imageCaptureTimer = Timer.periodic(
       const Duration(milliseconds: 100), // 10FPS
       (timer) {
@@ -91,13 +149,22 @@ class CameraManagerWeb implements CameraManager {
             _videoElement == null ||
             _imageStreamController == null ||
             _imageStreamController!.isClosed) {
+          LogMk.logDebug(
+            '📷 [CameraManagerWeb] 画像キャプチャ停止 (初期化状態: $_isInitialized, videoElement: ${_videoElement != null}, streamController: ${_imageStreamController != null && !_imageStreamController!.isClosed})',
+            tag: 'CameraManagerWeb._startImageCapture',
+          );
           timer.cancel();
           return;
         }
 
         try {
+          
           // Canvasが未作成の場合は作成
           if (canvas == null) {
+            LogMk.logDebug(
+              '📷 [CameraManagerWeb] Canvas作成: ${_imageWidth}x${_imageHeight}',
+              tag: 'CameraManagerWeb._startImageCapture',
+            );
             canvas = html.CanvasElement(
               width: _imageWidth,
               height: _imageHeight,
@@ -105,7 +172,15 @@ class CameraManagerWeb implements CameraManager {
             final context = canvas?.getContext('2d');
             if (context != null && context is html.CanvasRenderingContext2D) {
               ctx = context;
+              LogMk.logDebug(
+                '✅ [CameraManagerWeb] Canvasコンテキスト取得成功',
+                tag: 'CameraManagerWeb._startImageCapture',
+              );
             } else {
+              LogMk.logError(
+                '❌ [CameraManagerWeb] Canvasコンテキスト取得失敗',
+                tag: 'CameraManagerWeb._startImageCapture',
+              );
               timer.cancel();
               return;
             }
@@ -149,21 +224,21 @@ class CameraManagerWeb implements CameraManager {
                       } else {
                         // 予期しない型の場合はスキップ
                         LogMk.logError(
-                          '予期しない型: ${result.runtimeType}',
+                          '❌ [CameraManagerWeb] 予期しない型: ${result.runtimeType}',
                           tag: 'CameraManagerWeb._startImageCapture',
                         );
                         return;
                       }
                     } catch (e) {
                       LogMk.logError(
-                        '型変換エラー: $e',
+                        '❌ [CameraManagerWeb] 型変換エラー: $e',
                         tag: 'CameraManagerWeb._startImageCapture',
                       );
                       return;
                     }
                   }
                   
-                  if (!_imageStreamController!.isClosed) {
+                  if (_imageStreamController != null && !_imageStreamController!.isClosed) {
                     _imageStreamController!.add(
                       CameraImageData.fromWeb(
                         imageBytes: bytes,
@@ -171,16 +246,37 @@ class CameraManagerWeb implements CameraManager {
                         height: _imageHeight,
                       ),
                     );
+                  } else {
+                    // ストリームが閉じられている場合は警告のみ（最初の数回のみ）
+                    if (_closedWarningCount < 3) {
+                      LogMk.logWarning(
+                        '⚠️ [CameraManagerWeb] ストリームが閉じられています',
+                        tag: 'CameraManagerWeb._startImageCapture',
+                      );
+                      _closedWarningCount++;
+                    }
                   }
+                } else {
+                  LogMk.logError(
+                    '❌ [CameraManagerWeb] FileReaderの結果がnullです',
+                    tag: 'CameraManagerWeb._startImageCapture',
+                  );
                 }
               });
               
               reader.readAsArrayBuffer(blob);
+            }).catchError((error) {
+              LogMk.logError(
+                '❌ [CameraManagerWeb] toBlobエラー: $error',
+                tag: 'CameraManagerWeb._startImageCapture',
+              );
             });
           }
+          
+          // パフォーマンス警告は削除（ログが多すぎるため）
         } catch (e, stackTrace) {
           LogMk.logError(
-            '画像キャプチャエラー: $e',
+            '❌ [CameraManagerWeb] 画像キャプチャエラー: $e',
             tag: 'CameraManagerWeb._startImageCapture',
             stackTrace: stackTrace,
           );
@@ -191,21 +287,37 @@ class CameraManagerWeb implements CameraManager {
 
   @override
   Future<CameraImageData?> captureImage() async {
+    LogMk.logDebug(
+      '📷 [CameraManagerWeb] captureImage呼び出し',
+      tag: 'CameraManagerWeb.captureImage',
+    );
+    
     if (!isInitialized || _videoElement == null) {
       LogMk.logError(
-        'カメラが初期化されていません',
+        '❌ [CameraManagerWeb] カメラが初期化されていません (isInitialized: $isInitialized, videoElement: ${_videoElement != null})',
         tag: 'CameraManagerWeb.captureImage',
       );
       return null;
     }
 
     try {
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] 画像ストリームから画像取得開始',
+        tag: 'CameraManagerWeb.captureImage',
+      );
+      
       // ストリームから最新の画像を取得するため、1フレーム待機
       final completer = Completer<CameraImageData?>();
       late StreamSubscription subscription;
+      final captureStartTime = DateTime.now();
 
       subscription = imageStream!.listen((image) {
         if (!completer.isCompleted) {
+          final duration = DateTime.now().difference(captureStartTime).inMilliseconds;
+          LogMk.logDebug(
+            '✅ [CameraManagerWeb] 画像取得成功 (所要時間: ${duration}ms, サイズ: ${image.width}x${image.height})',
+            tag: 'CameraManagerWeb.captureImage',
+          );
           completer.complete(image);
           subscription.cancel();
         }
@@ -214,6 +326,10 @@ class CameraManagerWeb implements CameraManager {
       // タイムアウト設定（5秒）
       Timer(const Duration(seconds: 5), () {
         if (!completer.isCompleted) {
+          LogMk.logWarning(
+            '⚠️ [CameraManagerWeb] 画像取得タイムアウト (5秒)',
+            tag: 'CameraManagerWeb.captureImage',
+          );
           completer.complete(null);
           subscription.cancel();
         }
@@ -222,7 +338,7 @@ class CameraManagerWeb implements CameraManager {
       return await completer.future;
     } catch (e, stackTrace) {
       LogMk.logError(
-        '画像取得エラー: $e',
+        '❌ [CameraManagerWeb] 画像取得エラー: $e',
         tag: 'CameraManagerWeb.captureImage',
         stackTrace: stackTrace,
       );
@@ -232,30 +348,58 @@ class CameraManagerWeb implements CameraManager {
 
   @override
   Future<void> dispose() async {
+    LogMk.logDebug(
+      '📷 [CameraManagerWeb] dispose呼び出し',
+      tag: 'CameraManagerWeb.dispose',
+    );
+    
     try {
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] タイマー停止中...',
+        tag: 'CameraManagerWeb.dispose',
+      );
       _imageCaptureTimer?.cancel();
       _imageCaptureTimer = null;
 
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] ストリームコントローラー閉鎖中...',
+        tag: 'CameraManagerWeb.dispose',
+      );
       await _imageStreamController?.close();
       _imageStreamController = null;
 
       // ストリームの各トラックを停止
-      _stream?.getTracks().forEach((track) {
-        track.stop();
-      });
-      _stream = null;
+      if (_stream != null) {
+        final tracks = _stream!.getTracks();
+        LogMk.logDebug(
+          '📷 [CameraManagerWeb] ストリームトラック停止中 (トラック数: ${tracks.length})',
+          tag: 'CameraManagerWeb.dispose',
+        );
+        tracks.forEach((track) {
+          track.stop();
+          LogMk.logDebug(
+            '📷 [CameraManagerWeb] トラック停止: ${track.kind}',
+            tag: 'CameraManagerWeb.dispose',
+          );
+        });
+        _stream = null;
+      }
 
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] VideoElement削除中...',
+        tag: 'CameraManagerWeb.dispose',
+      );
       _videoElement?.remove();
       _videoElement = null;
 
       _isInitialized = false;
       LogMk.logDebug(
-        'カメラリソース解放完了（Web版）',
+        '✅ [CameraManagerWeb] カメラリソース解放完了（Web版）',
         tag: 'CameraManagerWeb.dispose',
       );
     } catch (e, stackTrace) {
       LogMk.logError(
-        'カメラリソース解放エラー: $e',
+        '❌ [CameraManagerWeb] カメラリソース解放エラー: $e',
         tag: 'CameraManagerWeb.dispose',
         stackTrace: stackTrace,
       );

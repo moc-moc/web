@@ -33,25 +33,59 @@ class TrackingSessionsNotifier extends _$TrackingSessionsNotifier {
   }
 }
 
-/// トラッキングセッションをローカルから読み込み
+/// トラッキングセッションを読み込み（ローカルのみ）
 /// 
-/// Firestoreには保存しないため、ローカルのみから取得します。
+/// ローカルストレージ（Hive）からのみデータを取得します。
+/// Firestoreは使用しません（統計データはdaily_statistics等に集計済み）。
 Future<List<TrackingSession>> loadTrackingSessionsHelper(dynamic ref) async {
   final manager = TrackingSessionDataManager();
 
   try {
+    // ローカルのみから取得
     final items = await manager.getLocalAll();
     ref.read(trackingSessionsProvider.notifier).updateSessions(items);
     return items;
   } catch (e) {
+    // エラー時は空のリストを返す
+    ref.read(trackingSessionsProvider.notifier).updateSessions([]);
     return [];
   }
 }
 
-/// トラッキングセッションを同期
+/// トラッキングセッションを読み込むヘルパー関数（ローカルのみ）
 /// 
-/// Firestoreには保存しないため、ローカルのみから取得してProviderを更新します。
+/// ローカルストレージ（Hive）からのみデータを取得します。
+/// Firestoreは使用しません（統計データはdaily_statistics等に集計済み）。
+Future<List<TrackingSession>> loadTrackingSessionsWithBackgroundRefreshHelper(dynamic ref) async {
+  final manager = TrackingSessionDataManager();
+
+  try {
+    // ローカルのみから取得
+    final items = await manager.getLocalAll();
+    ref.read(trackingSessionsProvider.notifier).updateSessions(items);
+    return items;
+  } catch (e) {
+    // エラー時は空のリストを返す
+    ref.read(trackingSessionsProvider.notifier).updateSessions([]);
+    return [];
+  }
+}
+
+/// トラッキングセッションを同期（ローカルのみ）
+/// 
+/// ローカルストレージ（Hive）のデータのみを使用します。
+/// Firestoreは使用しません（統計データはdaily_statistics等に集計済み）。
 Future<List<TrackingSession>> syncTrackingSessionsHelper(dynamic ref) async {
-  // Firestoreには保存しないため、ローカルのみから取得
-  return await loadTrackingSessionsHelper(ref);
+  final manager = TrackingSessionDataManager();
+
+  try {
+    // ローカルのみから取得
+    final localSessions = await manager.getLocalAll();
+    ref.read(trackingSessionsProvider.notifier).updateSessions(localSessions);
+    return localSessions;
+  } catch (e) {
+    // エラー時は空のリストを返す
+    ref.read(trackingSessionsProvider.notifier).updateSessions([]);
+    return [];
+  }
 }

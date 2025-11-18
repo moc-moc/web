@@ -55,6 +55,11 @@ abstract class DailyStatistics with _$DailyStatistics {
     @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)
     PieChartDataModel? pieChartData,
     
+    /// 時間ごとのカテゴリ別秒数（24時間分）
+    /// キー: "0", "1", ..., "23" (時間)
+    /// 値: カテゴリ別秒数のMap {study: 600, pc: 300, ...}
+    @Default({}) Map<String, Map<String, int>> hourlyCategorySeconds,
+    
     /// 最終更新日時
     required DateTime lastModified,
   }) = _DailyStatistics;
@@ -75,12 +80,25 @@ abstract class DailyStatistics with _$DailyStatistics {
       );
     }
 
+    // hourlyCategorySecondsの変換（後方互換性のためnullチェック）
+    Map<String, Map<String, int>> hourlyCategorySeconds = {};
+    if (data['hourlyCategorySeconds'] != null) {
+      final hourlyData = data['hourlyCategorySeconds'] as Map<String, dynamic>;
+      hourlyCategorySeconds = hourlyData.map(
+        (key, value) => MapEntry(
+          key,
+          Map<String, int>.from(value as Map),
+        ),
+      );
+    }
+
     return DailyStatistics(
       id: data['id'] as String,
       date: (data['date'] as Timestamp).toDate(),
       categorySeconds: Map<String, int>.from(data['categorySeconds'] as Map),
       totalWorkTimeSeconds: data['totalWorkTimeSeconds'] as int,
       pieChartData: pieChartDataModel,
+      hourlyCategorySeconds: hourlyCategorySeconds,
       lastModified: (data['lastModified'] as Timestamp).toDate(),
     );
   }
@@ -93,6 +111,9 @@ abstract class DailyStatistics with _$DailyStatistics {
       'categorySeconds': categorySeconds,
       'totalWorkTimeSeconds': totalWorkTimeSeconds,
       'pieChartData': pieChartData?.toJson(),
+      'hourlyCategorySeconds': hourlyCategorySeconds.map(
+        (key, value) => MapEntry(key, value),
+      ),
       'lastModified': Timestamp.fromDate(lastModified),
     };
   }

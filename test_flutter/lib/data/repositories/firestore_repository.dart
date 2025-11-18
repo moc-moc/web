@@ -215,7 +215,13 @@ class FirestoreDataManager<T> {
       );
       
       if (success) {
-        await LogMk.logInfo('✅ アイテム削除完了: $id');
+        // 2. 成功したらローカルからも削除
+        final localDeleteSuccess = await deleteLocal(id);
+        if (localDeleteSuccess) {
+          await LogMk.logInfo('✅ アイテム削除完了: $id');
+        } else {
+          await LogMk.logWarning('⚠️ Firestore削除成功、ローカル削除失敗: $id');
+        }
       } else {
         await LogMk.logError(' アイテム削除失敗: $id');
       }
@@ -338,18 +344,26 @@ class FirestoreDataManager<T> {
 
   /// ローカルからアイテムを削除
   /// 
-  Future<void> deleteLocal(String id) async {
+  /// **戻り値**: 削除が成功した場合はtrue、アイテムが見つからない場合はfalse
+  Future<bool> deleteLocal(String id) async {
     try {
       // 1. ローカルから削除
-      await SharedMk.removeItemFromSharedPrefs(
+      final success = await SharedMk.removeItemFromSharedPrefs(
         storageKey,
         id,
         idField,
       );
       
-      await LogMk.logInfo('✅ ローカルアイテム削除完了: $id');
+      if (success) {
+        await LogMk.logInfo('✅ ローカルアイテム削除完了: $id');
+      } else {
+        await LogMk.logWarning('⚠️ ローカルアイテムが見つかりません: $id');
+      }
+      
+      return success;
     } catch (e) {
       await LogMk.logError(' ローカルアイテム削除エラー: $e');
+      return false;
     }
   }
 
@@ -397,26 +411,69 @@ class FirestoreDataManager<T> {
         
         // 3. Firestoreから差分データを取得
         List<Map<String, dynamic>> remoteDataList;
-        if (lastSyncTime != null && localDataList.isNotEmpty) {
-          // ローカルデータが存在する場合は差分同期
-          remoteDataList = await FirestoreMk.fetchModifiedSince(
-            collectionPathBuilder(userId),
-            lastSyncTime,
-          );
+        if (lastSyncTime != null) {
+          // lastSyncTimeがあれば差分同期を試みる
+          try {
+            remoteDataList = await FirestoreMk.fetchModifiedSince(
+              collectionPathBuilder(userId),
+              lastSyncTime,
+            );
+            await LogMk.logInfo('📥 差分データ取得成功: ${remoteDataList.length}件');
+          } catch (e) {
+            // 差分同期が失敗した場合は全データ取得にフォールバック
+            await LogMk.logWarning('差分同期失敗、全データ取得にフォールバック: $e');
+            remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
+            await LogMk.logInfo('📥 全データ取得: ${remoteDataList.length}件');
+          }
         } else {
-          // 初回同期またはローカルデータが空の場合は全データを取得
+          // 初回同期の場合は全データを取得
           remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
+          await LogMk.logInfo('📥 初回同期: 全データ取得 ${remoteDataList.length}件');
         }
         
-        // 4. データをマージ（競合解決）
+        // 4. Firestoreから削除されたアイテムをローカルからも削除
+        final remoteIds = remoteDataList
+            .map((item) => item[idField] as String?)
+            .where((id) => id != null && id.isNotEmpty)
+            .toSet();
+        
+        final localIds = localDataList
+            .map((item) => item[idField] as String?)
+            .where((id) => id != null && id.isNotEmpty)
+            .toSet();
+        
+        // ローカルに存在するが、リモートに存在しないアイテムを削除
+        final deletedIds = localIds.difference(remoteIds);
+        int deletedCount = 0;
+        for (final deletedId in deletedIds) {
+          if (deletedId == null || deletedId.isEmpty) continue;
+          final success = await SharedMk.removeItemFromSharedPrefs(
+            storageKey,
+            deletedId,
+            idField,
+          );
+          if (success) {
+            deletedCount++;
+            await LogMk.logInfo('🗑️ 同期時にローカルアイテム削除: $deletedId');
+          }
+        }
+        
+        if (deletedCount > 0) {
+          await LogMk.logInfo('🗑️ 同期時に削除されたアイテム: $deletedCount件');
+        }
+        
+        // 5. ローカルデータを再取得（削除後の最新状態）
+        final updatedLocalDataList = await SharedMk.getAllFromSharedPrefs(storageKey);
+        
+        // 6. データをマージ（競合解決）
         final mergedDataList = SyncMk.mergeData(
-          localDataList,
+          updatedLocalDataList,
           remoteDataList,
           idField,
           lastModifiedField,
         );
         
-        // 5. マージ結果をJSON形式に変換（DataMk層の汎用関数を使用）
+        // 7. マージ結果をJSON形式に変換（DataMk層の汎用関数を使用）
         final jsonDataList = SyncMk.convertToJsonFormat<T>(
           mergedDataList,
           fromFirestore,
@@ -424,17 +481,17 @@ class FirestoreDataManager<T> {
           fromJson,
         );
         
-        // 6. JSON形式でローカルに保存
+        // 8. JSON形式でローカルに保存
         await SharedMk.saveAllToSharedPrefs(storageKey, jsonDataList);
         
-        // 7. ローカルの新しいデータをFirestoreにプッシュ（削除：Firestore優先のため）
+        // 9. ローカルの新しいデータをFirestoreにプッシュ（削除：Firestore優先のため）
         // Firestore優先にするため、この処理は削除しました。
         // tracking完了時など、明示的に保存する場合はsaveWithRetry()を使用してください。
         
-        // 8. 最終同期時刻を更新
+        // 10. 最終同期時刻を更新
         await SharedMk.setLastSyncTimeToSharedPrefs(storageKey, DateTime.now());
         
-        // 9. モデルに変換して返す（null安全な処理）
+        // 11. モデルに変換して返す（null安全な処理）
         final items = <T>[];
         for (final json in jsonDataList) {
           try {
@@ -470,15 +527,37 @@ class FirestoreDataManager<T> {
     });
   }
 
-  /// 強制同期（全データ取得）
+  /// 強制同期（可能であれば差分同期を試みる）
   /// 
   Future<List<T>> forceSync(String userId) async {
     try {
       await LogMk.logInfo('🔄 強制同期開始: $userId');
       
-      // 1. Firestoreから全データを取得
-      final remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
-      await LogMk.logInfo('📥 Firestore全データ取得: ${remoteDataList.length}件');
+      // 最終同期時刻を取得
+      final lastSyncTime = await SharedMk.getLastSyncTimeFromSharedPrefs(storageKey);
+      
+      List<Map<String, dynamic>> remoteDataList;
+      
+      // 可能であれば差分同期を試みる
+      if (lastSyncTime != null) {
+        try {
+          // 最終同期時刻以降のすべての変更を取得
+          remoteDataList = await FirestoreMk.fetchModifiedSince(
+            collectionPathBuilder(userId),
+            lastSyncTime,
+          );
+          await LogMk.logInfo('📥 差分データ取得: ${remoteDataList.length}件');
+        } catch (e) {
+          // 差分同期が失敗した場合は全データ取得
+          await LogMk.logWarning('差分同期失敗、全データ取得: $e');
+          remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
+          await LogMk.logInfo('📥 Firestore全データ取得: ${remoteDataList.length}件');
+        }
+      } else {
+        // 初回同期の場合は全データを取得
+        remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
+        await LogMk.logInfo('📥 Firestore全データ取得: ${remoteDataList.length}件');
+      }
       
       // 2. JSON形式に変換（DataMk層の汎用関数を使用）
       final jsonDataList = SyncMk.convertToJsonFormat<T>(
@@ -717,12 +796,16 @@ class FirestoreDataManager<T> {
       
       if (success) {
         // 2. 成功したらローカルからも削除
-        await SharedMk.removeItemFromSharedPrefs(
+        final localDeleteSuccess = await SharedMk.removeItemFromSharedPrefs(
           storageKey,
           id,
           idField,
         );
-        await LogMk.logInfo('✅ リトライ付き削除成功: $id');
+        if (localDeleteSuccess) {
+          await LogMk.logInfo('✅ リトライ付き削除成功: $id');
+        } else {
+          await LogMk.logWarning('⚠️ Firestore削除成功、ローカル削除失敗: $id');
+        }
         return true;
       } else {
         // 3. 失敗したらキューに追加（削除用のデータを作成）
@@ -1002,11 +1085,14 @@ class FirestoreDataManager<T> {
       
       if (success) {
         // ローカルからも削除
-        await SharedMk.removeItemFromSharedPrefs(
+        final localDeleteSuccess = await SharedMk.removeItemFromSharedPrefs(
           storageKey,
           itemId,
           idField,
         );
+        if (!localDeleteSuccess) {
+          await LogMk.logWarning('⚠️ Firestore削除成功、ローカル削除失敗: $itemId');
+        }
         return true;
       }
       return false;

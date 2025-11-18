@@ -21,35 +21,25 @@ class GoalScreenNew extends ConsumerStatefulWidget {
 }
 
 class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
-  bool _isInitialized = false;
-
   @override
   void initState() {
     super.initState();
-    // 画面が開かれた時にデータを同期
+    // 画面が開かれた時にデータをバックグラウンド更新で読み込む
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeData();
     });
   }
 
   Future<void> _initializeData() async {
-    if (_isInitialized) return;
-    
     try {
-      // カウントダウンとゴールのデータを同期
+      // カウントダウンとゴールのデータをバックグラウンド更新で読み込む
       await Future.wait([
-        syncCountdownsHelper(ref),
-        syncGoalsHelper(ref),
+        loadCountdownsWithBackgroundRefreshHelper(ref),
+        loadGoalsWithBackgroundRefreshHelper(ref),
       ]);
       
       // 期限切れカウントダウンを削除
       await deleteExpiredCountdownsHelper(ref);
-      
-      if (mounted) {
-        setState(() {
-          _isInitialized = true;
-        });
-      }
     } catch (e) {
       debugPrint('❌ [GoalScreenNew] データ初期化エラー: $e');
     }
@@ -296,65 +286,19 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     List<String> labels = [];
 
     // Goalテキストの生成（Goal:を削除）
-    final targetMinutes = goal.targetTime ~/ 60;
-    String goalText;
+    // 秒単位で計算し、表示時に変換
+    final targetSeconds = goal.targetTime;
+    String goalText = _formatSecondsToDisplay(targetSeconds);
     if (goal.comparisonType == ComparisonType.below) {
-      if (targetMinutes < 60) {
-        goalText = '< ${targetMinutes}m';
-      } else {
-        final h = targetMinutes ~/ 60;
-        final m = targetMinutes % 60;
-        if (m == 0) {
-          goalText = '< ${h}h';
-        } else {
-          goalText = '< ${h}h ${m}m';
-        }
-      }
-    } else {
-      if (targetMinutes < 60) {
-        goalText = '${targetMinutes}m';
-      } else {
-        final h = targetMinutes ~/ 60;
-        final m = targetMinutes % 60;
-        if (m == 0) {
-          goalText = '${h}h';
-        } else {
-          goalText = '${h}h ${m}m';
-        }
-      }
+      goalText = '< $goalText';
     }
 
     // 時間数値を「120m/300m」または「2h/5h」形式で生成
-    final currentMinutes = (goal.achievedTime ?? 0) ~/ 60;
-    String progressText;
-    if (targetMinutes < 60 && currentMinutes < 60) {
-      progressText = '${currentMinutes}m/${targetMinutes}m';
-    } else {
-      final currentHours = currentMinutes ~/ 60;
-      final currentMins = currentMinutes % 60;
-      final targetHours = targetMinutes ~/ 60;
-      final targetMins = targetMinutes % 60;
-      
-      String currentStr;
-      if (currentHours == 0) {
-        currentStr = '${currentMins}m';
-      } else if (currentMins == 0) {
-        currentStr = '${currentHours}h';
-      } else {
-        currentStr = '${currentHours}h ${currentMins}m';
-      }
-      
-      String targetStr;
-      if (targetHours == 0) {
-        targetStr = '${targetMins}m';
-      } else if (targetMins == 0) {
-        targetStr = '${targetHours}h';
-      } else {
-        targetStr = '${targetHours}h ${targetMins}m';
-      }
-      
-      progressText = '$currentStr/$targetStr';
-    }
+    // 秒単位で計算し、表示時に変換
+    final currentSeconds = goal.achievedTime ?? 0;
+    final currentDisplay = _formatSecondsToDisplay(currentSeconds);
+    final targetDisplay = _formatSecondsToDisplay(targetSeconds);
+    final progressText = '$currentDisplay/$targetDisplay';
 
     // 期間ラベル
     String periodLabel = _getPeriodLabelFromDurationDays(goal.durationDays);
@@ -386,14 +330,20 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     // ストリーク番号
     final streakNumber = goal.consecutiveAchievements;
 
-    // 進捗率の計算
+    // 進捗率の計算（秒単位で計算）
+    final currentSecondsForCalc = goal.achievedTime ?? 0;
+    final targetSecondsForCalc = goal.targetTime;
     double percentage;
     if (goal.comparisonType == ComparisonType.below) {
       // 以下タイプの場合、目標時間を超えないようにする
-      percentage = (currentMinutes / targetMinutes).clamp(0.0, 1.0);
+      percentage = targetSecondsForCalc > 0
+          ? (currentSecondsForCalc / targetSecondsForCalc).clamp(0.0, 1.0)
+          : 0.0;
     } else {
       // 以上タイプの場合、目標時間に対する達成率
-      percentage = (currentMinutes / targetMinutes).clamp(0.0, 1.0);
+      percentage = targetSecondsForCalc > 0
+          ? (currentSecondsForCalc / targetSecondsForCalc).clamp(0.0, 1.0)
+          : 0.0;
     }
 
     return GestureDetector(
@@ -428,6 +378,7 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
         percentage: percentage,
         progressColor: color,
         daysText: daysText,
+        comparisonType: goal.comparisonType,
       ),
     );
   }
@@ -482,6 +433,22 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
         return AppColors.purple;
       default:
         return AppColors.blue;
+    }
+  }
+
+  /// 秒単位の値を表示用の文字列に変換（分/時間単位）
+  String _formatSecondsToDisplay(int seconds) {
+    final minutes = seconds ~/ 60;
+    if (minutes < 60) {
+      return '${minutes}m';
+    } else {
+      final h = minutes ~/ 60;
+      final m = minutes % 60;
+      if (m == 0) {
+        return '${h}h';
+      } else {
+        return '${h}h ${m}m';
+      }
     }
   }
 

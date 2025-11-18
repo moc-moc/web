@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
-import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/app_bars.dart';
 import 'package:test_flutter/presentation/widgets/cards.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
-import 'package:test_flutter/dummy_data/event_data.dart';
+import 'package:test_flutter/presentation/screens/event/ui_event_type.dart';
 
 /// イベントプレビュー画面（新デザインシステム版）
 class EventPreviewScreenNew extends StatelessWidget {
@@ -32,41 +31,17 @@ class EventPreviewScreenNew extends StatelessWidget {
             SizedBox(height: AppSpacing.md),
 
             // イベント一覧
-            ...allEvents.map((event) => _buildEventItem(context, event)),
+            ...UIEventInfoList.allEvents.map((event) => _buildEventItem(context, event)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildEventItem(BuildContext context, DummyEvent event) {
+  Widget _buildEventItem(BuildContext context, UIEventInfo event) {
     return InteractiveCard(
       onTap: () {
-        String routeName;
-        switch (event.type) {
-          case EventType.goalAchieved:
-            routeName = AppRoutes.goalAchievedEvent;
-            break;
-          case EventType.goalSet:
-            routeName = AppRoutes.goalSetEvent;
-            break;
-          case EventType.goalPeriodEnded:
-            routeName = AppRoutes.goalPeriodEndedEvent;
-            break;
-          case EventType.streakMilestone:
-            routeName = AppRoutes.streakMilestoneEvent;
-            break;
-          case EventType.totalHoursMilestone:
-            routeName = AppRoutes.totalHoursMilestoneEvent;
-            break;
-          case EventType.countdownEnded:
-            routeName = AppRoutes.countdownEndedEvent;
-            break;
-          case EventType.countdownSet:
-            routeName = AppRoutes.countdownSetEvent;
-            break;
-        }
-        NavigationHelper.push(context, routeName);
+        NavigationHelper.push(context, event.routeName);
       },
       padding: EdgeInsets.all(AppSpacing.md),
       child: Row(
@@ -98,7 +73,7 @@ class EventPreviewScreenNew extends StatelessWidget {
                 ),
                 SizedBox(height: AppSpacing.xs / 2),
                 Text(
-                  _getEventDescription(event.type),
+                  event.description,
                   style: AppTextStyles.caption,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -111,60 +86,41 @@ class EventPreviewScreenNew extends StatelessWidget {
     );
   }
 
-  Color _getEventColor(EventType type) {
+  Color _getEventColor(UIEventType type) {
     switch (type) {
-      case EventType.goalAchieved:
+      case UIEventType.goalAchieved:
         return AppColors.purple;
-      case EventType.goalSet:
+      case UIEventType.goalSet:
         return AppColors.blue;
-      case EventType.goalPeriodEnded:
+      case UIEventType.goalPeriodEnded:
         return Color(0xFFEC4899); // Pink
-      case EventType.streakMilestone:
+      case UIEventType.streakMilestone:
         return AppColors.success;
-      case EventType.totalHoursMilestone:
+      case UIEventType.totalHoursMilestone:
         return AppColors.yellow;
-      case EventType.countdownEnded:
+      case UIEventType.countdownEnded:
         return AppColors.red;
-      case EventType.countdownSet:
+      case UIEventType.countdownSet:
         return AppColors.info;
     }
   }
 
-  IconData _getEventIcon(EventType type) {
+  IconData _getEventIcon(UIEventType type) {
     switch (type) {
-      case EventType.goalAchieved:
+      case UIEventType.goalAchieved:
         return Icons.emoji_events;
-      case EventType.goalSet:
+      case UIEventType.goalSet:
         return Icons.flag;
-      case EventType.goalPeriodEnded:
+      case UIEventType.goalPeriodEnded:
         return Icons.trending_up;
-      case EventType.streakMilestone:
+      case UIEventType.streakMilestone:
         return Icons.local_fire_department;
-      case EventType.totalHoursMilestone:
+      case UIEventType.totalHoursMilestone:
         return Icons.timer;
-      case EventType.countdownEnded:
+      case UIEventType.countdownEnded:
         return Icons.alarm;
-      case EventType.countdownSet:
+      case UIEventType.countdownSet:
         return Icons.alarm_add;
-    }
-  }
-
-  String _getEventDescription(EventType type) {
-    switch (type) {
-      case EventType.goalAchieved:
-        return 'When you achieve a goal';
-      case EventType.goalSet:
-        return 'When you set a new goal';
-      case EventType.goalPeriodEnded:
-        return 'When goal period ends';
-      case EventType.streakMilestone:
-        return 'Consecutive days milestone';
-      case EventType.totalHoursMilestone:
-        return 'Total hours milestone';
-      case EventType.countdownEnded:
-        return 'When countdown reaches zero';
-      case EventType.countdownSet:
-        return 'When countdown is created';
     }
   }
 }

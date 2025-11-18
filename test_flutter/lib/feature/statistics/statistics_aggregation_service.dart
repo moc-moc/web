@@ -116,6 +116,152 @@ class StatisticsAggregationService {
         .fold(0, (sum, p) => sum + p.endTime.difference(p.startTime).inSeconds);
   }
 
+  /// セッションから時間ごとのカテゴリ別秒数を集計（日次用）
+  /// 戻り値: {"0": {study: 600, pc: 300, ...}, "1": {...}, ...}
+  Map<String, Map<String, int>> _aggregateHourlyCategorySeconds(
+    TrackingSession session,
+  ) {
+    final date = DateTime(
+      session.startTime.year,
+      session.startTime.month,
+      session.startTime.day,
+    );
+    final hourlyData = <String, Map<String, int>>{};
+    
+    // 24時間分の初期化
+    for (int hour = 0; hour < 24; hour++) {
+      hourlyData[hour.toString()] = {
+        'study': 0,
+        'pc': 0,
+        'smartphone': 0,
+        'personOnly': 0,
+        'nothingDetected': 0,
+      };
+    }
+    
+    // detectionPeriodsから時間ごとに集計
+    for (final period in session.detectionPeriods) {
+      final periodStart = period.startTime.isAfter(date)
+          ? period.startTime
+          : date;
+      final periodEnd = period.endTime;
+      
+      // 期間が複数の時間帯にまたがる場合を処理
+      var currentTime = periodStart;
+      while (currentTime.isBefore(periodEnd)) {
+        final hour = currentTime.hour;
+        final hourStart = DateTime(
+          currentTime.year,
+          currentTime.month,
+          currentTime.day,
+          hour,
+        );
+        final hourEnd = hourStart.add(const Duration(hours: 1));
+        
+        // この時間帯に該当する期間の開始と終了を計算
+        final segmentStart = currentTime.isAfter(hourStart) ? currentTime : hourStart;
+        final segmentEnd = periodEnd.isBefore(hourEnd) ? periodEnd : hourEnd;
+        
+        if (segmentStart.isBefore(segmentEnd)) {
+          final durationSeconds = segmentEnd.difference(segmentStart).inSeconds;
+          final hourKey = hour.toString();
+          
+          if (hourlyData.containsKey(hourKey)) {
+            final category = period.category;
+            if (hourlyData[hourKey]!.containsKey(category)) {
+              hourlyData[hourKey]![category] = 
+                  (hourlyData[hourKey]![category] ?? 0) + durationSeconds;
+            }
+          }
+        }
+        
+        currentTime = hourEnd;
+      }
+    }
+    
+    return hourlyData;
+  }
+
+  /// セッションから日ごとのカテゴリ別秒数を集計（週次・月次用）
+  /// 戻り値: {"1": {study: 3600, pc: 1800, ...}, "2": {...}, ...}
+  Map<String, Map<String, int>> _aggregateDailyCategorySeconds(
+    TrackingSession session,
+    DateTime periodStart,
+  ) {
+    final dailyData = <String, Map<String, int>>{};
+    
+    // detectionPeriodsから日ごとに集計
+    for (final period in session.detectionPeriods) {
+      final periodDate = DateTime(
+        period.startTime.year,
+        period.startTime.month,
+        period.startTime.day,
+      );
+      
+      // 期間がperiodStart以降かチェック
+      if (periodDate.isBefore(periodStart)) {
+        continue;
+      }
+      
+      final dayKey = periodDate.day.toString();
+      if (!dailyData.containsKey(dayKey)) {
+        dailyData[dayKey] = {
+          'study': 0,
+          'pc': 0,
+          'smartphone': 0,
+          'personOnly': 0,
+          'nothingDetected': 0,
+        };
+      }
+      
+      final durationSeconds = period.endTime.difference(period.startTime).inSeconds;
+      final category = period.category;
+      if (dailyData[dayKey]!.containsKey(category)) {
+        dailyData[dayKey]![category] = 
+            (dailyData[dayKey]![category] ?? 0) + durationSeconds;
+      }
+    }
+    
+    return dailyData;
+  }
+
+  /// セッションから月ごとのカテゴリ別秒数を集計（年次用）
+  /// 戻り値: {"1": {study: 36000, pc: 18000, ...}, "2": {...}, ...}
+  Map<String, Map<String, int>> _aggregateMonthlyCategorySeconds(
+    TrackingSession session,
+  ) {
+    final monthlyData = <String, Map<String, int>>{};
+    
+    // detectionPeriodsから月ごとに集計
+    for (final period in session.detectionPeriods) {
+      final month = period.startTime.month;
+      final monthKey = month.toString();
+      
+      if (!monthlyData.containsKey(monthKey)) {
+        monthlyData[monthKey] = {
+          'study': 0,
+          'pc': 0,
+          'smartphone': 0,
+        };
+      }
+      
+      final durationSeconds = period.endTime.difference(period.startTime).inSeconds;
+      final category = period.category;
+      
+      // personOnlyとnothingDetectedは除外
+      if (category == 'personOnly' || category == 'nothingDetected') {
+        continue;
+      }
+      
+      if (monthlyData[monthKey]!.containsKey(category)) {
+        monthlyData[monthKey]![category] = 
+            (monthlyData[monthKey]![category] ?? 0) + durationSeconds;
+      }
+    }
+    
+    return monthlyData;
+  }
+
   /// 日次データの集計・更新
   Future<void> _updateDailyStatistics(
     TrackingSession session,
@@ -137,6 +283,25 @@ class StatisticsAggregationService {
       };
       final updatedWorkSeconds = (existing?.totalWorkTimeSeconds ?? 0) + workSeconds;
       
+      // 時間ごとのデータを集計
+      final sessionHourlyData = _aggregateHourlyCategorySeconds(session);
+      final updatedHourlyCategorySeconds = <String, Map<String, int>>{};
+      
+      // 既存の時間ごとのデータと新しいデータをマージ
+      for (int hour = 0; hour < 24; hour++) {
+        final hourKey = hour.toString();
+        final existingHourly = existing?.hourlyCategorySeconds[hourKey] ?? <String, int>{};
+        final sessionHourly = sessionHourlyData[hourKey] ?? <String, int>{};
+        
+        updatedHourlyCategorySeconds[hourKey] = {
+          'study': (existingHourly['study'] ?? 0) + (sessionHourly['study'] ?? 0),
+          'pc': (existingHourly['pc'] ?? 0) + (sessionHourly['pc'] ?? 0),
+          'smartphone': (existingHourly['smartphone'] ?? 0) + (sessionHourly['smartphone'] ?? 0),
+          'personOnly': (existingHourly['personOnly'] ?? 0) + (sessionHourly['personOnly'] ?? 0),
+          'nothingDetected': (existingHourly['nothingDetected'] ?? 0) + (sessionHourly['nothingDetected'] ?? 0),
+        };
+      }
+      
       // 円グラフデータを計算
       final pieChartData = _calculatePieChartData(updatedCategorySeconds, includeAllCategories: true);
       
@@ -146,6 +311,7 @@ class StatisticsAggregationService {
         categorySeconds: updatedCategorySeconds,
         totalWorkTimeSeconds: updatedWorkSeconds,
         pieChartData: pieChartData,
+        hourlyCategorySeconds: updatedHourlyCategorySeconds,
         lastModified: DateTime.now(),
       );
       
@@ -186,6 +352,51 @@ class StatisticsAggregationService {
       };
       final updatedWorkSeconds = (existing?.totalWorkTimeSeconds ?? 0) + workSeconds;
       
+      // 日ごとのデータを集計（週次統計用）
+      final updatedDailyCategorySeconds = <String, Map<String, int>>{};
+      
+      // 週の各日（0-6）を処理
+      for (int dayOffset = 0; dayOffset < 7; dayOffset++) {
+        final dayKey = dayOffset.toString();
+        final dayDate = weekStart.add(Duration(days: dayOffset));
+        final dayEnd = dayDate.add(const Duration(days: 1));
+        
+        // この日のセッションのdetectionPeriodsを集計
+        final dayCategorySeconds = <String, int>{
+          'study': 0,
+          'pc': 0,
+          'smartphone': 0,
+          'personOnly': 0,
+          'nothingDetected': 0,
+        };
+        
+        for (final period in session.detectionPeriods) {
+          // 期間がこの日に該当するかチェック
+          if (period.startTime.isBefore(dayEnd) && period.endTime.isAfter(dayDate)) {
+            final periodStart = period.startTime.isAfter(dayDate) ? period.startTime : dayDate;
+            final periodEnd = period.endTime.isBefore(dayEnd) ? period.endTime : dayEnd;
+            
+            if (periodStart.isBefore(periodEnd)) {
+              final durationSeconds = periodEnd.difference(periodStart).inSeconds;
+              final category = period.category;
+              if (dayCategorySeconds.containsKey(category)) {
+                dayCategorySeconds[category] = (dayCategorySeconds[category] ?? 0) + durationSeconds;
+              }
+            }
+          }
+        }
+        
+        // 既存データとマージ
+        final existingDaily = existing?.dailyCategorySeconds[dayKey] ?? <String, int>{};
+        updatedDailyCategorySeconds[dayKey] = {
+          'study': (existingDaily['study'] ?? 0) + dayCategorySeconds['study']!,
+          'pc': (existingDaily['pc'] ?? 0) + dayCategorySeconds['pc']!,
+          'smartphone': (existingDaily['smartphone'] ?? 0) + dayCategorySeconds['smartphone']!,
+          'personOnly': (existingDaily['personOnly'] ?? 0) + dayCategorySeconds['personOnly']!,
+          'nothingDetected': (existingDaily['nothingDetected'] ?? 0) + dayCategorySeconds['nothingDetected']!,
+        };
+      }
+      
       // 円グラフデータを計算
       final pieChartData = _calculatePieChartData(updatedCategorySeconds, includeAllCategories: true);
       
@@ -195,6 +406,7 @@ class StatisticsAggregationService {
         categorySeconds: updatedCategorySeconds,
         totalWorkTimeSeconds: updatedWorkSeconds,
         pieChartData: pieChartData,
+        dailyCategorySeconds: updatedDailyCategorySeconds,
         lastModified: DateTime.now(),
       );
       
@@ -240,6 +452,26 @@ class StatisticsAggregationService {
       };
       final updatedWorkSeconds = (existing?.totalWorkTimeSeconds ?? 0) + workSeconds;
       
+      // 日ごとのデータを集計
+      final monthStart = DateTime(year, month, 1);
+      final sessionDailyData = _aggregateDailyCategorySeconds(session, monthStart);
+      final updatedDailyCategorySeconds = <String, Map<String, int>>{};
+      
+      // 既存の日ごとのデータと新しいデータをマージ
+      final daysInMonth = DateTime(year, month + 1, 0).day;
+      for (int day = 1; day <= daysInMonth; day++) {
+        final dayKey = day.toString();
+        final existingDaily = existing?.dailyCategorySeconds[dayKey] ?? <String, int>{};
+        final sessionDaily = sessionDailyData[dayKey] ?? <String, int>{};
+        
+        // personOnlyとnothingDetectedを除外
+        updatedDailyCategorySeconds[dayKey] = {
+          'study': (existingDaily['study'] ?? 0) + (sessionDaily['study'] ?? 0),
+          'pc': (existingDaily['pc'] ?? 0) + (sessionDaily['pc'] ?? 0),
+          'smartphone': (existingDaily['smartphone'] ?? 0) + (sessionDaily['smartphone'] ?? 0),
+        };
+      }
+      
       // 円グラフデータを計算（personOnly/nothingDetected除外）
       final pieChartData = _calculatePieChartData(updatedCategorySeconds, includeAllCategories: false);
       
@@ -250,6 +482,7 @@ class StatisticsAggregationService {
         categorySeconds: updatedCategorySeconds,
         totalWorkTimeSeconds: updatedWorkSeconds,
         pieChartData: pieChartData,
+        dailyCategorySeconds: updatedDailyCategorySeconds,
         lastModified: DateTime.now(),
       );
       
@@ -294,6 +527,23 @@ class StatisticsAggregationService {
       };
       final updatedWorkSeconds = (existing?.totalWorkTimeSeconds ?? 0) + workSeconds;
       
+      // 月ごとのデータを集計
+      final sessionMonthlyData = _aggregateMonthlyCategorySeconds(session);
+      final updatedMonthlyCategorySeconds = <String, Map<String, int>>{};
+      
+      // 既存の月ごとのデータと新しいデータをマージ
+      for (int month = 1; month <= 12; month++) {
+        final monthKey = month.toString();
+        final existingMonthly = existing?.monthlyCategorySeconds[monthKey] ?? <String, int>{};
+        final sessionMonthly = sessionMonthlyData[monthKey] ?? <String, int>{};
+        
+        updatedMonthlyCategorySeconds[monthKey] = {
+          'study': (existingMonthly['study'] ?? 0) + (sessionMonthly['study'] ?? 0),
+          'pc': (existingMonthly['pc'] ?? 0) + (sessionMonthly['pc'] ?? 0),
+          'smartphone': (existingMonthly['smartphone'] ?? 0) + (sessionMonthly['smartphone'] ?? 0),
+        };
+      }
+      
       // 円グラフデータを計算（personOnly/nothingDetected除外）
       final pieChartData = _calculatePieChartData(updatedCategorySeconds, includeAllCategories: false);
       
@@ -303,6 +553,7 @@ class StatisticsAggregationService {
         categorySeconds: updatedCategorySeconds,
         totalWorkTimeSeconds: updatedWorkSeconds,
         pieChartData: pieChartData,
+        monthlyCategorySeconds: updatedMonthlyCategorySeconds,
         lastModified: DateTime.now(),
       );
       
@@ -379,9 +630,9 @@ class StatisticsAggregationService {
         }
         
         if (categorySeconds > 0) {
-          final categoryMinutes = categorySeconds ~/ 60;
+          // achievedTimeは秒単位で保存・加算
           final currentAchievedTime = goal.achievedTime ?? 0;
-          final updatedAchievedTime = currentAchievedTime + categoryMinutes;
+          final updatedAchievedTime = currentAchievedTime + categorySeconds;
           
           // 目標を更新（copyWithで新しいGoalを作成）
           final updatedGoal = goal.copyWith(
@@ -392,7 +643,7 @@ class StatisticsAggregationService {
           goalsToUpdate.add(updatedGoal);
           
           LogMk.logDebug(
-            '📝 目標更新予約: ${goal.id} ($categoryKey: +$categoryMinutes分)',
+            '📝 目標更新予約: ${goal.id} ($categoryKey: +$categorySeconds秒)',
             tag: 'StatisticsAggregationService',
           );
         }

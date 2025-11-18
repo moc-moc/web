@@ -209,7 +209,9 @@ class SharedMk {
   /// 
   /// 指定されたIDのアイテムをリストから削除する
   /// idFieldでアイテムのIDフィールドを指定する
-  static Future<void> removeItemFromSharedPrefs(
+  /// 
+  /// **戻り値**: 削除が成功した場合はtrue、アイテムが見つからない場合はfalse
+  static Future<bool> removeItemFromSharedPrefs(
     String key, 
     String itemId, 
     String idField
@@ -223,11 +225,14 @@ class SharedMk {
       if (items.length < beforeCount) {
         await saveAllToSharedPrefs(key, items);
         debugPrint('✅ アイテム削除完了: $key (ID: $itemId)');
+        return true;
       } else {
-        debugPrint('❌ アイテムが見つかりません: $itemId');
+        debugPrint('⚠️ アイテムが見つかりません: $itemId');
+        return false;
       }
     } catch (e) {
       debugPrint('❌ アイテム削除エラー: $e');
+      return false;
     }
   }
   

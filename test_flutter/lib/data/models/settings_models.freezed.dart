@@ -1163,7 +1163,10 @@ mixin _$TrackingSettings {
 /// 固定ID（'tracking_settings'）
  String get id;/// カメラのオン/オフ状態
  bool get isCameraOn;/// 省電力モードのオン/オフ状態
- bool get isPowerSavingMode;/// 最終更新日時
+ bool get isPowerSavingMode;/// 選択されたStudy目標のID
+ String? get selectedStudyGoalId;/// 選択されたPC目標のID
+ String? get selectedPcGoalId;/// 選択されたSmartphone目標のID
+ String? get selectedSmartphoneGoalId;/// 最終更新日時
  DateTime get lastModified;
 /// Create a copy of TrackingSettings
 /// with the given fields replaced by the non-null parameter values.
@@ -1177,16 +1180,16 @@ $TrackingSettingsCopyWith<TrackingSettings> get copyWith => _$TrackingSettingsCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TrackingSettings&&(identical(other.id, id) || other.id == id)&&(identical(other.isCameraOn, isCameraOn) || other.isCameraOn == isCameraOn)&&(identical(other.isPowerSavingMode, isPowerSavingMode) || other.isPowerSavingMode == isPowerSavingMode)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TrackingSettings&&(identical(other.id, id) || other.id == id)&&(identical(other.isCameraOn, isCameraOn) || other.isCameraOn == isCameraOn)&&(identical(other.isPowerSavingMode, isPowerSavingMode) || other.isPowerSavingMode == isPowerSavingMode)&&(identical(other.selectedStudyGoalId, selectedStudyGoalId) || other.selectedStudyGoalId == selectedStudyGoalId)&&(identical(other.selectedPcGoalId, selectedPcGoalId) || other.selectedPcGoalId == selectedPcGoalId)&&(identical(other.selectedSmartphoneGoalId, selectedSmartphoneGoalId) || other.selectedSmartphoneGoalId == selectedSmartphoneGoalId)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,isCameraOn,isPowerSavingMode,lastModified);
+int get hashCode => Object.hash(runtimeType,id,isCameraOn,isPowerSavingMode,selectedStudyGoalId,selectedPcGoalId,selectedSmartphoneGoalId,lastModified);
 
 @override
 String toString() {
-  return 'TrackingSettings(id: $id, isCameraOn: $isCameraOn, isPowerSavingMode: $isPowerSavingMode, lastModified: $lastModified)';
+  return 'TrackingSettings(id: $id, isCameraOn: $isCameraOn, isPowerSavingMode: $isPowerSavingMode, selectedStudyGoalId: $selectedStudyGoalId, selectedPcGoalId: $selectedPcGoalId, selectedSmartphoneGoalId: $selectedSmartphoneGoalId, lastModified: $lastModified)';
 }
 
 
@@ -1197,7 +1200,7 @@ abstract mixin class $TrackingSettingsCopyWith<$Res>  {
   factory $TrackingSettingsCopyWith(TrackingSettings value, $Res Function(TrackingSettings) _then) = _$TrackingSettingsCopyWithImpl;
 @useResult
 $Res call({
- String id, bool isCameraOn, bool isPowerSavingMode, DateTime lastModified
+ String id, bool isCameraOn, bool isPowerSavingMode, String? selectedStudyGoalId, String? selectedPcGoalId, String? selectedSmartphoneGoalId, DateTime lastModified
 });
 
 
@@ -1214,12 +1217,15 @@ class _$TrackingSettingsCopyWithImpl<$Res>
 
 /// Create a copy of TrackingSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? isCameraOn = null,Object? isPowerSavingMode = null,Object? lastModified = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? isCameraOn = null,Object? isPowerSavingMode = null,Object? selectedStudyGoalId = freezed,Object? selectedPcGoalId = freezed,Object? selectedSmartphoneGoalId = freezed,Object? lastModified = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,isCameraOn: null == isCameraOn ? _self.isCameraOn : isCameraOn // ignore: cast_nullable_to_non_nullable
 as bool,isPowerSavingMode: null == isPowerSavingMode ? _self.isPowerSavingMode : isPowerSavingMode // ignore: cast_nullable_to_non_nullable
-as bool,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as bool,selectedStudyGoalId: freezed == selectedStudyGoalId ? _self.selectedStudyGoalId : selectedStudyGoalId // ignore: cast_nullable_to_non_nullable
+as String?,selectedPcGoalId: freezed == selectedPcGoalId ? _self.selectedPcGoalId : selectedPcGoalId // ignore: cast_nullable_to_non_nullable
+as String?,selectedSmartphoneGoalId: freezed == selectedSmartphoneGoalId ? _self.selectedSmartphoneGoalId : selectedSmartphoneGoalId // ignore: cast_nullable_to_non_nullable
+as String?,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }
@@ -1305,10 +1311,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  bool isCameraOn,  bool isPowerSavingMode,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  bool isCameraOn,  bool isPowerSavingMode,  String? selectedStudyGoalId,  String? selectedPcGoalId,  String? selectedSmartphoneGoalId,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TrackingSettings() when $default != null:
-return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.lastModified);case _:
+return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.selectedStudyGoalId,_that.selectedPcGoalId,_that.selectedSmartphoneGoalId,_that.lastModified);case _:
   return orElse();
 
 }
@@ -1326,10 +1332,10 @@ return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.lastModi
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  bool isCameraOn,  bool isPowerSavingMode,  DateTime lastModified)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  bool isCameraOn,  bool isPowerSavingMode,  String? selectedStudyGoalId,  String? selectedPcGoalId,  String? selectedSmartphoneGoalId,  DateTime lastModified)  $default,) {final _that = this;
 switch (_that) {
 case _TrackingSettings():
-return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.lastModified);case _:
+return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.selectedStudyGoalId,_that.selectedPcGoalId,_that.selectedSmartphoneGoalId,_that.lastModified);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -1346,10 +1352,10 @@ return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.lastModi
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  bool isCameraOn,  bool isPowerSavingMode,  DateTime lastModified)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  bool isCameraOn,  bool isPowerSavingMode,  String? selectedStudyGoalId,  String? selectedPcGoalId,  String? selectedSmartphoneGoalId,  DateTime lastModified)?  $default,) {final _that = this;
 switch (_that) {
 case _TrackingSettings() when $default != null:
-return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.lastModified);case _:
+return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.selectedStudyGoalId,_that.selectedPcGoalId,_that.selectedSmartphoneGoalId,_that.lastModified);case _:
   return null;
 
 }
@@ -1361,7 +1367,7 @@ return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.lastModi
 @JsonSerializable()
 
 class _TrackingSettings extends TrackingSettings {
-  const _TrackingSettings({required this.id, required this.isCameraOn, required this.isPowerSavingMode, required this.lastModified}): super._();
+  const _TrackingSettings({required this.id, required this.isCameraOn, required this.isPowerSavingMode, this.selectedStudyGoalId, this.selectedPcGoalId, this.selectedSmartphoneGoalId, required this.lastModified}): super._();
   factory _TrackingSettings.fromJson(Map<String, dynamic> json) => _$TrackingSettingsFromJson(json);
 
 /// 固定ID（'tracking_settings'）
@@ -1370,6 +1376,12 @@ class _TrackingSettings extends TrackingSettings {
 @override final  bool isCameraOn;
 /// 省電力モードのオン/オフ状態
 @override final  bool isPowerSavingMode;
+/// 選択されたStudy目標のID
+@override final  String? selectedStudyGoalId;
+/// 選択されたPC目標のID
+@override final  String? selectedPcGoalId;
+/// 選択されたSmartphone目標のID
+@override final  String? selectedSmartphoneGoalId;
 /// 最終更新日時
 @override final  DateTime lastModified;
 
@@ -1386,16 +1398,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TrackingSettings&&(identical(other.id, id) || other.id == id)&&(identical(other.isCameraOn, isCameraOn) || other.isCameraOn == isCameraOn)&&(identical(other.isPowerSavingMode, isPowerSavingMode) || other.isPowerSavingMode == isPowerSavingMode)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TrackingSettings&&(identical(other.id, id) || other.id == id)&&(identical(other.isCameraOn, isCameraOn) || other.isCameraOn == isCameraOn)&&(identical(other.isPowerSavingMode, isPowerSavingMode) || other.isPowerSavingMode == isPowerSavingMode)&&(identical(other.selectedStudyGoalId, selectedStudyGoalId) || other.selectedStudyGoalId == selectedStudyGoalId)&&(identical(other.selectedPcGoalId, selectedPcGoalId) || other.selectedPcGoalId == selectedPcGoalId)&&(identical(other.selectedSmartphoneGoalId, selectedSmartphoneGoalId) || other.selectedSmartphoneGoalId == selectedSmartphoneGoalId)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,isCameraOn,isPowerSavingMode,lastModified);
+int get hashCode => Object.hash(runtimeType,id,isCameraOn,isPowerSavingMode,selectedStudyGoalId,selectedPcGoalId,selectedSmartphoneGoalId,lastModified);
 
 @override
 String toString() {
-  return 'TrackingSettings(id: $id, isCameraOn: $isCameraOn, isPowerSavingMode: $isPowerSavingMode, lastModified: $lastModified)';
+  return 'TrackingSettings(id: $id, isCameraOn: $isCameraOn, isPowerSavingMode: $isPowerSavingMode, selectedStudyGoalId: $selectedStudyGoalId, selectedPcGoalId: $selectedPcGoalId, selectedSmartphoneGoalId: $selectedSmartphoneGoalId, lastModified: $lastModified)';
 }
 
 
@@ -1406,7 +1418,7 @@ abstract mixin class _$TrackingSettingsCopyWith<$Res> implements $TrackingSettin
   factory _$TrackingSettingsCopyWith(_TrackingSettings value, $Res Function(_TrackingSettings) _then) = __$TrackingSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- String id, bool isCameraOn, bool isPowerSavingMode, DateTime lastModified
+ String id, bool isCameraOn, bool isPowerSavingMode, String? selectedStudyGoalId, String? selectedPcGoalId, String? selectedSmartphoneGoalId, DateTime lastModified
 });
 
 
@@ -1423,12 +1435,15 @@ class __$TrackingSettingsCopyWithImpl<$Res>
 
 /// Create a copy of TrackingSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? isCameraOn = null,Object? isPowerSavingMode = null,Object? lastModified = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? isCameraOn = null,Object? isPowerSavingMode = null,Object? selectedStudyGoalId = freezed,Object? selectedPcGoalId = freezed,Object? selectedSmartphoneGoalId = freezed,Object? lastModified = null,}) {
   return _then(_TrackingSettings(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,isCameraOn: null == isCameraOn ? _self.isCameraOn : isCameraOn // ignore: cast_nullable_to_non_nullable
 as bool,isPowerSavingMode: null == isPowerSavingMode ? _self.isPowerSavingMode : isPowerSavingMode // ignore: cast_nullable_to_non_nullable
-as bool,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as bool,selectedStudyGoalId: freezed == selectedStudyGoalId ? _self.selectedStudyGoalId : selectedStudyGoalId // ignore: cast_nullable_to_non_nullable
+as String?,selectedPcGoalId: freezed == selectedPcGoalId ? _self.selectedPcGoalId : selectedPcGoalId // ignore: cast_nullable_to_non_nullable
+as String?,selectedSmartphoneGoalId: freezed == selectedSmartphoneGoalId ? _self.selectedSmartphoneGoalId : selectedSmartphoneGoalId // ignore: cast_nullable_to_non_nullable
+as String?,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }

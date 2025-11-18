@@ -1,0 +1,106 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "goals",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastModified",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "countdowns",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastModified",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "settings",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastModified",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "tracking_sessions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastModified",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "total",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastModified",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "streak",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastModified",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "daily_statistics",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastModified",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "weekly_statistics",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastModified",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "monthly_statistics",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastModified",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "yearly_statistics",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "lastModified",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
+

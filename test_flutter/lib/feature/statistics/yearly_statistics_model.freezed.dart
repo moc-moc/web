@@ -21,7 +21,10 @@ mixin _$YearlyStatistics {
 /// study, pc, smartphoneのみ（personOnlyとnothingDetectedは除外）
  Map<String, int> get categorySeconds;/// 作業時間合計（秒単位、pc + study）
  int get totalWorkTimeSeconds;/// 円グラフ用データ
-@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? get pieChartData;/// 最終更新日時
+@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? get pieChartData;/// 月ごとのカテゴリ別秒数（12ヶ月分）
+/// キー: "1", "2", ..., "12" (月)
+/// 値: カテゴリ別秒数のMap {study: 36000, pc: 18000, smartphone: 6000}
+ Map<String, Map<String, int>> get monthlyCategorySeconds;/// 最終更新日時
  DateTime get lastModified;
 /// Create a copy of YearlyStatistics
 /// with the given fields replaced by the non-null parameter values.
@@ -35,16 +38,16 @@ $YearlyStatisticsCopyWith<YearlyStatistics> get copyWith => _$YearlyStatisticsCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is YearlyStatistics&&(identical(other.id, id) || other.id == id)&&(identical(other.year, year) || other.year == year)&&const DeepCollectionEquality().equals(other.categorySeconds, categorySeconds)&&(identical(other.totalWorkTimeSeconds, totalWorkTimeSeconds) || other.totalWorkTimeSeconds == totalWorkTimeSeconds)&&(identical(other.pieChartData, pieChartData) || other.pieChartData == pieChartData)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is YearlyStatistics&&(identical(other.id, id) || other.id == id)&&(identical(other.year, year) || other.year == year)&&const DeepCollectionEquality().equals(other.categorySeconds, categorySeconds)&&(identical(other.totalWorkTimeSeconds, totalWorkTimeSeconds) || other.totalWorkTimeSeconds == totalWorkTimeSeconds)&&(identical(other.pieChartData, pieChartData) || other.pieChartData == pieChartData)&&const DeepCollectionEquality().equals(other.monthlyCategorySeconds, monthlyCategorySeconds)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,year,const DeepCollectionEquality().hash(categorySeconds),totalWorkTimeSeconds,pieChartData,lastModified);
+int get hashCode => Object.hash(runtimeType,id,year,const DeepCollectionEquality().hash(categorySeconds),totalWorkTimeSeconds,pieChartData,const DeepCollectionEquality().hash(monthlyCategorySeconds),lastModified);
 
 @override
 String toString() {
-  return 'YearlyStatistics(id: $id, year: $year, categorySeconds: $categorySeconds, totalWorkTimeSeconds: $totalWorkTimeSeconds, pieChartData: $pieChartData, lastModified: $lastModified)';
+  return 'YearlyStatistics(id: $id, year: $year, categorySeconds: $categorySeconds, totalWorkTimeSeconds: $totalWorkTimeSeconds, pieChartData: $pieChartData, monthlyCategorySeconds: $monthlyCategorySeconds, lastModified: $lastModified)';
 }
 
 
@@ -55,7 +58,7 @@ abstract mixin class $YearlyStatisticsCopyWith<$Res>  {
   factory $YearlyStatisticsCopyWith(YearlyStatistics value, $Res Function(YearlyStatistics) _then) = _$YearlyStatisticsCopyWithImpl;
 @useResult
 $Res call({
- String id, int year, Map<String, int> categorySeconds, int totalWorkTimeSeconds,@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? pieChartData, DateTime lastModified
+ String id, int year, Map<String, int> categorySeconds, int totalWorkTimeSeconds,@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? pieChartData, Map<String, Map<String, int>> monthlyCategorySeconds, DateTime lastModified
 });
 
 
@@ -72,14 +75,15 @@ class _$YearlyStatisticsCopyWithImpl<$Res>
 
 /// Create a copy of YearlyStatistics
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? year = null,Object? categorySeconds = null,Object? totalWorkTimeSeconds = null,Object? pieChartData = freezed,Object? lastModified = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? year = null,Object? categorySeconds = null,Object? totalWorkTimeSeconds = null,Object? pieChartData = freezed,Object? monthlyCategorySeconds = null,Object? lastModified = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,year: null == year ? _self.year : year // ignore: cast_nullable_to_non_nullable
 as int,categorySeconds: null == categorySeconds ? _self.categorySeconds : categorySeconds // ignore: cast_nullable_to_non_nullable
 as Map<String, int>,totalWorkTimeSeconds: null == totalWorkTimeSeconds ? _self.totalWorkTimeSeconds : totalWorkTimeSeconds // ignore: cast_nullable_to_non_nullable
 as int,pieChartData: freezed == pieChartData ? _self.pieChartData : pieChartData // ignore: cast_nullable_to_non_nullable
-as PieChartDataModel?,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as PieChartDataModel?,monthlyCategorySeconds: null == monthlyCategorySeconds ? _self.monthlyCategorySeconds : monthlyCategorySeconds // ignore: cast_nullable_to_non_nullable
+as Map<String, Map<String, int>>,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }
@@ -177,10 +181,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  int year,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  int year,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  Map<String, Map<String, int>> monthlyCategorySeconds,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _YearlyStatistics() when $default != null:
-return $default(_that.id,_that.year,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.lastModified);case _:
+return $default(_that.id,_that.year,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.monthlyCategorySeconds,_that.lastModified);case _:
   return orElse();
 
 }
@@ -198,10 +202,10 @@ return $default(_that.id,_that.year,_that.categorySeconds,_that.totalWorkTimeSec
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  int year,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  DateTime lastModified)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  int year,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  Map<String, Map<String, int>> monthlyCategorySeconds,  DateTime lastModified)  $default,) {final _that = this;
 switch (_that) {
 case _YearlyStatistics():
-return $default(_that.id,_that.year,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.lastModified);case _:
+return $default(_that.id,_that.year,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.monthlyCategorySeconds,_that.lastModified);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -218,10 +222,10 @@ return $default(_that.id,_that.year,_that.categorySeconds,_that.totalWorkTimeSec
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  int year,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  DateTime lastModified)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  int year,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  Map<String, Map<String, int>> monthlyCategorySeconds,  DateTime lastModified)?  $default,) {final _that = this;
 switch (_that) {
 case _YearlyStatistics() when $default != null:
-return $default(_that.id,_that.year,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.lastModified);case _:
+return $default(_that.id,_that.year,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.monthlyCategorySeconds,_that.lastModified);case _:
   return null;
 
 }
@@ -233,7 +237,7 @@ return $default(_that.id,_that.year,_that.categorySeconds,_that.totalWorkTimeSec
 @JsonSerializable()
 
 class _YearlyStatistics extends YearlyStatistics {
-  const _YearlyStatistics({required this.id, required this.year, required final  Map<String, int> categorySeconds, required this.totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) this.pieChartData, required this.lastModified}): _categorySeconds = categorySeconds,super._();
+  const _YearlyStatistics({required this.id, required this.year, required final  Map<String, int> categorySeconds, required this.totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) this.pieChartData, final  Map<String, Map<String, int>> monthlyCategorySeconds = const {}, required this.lastModified}): _categorySeconds = categorySeconds,_monthlyCategorySeconds = monthlyCategorySeconds,super._();
   factory _YearlyStatistics.fromJson(Map<String, dynamic> json) => _$YearlyStatisticsFromJson(json);
 
 /// 識別子（年ベース、例: "2024"）
@@ -255,6 +259,19 @@ class _YearlyStatistics extends YearlyStatistics {
 @override final  int totalWorkTimeSeconds;
 /// 円グラフ用データ
 @override@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) final  PieChartDataModel? pieChartData;
+/// 月ごとのカテゴリ別秒数（12ヶ月分）
+/// キー: "1", "2", ..., "12" (月)
+/// 値: カテゴリ別秒数のMap {study: 36000, pc: 18000, smartphone: 6000}
+ final  Map<String, Map<String, int>> _monthlyCategorySeconds;
+/// 月ごとのカテゴリ別秒数（12ヶ月分）
+/// キー: "1", "2", ..., "12" (月)
+/// 値: カテゴリ別秒数のMap {study: 36000, pc: 18000, smartphone: 6000}
+@override@JsonKey() Map<String, Map<String, int>> get monthlyCategorySeconds {
+  if (_monthlyCategorySeconds is EqualUnmodifiableMapView) return _monthlyCategorySeconds;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_monthlyCategorySeconds);
+}
+
 /// 最終更新日時
 @override final  DateTime lastModified;
 
@@ -271,16 +288,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _YearlyStatistics&&(identical(other.id, id) || other.id == id)&&(identical(other.year, year) || other.year == year)&&const DeepCollectionEquality().equals(other._categorySeconds, _categorySeconds)&&(identical(other.totalWorkTimeSeconds, totalWorkTimeSeconds) || other.totalWorkTimeSeconds == totalWorkTimeSeconds)&&(identical(other.pieChartData, pieChartData) || other.pieChartData == pieChartData)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _YearlyStatistics&&(identical(other.id, id) || other.id == id)&&(identical(other.year, year) || other.year == year)&&const DeepCollectionEquality().equals(other._categorySeconds, _categorySeconds)&&(identical(other.totalWorkTimeSeconds, totalWorkTimeSeconds) || other.totalWorkTimeSeconds == totalWorkTimeSeconds)&&(identical(other.pieChartData, pieChartData) || other.pieChartData == pieChartData)&&const DeepCollectionEquality().equals(other._monthlyCategorySeconds, _monthlyCategorySeconds)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,year,const DeepCollectionEquality().hash(_categorySeconds),totalWorkTimeSeconds,pieChartData,lastModified);
+int get hashCode => Object.hash(runtimeType,id,year,const DeepCollectionEquality().hash(_categorySeconds),totalWorkTimeSeconds,pieChartData,const DeepCollectionEquality().hash(_monthlyCategorySeconds),lastModified);
 
 @override
 String toString() {
-  return 'YearlyStatistics(id: $id, year: $year, categorySeconds: $categorySeconds, totalWorkTimeSeconds: $totalWorkTimeSeconds, pieChartData: $pieChartData, lastModified: $lastModified)';
+  return 'YearlyStatistics(id: $id, year: $year, categorySeconds: $categorySeconds, totalWorkTimeSeconds: $totalWorkTimeSeconds, pieChartData: $pieChartData, monthlyCategorySeconds: $monthlyCategorySeconds, lastModified: $lastModified)';
 }
 
 
@@ -291,7 +308,7 @@ abstract mixin class _$YearlyStatisticsCopyWith<$Res> implements $YearlyStatisti
   factory _$YearlyStatisticsCopyWith(_YearlyStatistics value, $Res Function(_YearlyStatistics) _then) = __$YearlyStatisticsCopyWithImpl;
 @override @useResult
 $Res call({
- String id, int year, Map<String, int> categorySeconds, int totalWorkTimeSeconds,@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? pieChartData, DateTime lastModified
+ String id, int year, Map<String, int> categorySeconds, int totalWorkTimeSeconds,@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? pieChartData, Map<String, Map<String, int>> monthlyCategorySeconds, DateTime lastModified
 });
 
 
@@ -308,14 +325,15 @@ class __$YearlyStatisticsCopyWithImpl<$Res>
 
 /// Create a copy of YearlyStatistics
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? year = null,Object? categorySeconds = null,Object? totalWorkTimeSeconds = null,Object? pieChartData = freezed,Object? lastModified = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? year = null,Object? categorySeconds = null,Object? totalWorkTimeSeconds = null,Object? pieChartData = freezed,Object? monthlyCategorySeconds = null,Object? lastModified = null,}) {
   return _then(_YearlyStatistics(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,year: null == year ? _self.year : year // ignore: cast_nullable_to_non_nullable
 as int,categorySeconds: null == categorySeconds ? _self._categorySeconds : categorySeconds // ignore: cast_nullable_to_non_nullable
 as Map<String, int>,totalWorkTimeSeconds: null == totalWorkTimeSeconds ? _self.totalWorkTimeSeconds : totalWorkTimeSeconds // ignore: cast_nullable_to_non_nullable
 as int,pieChartData: freezed == pieChartData ? _self.pieChartData : pieChartData // ignore: cast_nullable_to_non_nullable
-as PieChartDataModel?,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as PieChartDataModel?,monthlyCategorySeconds: null == monthlyCategorySeconds ? _self._monthlyCategorySeconds : monthlyCategorySeconds // ignore: cast_nullable_to_non_nullable
+as Map<String, Map<String, int>>,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }

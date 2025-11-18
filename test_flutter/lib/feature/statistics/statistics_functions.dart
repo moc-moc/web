@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:test_flutter/feature/base/data_helper_functions.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_data_manager.dart';
 import 'package:test_flutter/feature/statistics/weekly_statistics_model.dart';
@@ -13,6 +14,114 @@ import 'package:test_flutter/feature/statistics/yearly_statistics_data_manager.d
 /// 日次、週次、月次、年次の統計データの同期機能を提供します。
 
 // ===== ヘルパー関数 =====
+
+/// 日次統計データをバックグラウンド更新で読み込むヘルパー関数
+/// 
+/// まずローカルからデータを取得して即座に返し、
+/// その後バックグラウンドでFirestoreから最新データを取得して更新します。
+/// 
+/// **戻り値**: 読み込んだ日次統計データのリスト（ローカルデータ）
+/// 
+/// **使用例**:
+/// ```dart
+/// await loadDailyStatisticsWithBackgroundRefreshHelper();
+/// ```
+Future<List<DailyStatistics>> loadDailyStatisticsWithBackgroundRefreshHelper() async {
+  final manager = DailyStatisticsDataManager();
+  final dummyRef = Object(); // Provider更新不要のためダミーRef
+
+  return await loadListDataWithBackgroundRefreshHelper<DailyStatistics>(
+    ref: dummyRef,
+    manager: manager,
+    getAllWithAuth: () => manager.getAllWithAuth(),
+    getLocalAll: () => manager.getLocalAll(),
+    saveLocal: (items) => manager.saveLocal(items),
+    updateProvider: (_) {}, // 統計データはProviderを使用しないため空関数
+    filter: (_) => true, // フィルタリング不要
+    functionName: 'loadDailyStatisticsWithBackgroundRefreshHelper',
+  );
+}
+
+/// 週次統計データをバックグラウンド更新で読み込むヘルパー関数
+/// 
+/// まずローカルからデータを取得して即座に返し、
+/// その後バックグラウンドでFirestoreから最新データを取得して更新します。
+/// 
+/// **戻り値**: 読み込んだ週次統計データのリスト（ローカルデータ）
+/// 
+/// **使用例**:
+/// ```dart
+/// await loadWeeklyStatisticsWithBackgroundRefreshHelper();
+/// ```
+Future<List<WeeklyStatistics>> loadWeeklyStatisticsWithBackgroundRefreshHelper() async {
+  final manager = WeeklyStatisticsDataManager();
+  final dummyRef = Object(); // Provider更新不要のためダミーRef
+
+  return await loadListDataWithBackgroundRefreshHelper<WeeklyStatistics>(
+    ref: dummyRef,
+    manager: manager,
+    getAllWithAuth: () => manager.getAllWithAuth(),
+    getLocalAll: () => manager.getLocalAll(),
+    saveLocal: (items) => manager.saveLocal(items),
+    updateProvider: (_) {}, // 統計データはProviderを使用しないため空関数
+    filter: (_) => true, // フィルタリング不要
+    functionName: 'loadWeeklyStatisticsWithBackgroundRefreshHelper',
+  );
+}
+
+/// 月次統計データをバックグラウンド更新で読み込むヘルパー関数
+/// 
+/// まずローカルからデータを取得して即座に返し、
+/// その後バックグラウンドでFirestoreから最新データを取得して更新します。
+/// 
+/// **戻り値**: 読み込んだ月次統計データのリスト（ローカルデータ）
+/// 
+/// **使用例**:
+/// ```dart
+/// await loadMonthlyStatisticsWithBackgroundRefreshHelper();
+/// ```
+Future<List<MonthlyStatistics>> loadMonthlyStatisticsWithBackgroundRefreshHelper() async {
+  final manager = MonthlyStatisticsDataManager();
+  final dummyRef = Object(); // Provider更新不要のためダミーRef
+
+  return await loadListDataWithBackgroundRefreshHelper<MonthlyStatistics>(
+    ref: dummyRef,
+    manager: manager,
+    getAllWithAuth: () => manager.getAllWithAuth(),
+    getLocalAll: () => manager.getLocalAll(),
+    saveLocal: (items) => manager.saveLocal(items),
+    updateProvider: (_) {}, // 統計データはProviderを使用しないため空関数
+    filter: (_) => true, // フィルタリング不要
+    functionName: 'loadMonthlyStatisticsWithBackgroundRefreshHelper',
+  );
+}
+
+/// 年次統計データをバックグラウンド更新で読み込むヘルパー関数
+/// 
+/// まずローカルからデータを取得して即座に返し、
+/// その後バックグラウンドでFirestoreから最新データを取得して更新します。
+/// 
+/// **戻り値**: 読み込んだ年次統計データのリスト（ローカルデータ）
+/// 
+/// **使用例**:
+/// ```dart
+/// await loadYearlyStatisticsWithBackgroundRefreshHelper();
+/// ```
+Future<List<YearlyStatistics>> loadYearlyStatisticsWithBackgroundRefreshHelper() async {
+  final manager = YearlyStatisticsDataManager();
+  final dummyRef = Object(); // Provider更新不要のためダミーRef
+
+  return await loadListDataWithBackgroundRefreshHelper<YearlyStatistics>(
+    ref: dummyRef,
+    manager: manager,
+    getAllWithAuth: () => manager.getAllWithAuth(),
+    getLocalAll: () => manager.getLocalAll(),
+    saveLocal: (items) => manager.saveLocal(items),
+    updateProvider: (_) {}, // 統計データはProviderを使用しないため空関数
+    filter: (_) => true, // フィルタリング不要
+    functionName: 'loadYearlyStatisticsWithBackgroundRefreshHelper',
+  );
+}
 
 /// 日次統計データを同期するヘルパー関数
 /// 

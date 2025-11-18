@@ -177,6 +177,31 @@ Future<List<Countdown>> loadCountdownsHelper(dynamic ref) async {
   );
 }
 
+/// カウントダウンをバックグラウンド更新で読み込むヘルパー関数
+/// 
+/// まずローカルからデータを取得して即座に表示し、
+/// その後バックグラウンドでFirestoreから最新データを取得して更新します。
+/// 
+/// **動作フロー**:
+/// 1. ローカルからデータを取得して即座に表示
+/// 2. バックグラウンドでFirestoreから最新データを取得
+/// 3. 取得成功時はローカルにも保存してProviderに反映
+/// 4. 取得失敗時はローカルデータのまま
+Future<List<Countdown>> loadCountdownsWithBackgroundRefreshHelper(dynamic ref) async {
+  final manager = CountdownDataManager();
+
+  return await loadListDataWithBackgroundRefreshHelper<Countdown>(
+    ref: ref,
+    manager: manager,
+    getAllWithAuth: () => manager.getAllCountdownsWithAuth(),
+    getLocalAll: () => manager.getLocalCountdowns(),
+    saveLocal: (items) => manager.saveLocalCountdowns(items),
+    updateProvider: (items) => ref.read(countdownsListProvider.notifier).updateList(items),
+    filter: (_) => true, // 物理削除のため、フィルタリング不要
+    functionName: 'loadCountdownsWithBackgroundRefreshHelper',
+  );
+}
+
 /// カウントダウンを同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、

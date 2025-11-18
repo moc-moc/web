@@ -11,6 +11,7 @@ import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/statistics/statistics_aggregation_service.dart';
 import 'package:test_flutter/feature/tracking/state_management.dart';
+import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
 
 /// トラッキング終了画面（新デザインシステム版）
 class TrackingFinishedScreenNew extends ConsumerStatefulWidget {
@@ -35,7 +36,8 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
 
   Future<void> _loadLatestSession() async {
     try {
-      final session = await _sessionManager.getLatestSessionWithAuth();
+      // ローカルのみから最新セッションを取得
+      final session = await _sessionManager.getLatestSessionLocal();
       if (mounted) {
         setState(() {
           _session = session;
@@ -447,16 +449,73 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
 
   Widget _buildGoalUpdates(TrackingSession session) {
     final goals = ref.watch(goalsListProvider);
+    final settings = ref.watch(trackingSettingsProvider);
     
-    if (goals.isEmpty) {
+    // 選択された目標IDを取得
+    final selectedStudyGoalId = settings.selectedStudyGoalId;
+    final selectedPcGoalId = settings.selectedPcGoalId;
+    final selectedSmartphoneGoalId = settings.selectedSmartphoneGoalId;
+    
+    // 各カテゴリーの目標を取得
+    final studyGoals = goals.where((g) => g.detectionItem == DetectionItem.book).toList();
+    final pcGoals = goals.where((g) => g.detectionItem == DetectionItem.pc).toList();
+    final smartphoneGoals = goals.where((g) => g.detectionItem == DetectionItem.smartphone).toList();
+    
+    // 選択された目標を取得（存在しない場合は最初の目標を自動選択）
+    final todaysGoals = <Goal>[];
+    
+    // Study目標
+    if (studyGoals.isNotEmpty) {
+      Goal? studyGoal;
+      if (selectedStudyGoalId != null) {
+        studyGoal = studyGoals.firstWhere(
+          (g) => g.id == selectedStudyGoalId,
+          orElse: () => studyGoals[0],
+        );
+      } else {
+        studyGoal = studyGoals[0];
+      }
+      todaysGoals.add(studyGoal);
+    }
+    
+    // PC目標
+    if (pcGoals.isNotEmpty) {
+      Goal? pcGoal;
+      if (selectedPcGoalId != null) {
+        pcGoal = pcGoals.firstWhere(
+          (g) => g.id == selectedPcGoalId,
+          orElse: () => pcGoals[0],
+        );
+      } else {
+        pcGoal = pcGoals[0];
+      }
+      todaysGoals.add(pcGoal);
+    }
+    
+    // Smartphone目標
+    if (smartphoneGoals.isNotEmpty) {
+      Goal? smartphoneGoal;
+      if (selectedSmartphoneGoalId != null) {
+        smartphoneGoal = smartphoneGoals.firstWhere(
+          (g) => g.id == selectedSmartphoneGoalId,
+          orElse: () => smartphoneGoals[0],
+        );
+      } else {
+        smartphoneGoal = smartphoneGoals[0];
+      }
+      todaysGoals.add(smartphoneGoal);
+    }
+    
+    if (todaysGoals.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final plusHoursByCategory = <String, double>{
-      'study': session.getStudyHours(),
-      'pc': session.getPcHours(),
-      'smartphone': session.getSmartphoneHours(),
-      'person': session.getPersonOnlyHours(),
+    // 秒単位でカテゴリ別時間を取得
+    final plusSecondsByCategory = <String, int>{
+      'study': session.categorySeconds['study'] ?? 0,
+      'pc': session.categorySeconds['pc'] ?? 0,
+      'smartphone': session.categorySeconds['smartphone'] ?? 0,
+      'person': session.categorySeconds['personOnly'] ?? 0,
     };
 
     return Container(
@@ -485,26 +544,32 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
             style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
           ),
           SizedBox(height: AppSpacing.md),
-          ...goals.asMap().entries.map((entry) {
+          ...todaysGoals.asMap().entries.map((entry) {
             final goal = entry.value;
             final category = _getCategoryFromDetectionItem(goal.detectionItem);
-            final plusHours = plusHoursByCategory[category] ?? 0.0;
-            final previousHours = (goal.achievedTime ?? 0) / 3600.0;
-            final targetHours = goal.targetTime / 3600.0;
-            final previousPercent = _calculatePercent(previousHours, targetHours);
-            final plusPercent = _calculatePercent(plusHours, targetHours);
+            // 秒単位で計算
+            final plusSeconds = plusSecondsByCategory[category] ?? 0;
+            final previousSeconds = goal.achievedTime ?? 0;
+            final targetSeconds = goal.targetTime;
+            // パーセンテージ計算（秒単位で計算）
+            final previousPercent = targetSeconds > 0
+                ? (previousSeconds / targetSeconds * 100).clamp(0.0, 999.0)
+                : 0.0;
+            final plusPercent = targetSeconds > 0
+                ? (plusSeconds / targetSeconds * 100).clamp(0.0, 999.0)
+                : 0.0;
 
-            final isLast = entry.key == goals.length - 1;
+            final isLast = entry.key == todaysGoals.length - 1;
             return Padding(
               padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.md),
               child: _buildGoalUpdateRow(
                 goal: goal,
                 category: category,
-                previousHours: previousHours,
+                previousSeconds: previousSeconds,
                 previousPercent: previousPercent,
-                plusHours: plusHours,
+                plusSeconds: plusSeconds,
                 plusPercent: plusPercent,
-                targetHours: targetHours,
+                targetSeconds: targetSeconds,
               ),
             );
           }),
@@ -516,16 +581,24 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
   Widget _buildGoalUpdateRow({
     required Goal goal,
     required String category,
-    required double previousHours,
+    required int previousSeconds,
     required double previousPercent,
-    required double plusHours,
+    required int plusSeconds,
     required double plusPercent,
-    required double targetHours,
+    required int targetSeconds,
   }) {
     final color = _getGoalColor(category);
-    final afterHours = previousHours + plusHours;
-    final afterPercent = (afterHours / targetHours * 100).clamp(0.0, 999.0);
-    final progress = (afterHours / targetHours).clamp(0.0, 1.0);
+    // 秒単位で計算
+    final afterSeconds = previousSeconds + plusSeconds;
+    final afterPercent = targetSeconds > 0
+        ? (afterSeconds / targetSeconds * 100).clamp(0.0, 999.0)
+        : 0.0;
+    final progress = targetSeconds > 0
+        ? (afterSeconds / targetSeconds).clamp(0.0, 1.0)
+        : 0.0;
+    
+    // 表示用に時間単位に変換
+    final targetHours = targetSeconds / 3600.0;
     
     return Container(
       padding: EdgeInsets.all(AppSpacing.md),
@@ -574,12 +647,12 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
               Row(
                 children: [
                   Text(
-                    '${(previousHours * 3600).round()}秒 → ${(afterHours * 3600).round()}秒',
+                    '${previousSeconds}秒 → ${afterSeconds}秒',
                     style: AppTextStyles.body2,
                   ),
                   SizedBox(width: AppSpacing.sm),
                   Text(
-                    '+${(plusHours * 3600).round()}秒',
+                    '+${plusSeconds}秒',
                     style: AppTextStyles.body2.copyWith(
                       color: color.withValues(alpha: 1.0),
                       fontWeight: FontWeight.bold,
@@ -590,12 +663,12 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
               Row(
                 children: [
                   Text(
-                    '${previousPercent.toStringAsFixed(0)}% → ${afterPercent.toStringAsFixed(0)}%',
+                    '${previousPercent.toStringAsFixed(1)}% → ${afterPercent.toStringAsFixed(1)}%',
                     style: AppTextStyles.body2,
                   ),
                   SizedBox(width: AppSpacing.sm),
                   Text(
-                    '+${plusPercent.toStringAsFixed(0)}%',
+                    '+${plusPercent.toStringAsFixed(1)}%',
                     style: AppTextStyles.body2.copyWith(
                       color: color.withValues(alpha: 1.0),
                       fontWeight: FontWeight.bold,
@@ -778,10 +851,4 @@ class _CategoryStat {
   final IconData icon;
   final Color color;
   final double hours;
-}
-
-
-double _calculatePercent(double hours, double target) {
-  if (target == 0) return 0;
-  return (hours / target * 100).clamp(0.0, 999.0);
 }

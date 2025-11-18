@@ -36,8 +36,8 @@ class _DisplaySettingsScreenNewState extends ConsumerState<DisplaySettingsScreen
 
   Future<void> _loadSettings() async {
     try {
-      await syncDisplaySettingsHelper(ref);
-      await syncTimeSettingsHelper(ref);
+      await loadDisplaySettingsWithBackgroundRefreshHelper(ref);
+      await loadTimeSettingsWithBackgroundRefreshHelper(ref);
       
       final displaySettings = ref.read(displaySettingsProvider);
       final timeSettings = ref.read(timeSettingsProvider);

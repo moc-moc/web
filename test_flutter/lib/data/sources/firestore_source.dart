@@ -91,6 +91,8 @@ class FirestoreMk {
   /// 
   /// lastModifiedフィールドが指定時刻以降のドキュメントを取得する
   /// 差分同期などに使用する
+  /// 
+  /// エラー時は例外を投げる（呼び出し側で全データ取得にフォールバック可能）
   static Future<List<Map<String, dynamic>>> fetchModifiedSince(
     String collectionPath,
     DateTime since,
@@ -104,9 +106,24 @@ class FirestoreMk {
       return querySnapshot.docs
           .map((doc) => doc.data())
           .toList();
-    } catch (e) {
-      debugPrint('❌ 差分データ取得エラー: $e');
-      return [];
+    } on FirebaseException catch (e) {
+      // Firestoreのエラー（インデックス不足など）を検出
+      await LogMk.logError(
+        '差分データ取得エラー（インデックス不足の可能性）: $collectionPath',
+        tag: 'FirestoreMk.fetchModifiedSince',
+        error: e,
+      );
+      // 呼び出し側で全データ取得にフォールバックできるように例外を投げる
+      rethrow;
+    } catch (e, stackTrace) {
+      await LogMk.logError(
+        '差分データ取得エラー: $collectionPath',
+        tag: 'FirestoreMk.fetchModifiedSince',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      // 他のエラーも呼び出し側で処理できるように例外を投げる
+      rethrow;
     }
   }
   

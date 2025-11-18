@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:test_flutter/data/models/settings_models.dart';
 import 'package:test_flutter/data/sources/auth_source.dart';
+import 'package:test_flutter/feature/base/data_helper_functions.dart';
 import 'package:test_flutter/feature/setting/settings_data_manager.dart';
 
 part 'tracking_settings_notifier.g.dart';
@@ -26,6 +27,53 @@ class TrackingSettingsNotifier extends _$TrackingSettingsNotifier {
   void updateSettings(TrackingSettings settings) {
     state = settings;
   }
+}
+
+/// トラッキング設定をバックグラウンド更新で読み込むヘルパー関数
+/// 
+/// まずローカルまたはデフォルト値で即座に表示し、
+/// その後バックグラウンドでFirestoreから最新データを取得して更新します。
+/// 
+/// **パラメータ**:
+/// - `ref`: dynamic（Provider操作用）
+/// 
+/// **戻り値**: 読み込んだトラッキング設定（ローカルまたはデフォルト値）
+Future<TrackingSettings> loadTrackingSettingsWithBackgroundRefreshHelper(dynamic ref) async {
+  final dummyManager = Object(); // マネージャーは使用しないためダミー
+
+  return await loadSingleDataWithBackgroundRefreshHelper<TrackingSettings>(
+    ref: ref,
+    manager: dummyManager,
+    getWithAuth: () async {
+      try {
+        final settingsList = await trackingSettingsManager.getAllWithAuth();
+        try {
+          return settingsList.firstWhere((s) => s.id == 'tracking_settings');
+        } catch (e) {
+          return null;
+        }
+      } catch (e) {
+        return null;
+      }
+    },
+    getLocal: () async {
+      try {
+        return await trackingSettingsManager.getLocalById('tracking_settings');
+      } catch (e) {
+        return null;
+      }
+    },
+    getDefault: () async => TrackingSettings.defaultSettings(),
+    saveLocal: (settings) async {
+      try {
+        await trackingSettingsManager.addLocal(settings);
+      } catch (e) {
+        await trackingSettingsManager.updateLocal(settings);
+      }
+    },
+    updateProvider: (settings) => ref.read(trackingSettingsProvider.notifier).updateSettings(settings),
+    functionName: 'loadTrackingSettingsWithBackgroundRefreshHelper',
+  );
 }
 
 /// トラッキング設定を同期するヘルパー関数

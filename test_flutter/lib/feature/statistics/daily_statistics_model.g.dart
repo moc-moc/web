@@ -33,6 +33,11 @@ _DailyStatistics _$DailyStatisticsFromJson(Map<String, dynamic> json) =>
       pieChartData: _pieChartDataFromJson(
         json['pieChartData'] as Map<String, dynamic>?,
       ),
+      hourlyCategorySeconds:
+          (json['hourlyCategorySeconds'] as Map<String, dynamic>?)?.map(
+            (k, e) => MapEntry(k, Map<String, int>.from(e as Map)),
+          ) ??
+          const {},
       lastModified: DateTime.parse(json['lastModified'] as String),
     );
 
@@ -43,5 +48,6 @@ Map<String, dynamic> _$DailyStatisticsToJson(_DailyStatistics instance) =>
       'categorySeconds': instance.categorySeconds,
       'totalWorkTimeSeconds': instance.totalWorkTimeSeconds,
       'pieChartData': _pieChartDataToJson(instance.pieChartData),
+      'hourlyCategorySeconds': instance.hourlyCategorySeconds,
       'lastModified': instance.lastModified.toIso8601String(),
     };

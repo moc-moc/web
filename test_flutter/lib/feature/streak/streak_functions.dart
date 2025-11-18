@@ -94,6 +94,41 @@ Future<StreakData> loadStreakDataHelper(dynamic ref) async {
   );
 }
 
+/// 連続継続日数データをバックグラウンド更新で読み込むヘルパー関数
+/// 
+/// まずローカルまたはデフォルト値で即座に表示し、
+/// その後バックグラウンドでFirestoreから最新データを取得して更新します。
+/// 
+/// **パラメータ**:
+/// - `ref`: Ref（Provider操作用）
+/// 
+/// **戻り値**: 読み込んだ連続継続日数データ（ローカルまたはデフォルト値）
+/// 
+/// **動作フロー**:
+/// 1. ローカルまたはデフォルト値で即座に表示
+/// 2. バックグラウンドでFirestoreから最新データを取得
+/// 3. 取得成功時はローカルにも保存してProviderに反映
+/// 4. 取得失敗時はローカルデータのまま
+/// 
+/// **使用例**:
+/// ```dart
+/// await loadStreakDataWithBackgroundRefreshHelper(ref);
+/// ```
+Future<StreakData> loadStreakDataWithBackgroundRefreshHelper(dynamic ref) async {
+  final manager = StreakDataManager();
+
+  return await loadSingleDataWithBackgroundRefreshHelper<StreakData>(
+    ref: ref,
+    manager: manager,
+    getWithAuth: () => manager.getStreakDataWithAuth(),
+    getLocal: () => manager.getLocalStreakData(),
+    getDefault: () => manager.getStreakDataOrDefault(),
+    saveLocal: (data) => manager.saveLocalStreakData(data),
+    updateProvider: (data) => ref.read(streakDataProvider.notifier).updateStreak(data),
+    functionName: 'loadStreakDataWithBackgroundRefreshHelper',
+  );
+}
+
 /// 連続継続日数データを同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、

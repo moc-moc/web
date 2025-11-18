@@ -91,6 +91,41 @@ Future<TotalData> loadTotalDataHelper(dynamic ref) async {
   );
 }
 
+/// 累計データをバックグラウンド更新で読み込むヘルパー関数
+/// 
+/// まずローカルまたはデフォルト値で即座に表示し、
+/// その後バックグラウンドでFirestoreから最新データを取得して更新します。
+/// 
+/// **パラメータ**:
+/// - `ref`: Ref（Provider操作用）
+/// 
+/// **戻り値**: 読み込んだ累計データ（ローカルまたはデフォルト値）
+/// 
+/// **動作フロー**:
+/// 1. ローカルまたはデフォルト値で即座に表示
+/// 2. バックグラウンドでFirestoreから最新データを取得
+/// 3. 取得成功時はローカルにも保存してProviderに反映
+/// 4. 取得失敗時はローカルデータのまま
+/// 
+/// **使用例**:
+/// ```dart
+/// await loadTotalDataWithBackgroundRefreshHelper(ref);
+/// ```
+Future<TotalData> loadTotalDataWithBackgroundRefreshHelper(dynamic ref) async {
+  final manager = TotalDataManager();
+
+  return await loadSingleDataWithBackgroundRefreshHelper<TotalData>(
+    ref: ref,
+    manager: manager,
+    getWithAuth: () => manager.getTotalDataWithAuth(),
+    getLocal: () => manager.getLocalTotalData(),
+    getDefault: () => manager.getTotalDataOrDefault(),
+    saveLocal: (data) => manager.saveLocalTotalData(data),
+    updateProvider: (data) => ref.read(totalDataProvider.notifier).updateTotal(data),
+    functionName: 'loadTotalDataWithBackgroundRefreshHelper',
+  );
+}
+
 /// 累計データを同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、

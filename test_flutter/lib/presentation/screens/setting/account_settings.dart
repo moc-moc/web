@@ -42,7 +42,7 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
 
   Future<void> _loadSettings() async {
     try {
-      await syncAccountSettingsHelper(ref);
+      await loadAccountSettingsWithBackgroundRefreshHelper(ref);
       final settings = ref.read(accountSettingsProvider);
       setState(() {
         _nameController.text = settings.accountName;

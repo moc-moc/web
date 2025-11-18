@@ -3,13 +3,13 @@ import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 
 /// トラッキングセッション用データマネージャー
 /// 
-/// BaseDataManager<TrackingSession>を継承して、トラッキングセッションデータの管理を行います。
+/// BaseHiveDataManager<TrackingSession>を継承して、トラッキングセッションデータの管理を行います。
 /// 
 /// **提供機能**:
 /// - 基本CRUD操作（追加、取得、更新、削除）
-/// - ローカルストレージ（SharedPreferences）との同期
+/// - Firestoreとローカルストレージ（Hive）との同期
 /// - リトライ機能（失敗時の自動再試行）
-class TrackingSessionDataManager extends BaseDataManager<TrackingSession> {
+class TrackingSessionDataManager extends BaseHiveDataManager<TrackingSession> {
   @override
   String getCollectionPath(String userId) => 'users/$userId/tracking_sessions';
 
@@ -20,7 +20,10 @@ class TrackingSessionDataManager extends BaseDataManager<TrackingSession> {
 
   @override
   Map<String, dynamic> convertToFirestore(TrackingSession item) {
-    return item.toFirestore();
+    // データ量削減のため、FirestoreにはdetectionPeriodsを保存しない
+    // 時系列データは統計データ（DailyStatistics等）に集計済み
+    // ローカル（Hive）には完全なデータを保存
+    return item.toFirestore(excludeDetectionPeriods: true);
   }
 
   @override
@@ -53,42 +56,40 @@ class TrackingSessionDataManager extends BaseDataManager<TrackingSession> {
   Map<String, dynamic> convertToJson(TrackingSession item) => item.toJson();
 
   @override
-  String get storageKey => 'tracking_sessions';
+  String get hiveBoxName => 'tracking_sessions';
 
   // ===== カスタム機能（トラッキングセッション特有） =====
 
-  /// トラッキングセッションを追加（認証自動取得版）
+  /// トラッキングセッションを追加（ローカルのみ）
   /// 
-  /// 新しいセッションをローカルのみに保存します。
-  /// 統計集計用の一時データとして保存し、Firestoreには保存しません。
+  /// 新しいセッションをローカルストレージ（Hive）のみに保存します。
+  /// Firestoreは使用しません（統計データはdaily_statistics等に集計済み）。
   Future<bool> addSessionWithAuth(TrackingSession session) async {
     try {
-      await addLocal(session);
+      // 既存のセッションを取得
+      final existingSessions = await getLocalAll();
+      
+      // 新しいセッションを追加
+      final updatedSessions = [session, ...existingSessions];
+      
+      // ローカルのみに保存
+      await saveLocal(updatedSessions);
       return true;
     } catch (e) {
       return false;
     }
   }
 
-  /// ローカルのみから全セッションを取得（認証自動取得版）
-  /// 
-  /// Firestoreには保存しないため、ローカルのみから取得します。
-  @override
-  Future<List<TrackingSession>> getAllWithAuth() async {
-    return await getLocalAll();
-  }
-
-  /// 今日のトラッキングセッションを取得（認証自動取得版）
+  /// 今日のトラッキングセッションを取得（ローカルのみ）
   /// 
   /// 今日の日付で開始されたセッションを取得します。
-  /// ローカルのみから取得します。
+  /// ローカルストレージ（Hive）からのみ取得します。
   Future<List<TrackingSession>> getTodaySessionsWithAuth() async {
     try {
+      final allSessions = await getLocalAll();
       final now = DateTime.now();
       final startOfDay = DateTime(now.year, now.month, now.day);
       final endOfDay = startOfDay.add(const Duration(days: 1));
-
-      final allSessions = await getLocalAll();
       return allSessions.where((session) {
         return session.startTime.isAfter(startOfDay) &&
             session.startTime.isBefore(endOfDay);
@@ -98,10 +99,10 @@ class TrackingSessionDataManager extends BaseDataManager<TrackingSession> {
     }
   }
 
-  /// 指定期間のトラッキングセッションを取得（認証自動取得版）
+  /// 指定期間のトラッキングセッションを取得（ローカルのみ）
   /// 
   /// 開始日時と終了日時を指定してセッションを取得します。
-  /// ローカルのみから取得します。
+  /// ローカルストレージ（Hive）からのみ取得します。
   Future<List<TrackingSession>> getSessionsByDateRangeWithAuth({
     required DateTime startDate,
     required DateTime endDate,
@@ -120,8 +121,36 @@ class TrackingSessionDataManager extends BaseDataManager<TrackingSession> {
   /// 最新のトラッキングセッションを取得（認証自動取得版）
   /// 
   /// 最も最近のセッションを1つ取得します。
-  /// ローカルのみから取得します。
+  /// Firestoreから取得を試み、失敗時はローカルから取得します。
   Future<TrackingSession?> getLatestSessionWithAuth() async {
+    try {
+      // Firestoreから取得を試みる（失敗時はローカルから取得）
+      final allSessions = await getAllWithAuth();
+      if (allSessions.isEmpty) {
+        return null;
+      }
+      allSessions.sort((a, b) => b.startTime.compareTo(a.startTime));
+      return allSessions.first;
+    } catch (e) {
+      // エラー時はローカルから取得
+      try {
+        final allSessions = await getLocalAll();
+        if (allSessions.isEmpty) {
+          return null;
+        }
+        allSessions.sort((a, b) => b.startTime.compareTo(a.startTime));
+        return allSessions.first;
+      } catch (e) {
+        return null;
+      }
+    }
+  }
+
+  /// 最新のトラッキングセッションを取得（ローカルのみ）
+  /// 
+  /// 最も最近のセッションを1つ取得します。
+  /// ローカルストレージ（Hive）からのみ取得します。
+  Future<TrackingSession?> getLatestSessionLocal() async {
     try {
       final allSessions = await getLocalAll();
       if (allSessions.isEmpty) {

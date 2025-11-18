@@ -121,18 +121,26 @@ mixin FirestoreLocalMixin<T> {
 
   /// ローカルからアイテムを削除
   /// 
-  Future<void> deleteLocal(String id) async {
+  /// **戻り値**: 削除が成功した場合はtrue、アイテムが見つからない場合はfalse
+  Future<bool> deleteLocal(String id) async {
     try {
       // 1. ローカルから削除
-      await SharedMk.removeItemFromSharedPrefs(
+      final success = await SharedMk.removeItemFromSharedPrefs(
         storageKey,
         id,
         idField,
       );
       
-      await LogMk.logInfo('✅ ローカルアイテム削除完了: $id');
+      if (success) {
+        await LogMk.logInfo('✅ ローカルアイテム削除完了: $id');
+      } else {
+        await LogMk.logWarning('⚠️ ローカルアイテムが見つかりません: $id');
+      }
+      
+      return success;
     } catch (e) {
       await LogMk.logError(' ローカルアイテム削除エラー: $e');
+      return false;
     }
   }
 

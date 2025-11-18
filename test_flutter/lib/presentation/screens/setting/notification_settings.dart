@@ -41,7 +41,7 @@ class _NotificationSettingsScreenNewState
 
   Future<void> _loadSettings() async {
     try {
-      await syncNotificationSettingsHelper(ref);
+      await loadNotificationSettingsWithBackgroundRefreshHelper(ref);
       final settings = ref.read(notificationSettingsProvider);
       
       setState(() {

@@ -16,6 +16,11 @@ _MonthlyStatistics _$MonthlyStatisticsFromJson(Map<String, dynamic> json) =>
       pieChartData: _pieChartDataFromJson(
         json['pieChartData'] as Map<String, dynamic>?,
       ),
+      dailyCategorySeconds:
+          (json['dailyCategorySeconds'] as Map<String, dynamic>?)?.map(
+            (k, e) => MapEntry(k, Map<String, int>.from(e as Map)),
+          ) ??
+          const {},
       lastModified: DateTime.parse(json['lastModified'] as String),
     );
 
@@ -27,5 +32,6 @@ Map<String, dynamic> _$MonthlyStatisticsToJson(_MonthlyStatistics instance) =>
       'categorySeconds': instance.categorySeconds,
       'totalWorkTimeSeconds': instance.totalWorkTimeSeconds,
       'pieChartData': _pieChartDataToJson(instance.pieChartData),
+      'dailyCategorySeconds': instance.dailyCategorySeconds,
       'lastModified': instance.lastModified.toIso8601String(),
     };

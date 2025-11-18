@@ -33,6 +33,11 @@ abstract class YearlyStatistics with _$YearlyStatistics {
     @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)
     PieChartDataModel? pieChartData,
     
+    /// 月ごとのカテゴリ別秒数（12ヶ月分）
+    /// キー: "1", "2", ..., "12" (月)
+    /// 値: カテゴリ別秒数のMap {study: 36000, pc: 18000, smartphone: 6000}
+    @Default({}) Map<String, Map<String, int>> monthlyCategorySeconds,
+    
     /// 最終更新日時
     required DateTime lastModified,
   }) = _YearlyStatistics;
@@ -53,12 +58,25 @@ abstract class YearlyStatistics with _$YearlyStatistics {
       );
     }
 
+    // monthlyCategorySecondsの変換（後方互換性のためnullチェック）
+    Map<String, Map<String, int>> monthlyCategorySeconds = {};
+    if (data['monthlyCategorySeconds'] != null) {
+      final monthlyData = data['monthlyCategorySeconds'] as Map<String, dynamic>;
+      monthlyCategorySeconds = monthlyData.map(
+        (key, value) => MapEntry(
+          key,
+          Map<String, int>.from(value as Map),
+        ),
+      );
+    }
+
     return YearlyStatistics(
       id: data['id'] as String,
       year: data['year'] as int,
       categorySeconds: Map<String, int>.from(data['categorySeconds'] as Map),
       totalWorkTimeSeconds: data['totalWorkTimeSeconds'] as int,
       pieChartData: pieChartDataModel,
+      monthlyCategorySeconds: monthlyCategorySeconds,
       lastModified: (data['lastModified'] as Timestamp).toDate(),
     );
   }
@@ -71,6 +89,9 @@ abstract class YearlyStatistics with _$YearlyStatistics {
       'categorySeconds': categorySeconds,
       'totalWorkTimeSeconds': totalWorkTimeSeconds,
       'pieChartData': pieChartData?.toJson(),
+      'monthlyCategorySeconds': monthlyCategorySeconds.map(
+        (key, value) => MapEntry(key, value),
+      ),
       'lastModified': Timestamp.fromDate(lastModified),
     };
   }

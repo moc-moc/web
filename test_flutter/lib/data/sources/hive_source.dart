@@ -156,7 +156,9 @@ class HiveMk {
   /// 
   /// 指定されたIDのアイテムをリストから削除する
   /// idFieldでアイテムのIDフィールドを指定する
-  static Future<void> removeItemFromHive(
+  /// 
+  /// **戻り値**: 削除が成功した場合はtrue、アイテムが見つからない場合はfalse
+  static Future<bool> removeItemFromHive(
     String boxName,
     String itemId,
     String idField,
@@ -170,11 +172,14 @@ class HiveMk {
       if (items.length < beforeCount) {
         await saveAllToHive(boxName, items);
         debugPrint('✅ Hiveアイテム削除完了: $boxName (ID: $itemId)');
+        return true;
       } else {
-        debugPrint('❌ アイテムが見つかりません: $itemId');
+        debugPrint('⚠️ アイテムが見つかりません: $itemId');
+        return false;
       }
     } catch (e) {
       debugPrint('❌ Hiveアイテム削除エラー: $e');
+      return false;
     }
   }
   

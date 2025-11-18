@@ -128,22 +128,22 @@ class AppInitUN {
         final container = getGlobalContainer();
         if (container != null) {
           try {
-            await syncAccountSettingsHelper(container);
+            await loadAccountSettingsWithBackgroundRefreshHelper(container);
             accountSettingsSuccess = true;
           } catch (e) {}
 
           try {
-            await syncNotificationSettingsHelper(container);
+            await loadNotificationSettingsWithBackgroundRefreshHelper(container);
             notificationSettingsSuccess = true;
           } catch (e) {}
 
           try {
-            await syncDisplaySettingsHelper(container);
+            await loadDisplaySettingsWithBackgroundRefreshHelper(container);
             displaySettingsSuccess = true;
           } catch (e) {}
 
           try {
-            await syncTimeSettingsHelper(container);
+            await loadTimeSettingsWithBackgroundRefreshHelper(container);
             timeSettingsSuccess = true;
           } catch (e) {}
         }
@@ -173,35 +173,69 @@ class AppInitUN {
   static Future<void> _loadCountdownData() async {
     final container = getGlobalContainer();
     if (container == null) throw Exception('Container is null');
-    await syncCountdownsHelper(container);
+    await loadCountdownsWithBackgroundRefreshHelper(container);
   }
 
   static Future<void> _loadStreakData() async {
     final container = getGlobalContainer();
     if (container == null) throw Exception('Container is null');
-    await syncStreakDataHelper(container);
+    await loadStreakDataWithBackgroundRefreshHelper(container);
   }
 
   static Future<void> _loadGoalData() async {
     final container = getGlobalContainer();
     if (container == null) throw Exception('Container is null');
-    await syncGoalsHelper(container);
+    await loadGoalsWithBackgroundRefreshHelper(container);
   }
 
   static Future<void> _loadTotalData() async {
     final container = getGlobalContainer();
     if (container == null) throw Exception('Container is null');
-    await syncTotalDataHelper(container);
+    await loadTotalDataWithBackgroundRefreshHelper(container);
   }
 
   static Future<void> _loadTrackingData() async {
     final container = getGlobalContainer();
     if (container == null) throw Exception('Container is null');
-    await syncTrackingSessionsHelper(container);
+    await loadTrackingSessionsWithBackgroundRefreshHelper(container);
   }
 
   static Future<Map<String, bool>> _loadStatisticsData() async {
-    return await syncAllStatisticsHelper();
+    final results = <String, bool>{};
+    
+    try {
+      await loadDailyStatisticsWithBackgroundRefreshHelper();
+      results['daily'] = true;
+    } catch (e) {
+      debugPrint('❌ 日次統計の読み込みに失敗: $e');
+      results['daily'] = false;
+    }
+    
+    try {
+      await loadWeeklyStatisticsWithBackgroundRefreshHelper();
+      results['weekly'] = true;
+    } catch (e) {
+      debugPrint('❌ 週次統計の読み込みに失敗: $e');
+      results['weekly'] = false;
+    }
+    
+    try {
+      await loadMonthlyStatisticsWithBackgroundRefreshHelper();
+      results['monthly'] = true;
+    } catch (e) {
+      debugPrint('❌ 月次統計の読み込みに失敗: $e');
+      results['monthly'] = false;
+    }
+    
+    try {
+      await loadYearlyStatisticsWithBackgroundRefreshHelper();
+      results['yearly'] = true;
+    } catch (e) {
+      debugPrint('❌ 年次統計の読み込みに失敗: $e');
+      results['yearly'] = false;
+    }
+    
+    return results;
   }
 
   /// アプリの初期化処理を実行

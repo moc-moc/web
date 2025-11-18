@@ -35,15 +35,24 @@ mixin FirestoreSyncMixin<T> {
         
         // 3. Firestoreから差分データを取得
         List<Map<String, dynamic>> remoteDataList;
-        if (lastSyncTime != null && localDataList.isNotEmpty) {
-          // ローカルデータが存在する場合は差分同期
-          remoteDataList = await FirestoreMk.fetchModifiedSince(
-            collectionPathBuilder(userId),
-            lastSyncTime,
-          );
+        if (lastSyncTime != null) {
+          // lastSyncTimeがあれば差分同期を試みる
+          try {
+            remoteDataList = await FirestoreMk.fetchModifiedSince(
+              collectionPathBuilder(userId),
+              lastSyncTime,
+            );
+            await LogMk.logInfo('📥 差分データ取得成功: ${remoteDataList.length}件');
+          } catch (e) {
+            // 差分同期が失敗した場合は全データ取得にフォールバック
+            await LogMk.logWarning('差分同期失敗、全データ取得にフォールバック: $e');
+            remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
+            await LogMk.logInfo('📥 全データ取得: ${remoteDataList.length}件');
+          }
         } else {
-          // 初回同期またはローカルデータが空の場合は全データを取得
+          // 初回同期の場合は全データを取得
           remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
+          await LogMk.logInfo('📥 初回同期: 全データ取得 ${remoteDataList.length}件');
         }
         
         // 4. データをマージ（競合解決）
@@ -93,15 +102,37 @@ mixin FirestoreSyncMixin<T> {
     });
   }
 
-  /// 強制同期（全データ取得）
+  /// 強制同期（可能であれば差分同期を試みる）
   /// 
   Future<List<T>> forceSync(String userId) async {
     try {
       await LogMk.logInfo('🔄 強制同期開始: $userId');
       
-      // 1. Firestoreから全データを取得
-      final remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
-      await LogMk.logInfo('📥 Firestore全データ取得: ${remoteDataList.length}件');
+      // 最終同期時刻を取得
+      final lastSyncTime = await SharedMk.getLastSyncTimeFromSharedPrefs(storageKey);
+      
+      List<Map<String, dynamic>> remoteDataList;
+      
+      // 可能であれば差分同期を試みる
+      if (lastSyncTime != null) {
+        try {
+          // 最終同期時刻以降のすべての変更を取得
+          remoteDataList = await FirestoreMk.fetchModifiedSince(
+            collectionPathBuilder(userId),
+            lastSyncTime,
+          );
+          await LogMk.logInfo('📥 差分データ取得: ${remoteDataList.length}件');
+        } catch (e) {
+          // 差分同期が失敗した場合は全データ取得
+          await LogMk.logWarning('差分同期失敗、全データ取得: $e');
+          remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
+          await LogMk.logInfo('📥 Firestore全データ取得: ${remoteDataList.length}件');
+        }
+      } else {
+        // 初回同期の場合は全データを取得
+        remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
+        await LogMk.logInfo('📥 Firestore全データ取得: ${remoteDataList.length}件');
+      }
       
       // 2. JSON形式に変換（DataMk層の汎用関数を使用）
       final jsonDataList = SyncMk.convertToJsonFormat<T>(

@@ -31,6 +31,11 @@ abstract class WeeklyStatistics with _$WeeklyStatistics {
     @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)
     PieChartDataModel? pieChartData,
     
+    /// 日ごとのカテゴリ別秒数（7日分）
+    /// キー: "0", "1", ..., "6" (月曜日から日曜日)
+    /// 値: カテゴリ別秒数のMap {study: 3600, pc: 1800, ...}
+    @Default({}) Map<String, Map<String, int>> dailyCategorySeconds,
+    
     /// 最終更新日時
     required DateTime lastModified,
   }) = _WeeklyStatistics;
@@ -51,12 +56,25 @@ abstract class WeeklyStatistics with _$WeeklyStatistics {
       );
     }
 
+    // dailyCategorySecondsの変換（後方互換性のためnullチェック）
+    Map<String, Map<String, int>> dailyCategorySeconds = {};
+    if (data['dailyCategorySeconds'] != null) {
+      final dailyData = data['dailyCategorySeconds'] as Map<String, dynamic>;
+      dailyCategorySeconds = dailyData.map(
+        (key, value) => MapEntry(
+          key,
+          Map<String, int>.from(value as Map),
+        ),
+      );
+    }
+
     return WeeklyStatistics(
       id: data['id'] as String,
       weekStart: (data['weekStart'] as Timestamp).toDate(),
       categorySeconds: Map<String, int>.from(data['categorySeconds'] as Map),
       totalWorkTimeSeconds: data['totalWorkTimeSeconds'] as int,
       pieChartData: pieChartDataModel,
+      dailyCategorySeconds: dailyCategorySeconds,
       lastModified: (data['lastModified'] as Timestamp).toDate(),
     );
   }
@@ -69,6 +87,9 @@ abstract class WeeklyStatistics with _$WeeklyStatistics {
       'categorySeconds': categorySeconds,
       'totalWorkTimeSeconds': totalWorkTimeSeconds,
       'pieChartData': pieChartData?.toJson(),
+      'dailyCategorySeconds': dailyCategorySeconds.map(
+        (key, value) => MapEntry(key, value),
+      ),
       'lastModified': Timestamp.fromDate(lastModified),
     };
   }

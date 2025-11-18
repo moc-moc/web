@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:test_flutter/data/models/settings_models.dart';
 import 'package:test_flutter/data/sources/auth_source.dart';
+import 'package:test_flutter/feature/base/data_helper_functions.dart';
 import 'package:test_flutter/feature/setting/settings_data_manager.dart';
 
 part 'account_settings_notifier.g.dart';
@@ -26,6 +27,54 @@ class AccountSettingsNotifier extends _$AccountSettingsNotifier {
   void updateSettings(AccountSettings settings) {
     state = settings;
   }
+}
+
+/// アカウント設定をバックグラウンド更新で読み込むヘルパー関数
+/// 
+/// まずローカルまたはデフォルト値で即座に表示し、
+/// その後バックグラウンドでFirestoreから最新データを取得して更新します。
+/// 
+/// **パラメータ**:
+/// - `ref`: dynamic（Provider操作用）
+/// 
+/// **戻り値**: 読み込んだアカウント設定（ローカルまたはデフォルト値）
+Future<AccountSettings> loadAccountSettingsWithBackgroundRefreshHelper(dynamic ref) async {
+  final dummyManager = Object(); // マネージャーは使用しないためダミー
+
+  return await loadSingleDataWithBackgroundRefreshHelper<AccountSettings>(
+    ref: ref,
+    manager: dummyManager,
+    getWithAuth: () async {
+      try {
+        final settingsList = await accountSettingsManager.getAllWithAuth();
+        try {
+          return settingsList.firstWhere((s) => s.id == 'account_settings');
+        } catch (e) {
+          return null;
+        }
+      } catch (e) {
+        return null;
+      }
+    },
+    getLocal: () async {
+      try {
+        return await accountSettingsManager.getLocalById('account_settings');
+      } catch (e) {
+        return null;
+      }
+    },
+    getDefault: () async => AccountSettings.defaultSettings(),
+    saveLocal: (settings) async {
+      try {
+        await accountSettingsManager.addLocal(settings);
+      } catch (e) {
+        // 既に存在する場合は更新
+        await accountSettingsManager.updateLocal(settings);
+      }
+    },
+    updateProvider: (settings) => ref.read(accountSettingsProvider.notifier).updateSettings(settings),
+    functionName: 'loadAccountSettingsWithBackgroundRefreshHelper',
+  );
 }
 
 /// アカウント設定を同期するヘルパー関数

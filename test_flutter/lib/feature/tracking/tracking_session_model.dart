@@ -103,15 +103,25 @@ abstract class TrackingSession with _$TrackingSession {
   }
 
   /// Firestore形式に変換
-  Map<String, dynamic> toFirestore() {
-    return {
+  /// 
+  /// [excludeDetectionPeriods]がtrueの場合、detectionPeriodsを除外します。
+  /// これによりFirestoreのデータ量を削減できます。
+  /// 時系列データは統計データ（DailyStatistics等）に集計済みです。
+  Map<String, dynamic> toFirestore({bool excludeDetectionPeriods = false}) {
+    final data = {
       'id': id,
       'startTime': Timestamp.fromDate(startTime),
       'endTime': Timestamp.fromDate(endTime),
       'categorySeconds': categorySeconds,
-      'detectionPeriods': detectionPeriods.map((e) => e.toFirestore()).toList(),
       'lastModified': Timestamp.fromDate(lastModified),
     };
+    
+    // detectionPeriodsはオプションで除外可能（データ量削減のため）
+    if (!excludeDetectionPeriods) {
+      data['detectionPeriods'] = detectionPeriods.map((e) => e.toFirestore()).toList();
+    }
+    
+    return data;
   }
 
   /// カテゴリ別の時間を時間単位で取得（categorySecondsは秒単位）

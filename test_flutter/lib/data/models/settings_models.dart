@@ -337,6 +337,12 @@ abstract class TrackingSettings with _$TrackingSettings {
     required bool isCameraOn,
     /// 省電力モードのオン/オフ状態
     required bool isPowerSavingMode,
+    /// 選択されたStudy目標のID
+    String? selectedStudyGoalId,
+    /// 選択されたPC目標のID
+    String? selectedPcGoalId,
+    /// 選択されたSmartphone目標のID
+    String? selectedSmartphoneGoalId,
     /// 最終更新日時
     required DateTime lastModified,
   }) = _TrackingSettings;
@@ -346,6 +352,9 @@ abstract class TrackingSettings with _$TrackingSettings {
         id: 'tracking_settings',
         isCameraOn: true,
         isPowerSavingMode: false,
+        selectedStudyGoalId: null,
+        selectedPcGoalId: null,
+        selectedSmartphoneGoalId: null,
         lastModified: DateTime.now(),
       );
 
@@ -365,6 +374,9 @@ abstract class TrackingSettings with _$TrackingSettings {
         id: json['id'] as String? ?? 'tracking_settings',
         isCameraOn: json['isCameraOn'] as bool? ?? true,
         isPowerSavingMode: json['isPowerSavingMode'] as bool? ?? false,
+        selectedStudyGoalId: json['selectedStudyGoalId'] as String?,
+        selectedPcGoalId: json['selectedPcGoalId'] as String?,
+        selectedSmartphoneGoalId: json['selectedSmartphoneGoalId'] as String?,
         lastModified: json['lastModified'] != null
             ? (json['lastModified'] is String
                 ? DateTime.tryParse(json['lastModified'] as String) ?? DateTime.now()
@@ -380,6 +392,9 @@ abstract class TrackingSettings with _$TrackingSettings {
       id: data['id'] as String? ?? 'tracking_settings',
       isCameraOn: data['isCameraOn'] as bool? ?? true,
       isPowerSavingMode: data['isPowerSavingMode'] as bool? ?? false,
+      selectedStudyGoalId: data['selectedStudyGoalId'] as String?,
+      selectedPcGoalId: data['selectedPcGoalId'] as String?,
+      selectedSmartphoneGoalId: data['selectedSmartphoneGoalId'] as String?,
       lastModified: (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -390,6 +405,9 @@ abstract class TrackingSettings with _$TrackingSettings {
       'id': id,
       'isCameraOn': isCameraOn,
       'isPowerSavingMode': isPowerSavingMode,
+      'selectedStudyGoalId': selectedStudyGoalId,
+      'selectedPcGoalId': selectedPcGoalId,
+      'selectedSmartphoneGoalId': selectedSmartphoneGoalId,
       'lastModified': Timestamp.fromDate(lastModified),
     };
   }

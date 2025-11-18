@@ -10,20 +10,42 @@ import 'package:test_flutter/feature/streak/streak_functions.dart';
 import 'package:test_flutter/feature/total/total_functions.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
+import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
+import 'package:test_flutter/feature/statistics/daily_statistics_data_manager.dart';
 
 /// ホーム画面（新デザインシステム版）
-class HomeScreenNew extends ConsumerWidget {
+class HomeScreenNew extends ConsumerStatefulWidget {
   const HomeScreenNew({super.key});
 
+  @override
+  ConsumerState<HomeScreenNew> createState() => _HomeScreenNewState();
+}
+
+class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   static const double _statCardMinHeight = 160;
-  
-  // 目標フィルタリング結果のキャッシュ（パフォーマンス最適化）
-  static List<Goal>? _cachedTodaysGoals;
-  static DateTime? _cacheTimestamp;
-  static const _cacheExpiry = Duration(minutes: 1);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  /// データを読み込む
+  Future<void> _loadData() async {
+    try {
+      // 累計データ、ストリークデータ、トラッキング設定を並行して読み込む（バックグラウンド更新）
+      await Future.wait([
+        loadTotalDataWithBackgroundRefreshHelper(ref),
+        loadStreakDataWithBackgroundRefreshHelper(ref),
+        loadTrackingSettingsWithBackgroundRefreshHelper(ref),
+      ]);
+    } catch (e) {
+      debugPrint('❌ [HomeScreen] データ読み込みエラー: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return AppScaffold(
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
@@ -33,12 +55,12 @@ class HomeScreenNew extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 統計表示セクション
-              _buildStatsSection(ref),
+              _buildStatsSection(),
 
               SizedBox(height: AppSpacing.md),
 
               // 今日の目標表示セクション
-              _buildTodaysGoalsSection(ref),
+              _buildTodaysGoalsSection(),
 
               SizedBox(height: AppSpacing.md),
 
@@ -60,7 +82,7 @@ class HomeScreenNew extends ConsumerWidget {
 
 
   /// 統計表示セクション
-  Widget _buildStatsSection(WidgetRef ref) {
+  Widget _buildStatsSection() {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Column(
@@ -70,9 +92,9 @@ class HomeScreenNew extends ConsumerWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: _buildTotalFocusedTimeCard(ref)),
+                Expanded(child: _buildTotalFocusedTimeCard()),
                 SizedBox(width: AppSpacing.md),
-                Expanded(child: _buildStreakDaysCard(ref)),
+                Expanded(child: _buildStreakDaysCard()),
               ],
             ),
           ),
@@ -81,7 +103,7 @@ class HomeScreenNew extends ConsumerWidget {
     );
   }
 
-  Widget _buildTotalFocusedTimeCard(WidgetRef ref) {
+  Widget _buildTotalFocusedTimeCard() {
     final totalData = ref.watch(totalDataProvider);
     final totalMinutes = totalData.totalWorkTimeMinutes;
     const accentColor = AppColors.blue;
@@ -122,15 +144,31 @@ class HomeScreenNew extends ConsumerWidget {
           ),
           SizedBox(height: AppSpacing.sm),
           Center(
-            child: Text(
-              '$totalMinutes',
-              style: AppTextStyles.h1.copyWith(
-                fontSize: 48,
-                color: accentColor,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w800,
-              ),
-              textAlign: TextAlign.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '$totalMinutes',
+                  style: AppTextStyles.h1.copyWith(
+                    fontSize: 48,
+                    color: accentColor,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.only(left: 4, bottom: 6),
+                  child: Text(
+                    'min',
+                    style: AppTextStyles.h1.copyWith(
+                      fontSize: 48 * 0.8,
+                      color: accentColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           SizedBox(height: AppSpacing.xs),
@@ -145,7 +183,7 @@ class HomeScreenNew extends ConsumerWidget {
     );
   }
 
-  Widget _buildStreakDaysCard(WidgetRef ref) {
+  Widget _buildStreakDaysCard() {
     final streakData = ref.watch(streakDataProvider);
     const accentColor = AppColors.orange;
     return Container(
@@ -185,15 +223,31 @@ class HomeScreenNew extends ConsumerWidget {
           ),
           SizedBox(height: AppSpacing.sm),
           Center(
-            child: Text(
-              '${streakData.currentStreak}',
-              style: AppTextStyles.h1.copyWith(
-                fontSize: 48,
-                color: accentColor,
-                letterSpacing: 1.2,
-                fontWeight: FontWeight.w800,
-              ),
-              textAlign: TextAlign.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${streakData.currentStreak}',
+                  style: AppTextStyles.h1.copyWith(
+                    fontSize: 48,
+                    color: accentColor,
+                    letterSpacing: 1.2,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.only(left: 4, bottom: 6),
+                  child: Text(
+                    'days',
+                    style: AppTextStyles.h1.copyWith(
+                      fontSize: 48 * 0.8,
+                      color: accentColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           SizedBox(height: AppSpacing.xs),
@@ -209,30 +263,82 @@ class HomeScreenNew extends ConsumerWidget {
   }
 
   /// 今日の目標表示セクション
-  Widget _buildTodaysGoalsSection(WidgetRef ref) {
+  Widget _buildTodaysGoalsSection() {
     final goals = ref.watch(goalsListProvider);
+    final settings = ref.watch(trackingSettingsProvider);
     
-    // キャッシュから今日の目標を取得（パフォーマンス最適化）
+    // 選択された目標IDを取得
+    final selectedStudyGoalId = settings.selectedStudyGoalId;
+    final selectedPcGoalId = settings.selectedPcGoalId;
+    final selectedSmartphoneGoalId = settings.selectedSmartphoneGoalId;
+    
+    // 各カテゴリーの目標を取得
+    final studyGoals = goals.where((g) => g.detectionItem == DetectionItem.book).toList();
+    final pcGoals = goals.where((g) => g.detectionItem == DetectionItem.pc).toList();
+    final smartphoneGoals = goals.where((g) => g.detectionItem == DetectionItem.smartphone).toList();
+    
+    // 選択された目標を取得（存在しない場合は最初の目標を自動選択）
     final now = DateTime.now();
-    List<Goal> todaysGoals;
+    final todaysGoals = <Goal>[];
     
-    if (_cachedTodaysGoals != null && 
-        _cacheTimestamp != null && 
-        now.difference(_cacheTimestamp!) < _cacheExpiry &&
-        _cachedTodaysGoals!.isNotEmpty) {
-      // キャッシュが有効な場合は使用
-      todaysGoals = _cachedTodaysGoals!;
-    } else {
-      // 今日の目標をフィルタリング（期間が今日を含む目標）
-      todaysGoals = goals.where((goal) {
-        final endDate = goal.startDate.add(Duration(days: goal.durationDays));
-        return now.isAfter(goal.startDate.subtract(const Duration(days: 1))) &&
-            now.isBefore(endDate.add(const Duration(days: 1)));
-      }).take(4).toList();
+    // Study目標
+    if (studyGoals.isNotEmpty) {
+      Goal? studyGoal;
+      if (selectedStudyGoalId != null) {
+        studyGoal = studyGoals.firstWhere(
+          (g) => g.id == selectedStudyGoalId,
+          orElse: () => studyGoals[0],
+        );
+      } else {
+        studyGoal = studyGoals[0];
+      }
       
-      // キャッシュを更新
-      _cachedTodaysGoals = todaysGoals;
-      _cacheTimestamp = now;
+      // 期間が今日を含むかチェック
+      final endDate = studyGoal.startDate.add(Duration(days: studyGoal.durationDays));
+      if (now.isAfter(studyGoal.startDate.subtract(const Duration(days: 1))) &&
+          now.isBefore(endDate.add(const Duration(days: 1)))) {
+        todaysGoals.add(studyGoal);
+      }
+    }
+    
+    // PC目標
+    if (pcGoals.isNotEmpty) {
+      Goal? pcGoal;
+      if (selectedPcGoalId != null) {
+        pcGoal = pcGoals.firstWhere(
+          (g) => g.id == selectedPcGoalId,
+          orElse: () => pcGoals[0],
+        );
+      } else {
+        pcGoal = pcGoals[0];
+      }
+      
+      // 期間が今日を含むかチェック
+      final endDate = pcGoal.startDate.add(Duration(days: pcGoal.durationDays));
+      if (now.isAfter(pcGoal.startDate.subtract(const Duration(days: 1))) &&
+          now.isBefore(endDate.add(const Duration(days: 1)))) {
+        todaysGoals.add(pcGoal);
+      }
+    }
+    
+    // Smartphone目標
+    if (smartphoneGoals.isNotEmpty) {
+      Goal? smartphoneGoal;
+      if (selectedSmartphoneGoalId != null) {
+        smartphoneGoal = smartphoneGoals.firstWhere(
+          (g) => g.id == selectedSmartphoneGoalId,
+          orElse: () => smartphoneGoals[0],
+        );
+      } else {
+        smartphoneGoal = smartphoneGoals[0];
+      }
+      
+      // 期間が今日を含むかチェック
+      final endDate = smartphoneGoal.startDate.add(Duration(days: smartphoneGoal.durationDays));
+      if (now.isAfter(smartphoneGoal.startDate.subtract(const Duration(days: 1))) &&
+          now.isBefore(endDate.add(const Duration(days: 1)))) {
+        todaysGoals.add(smartphoneGoal);
+      }
     }
     
     if (todaysGoals.isEmpty) {
@@ -267,38 +373,77 @@ class HomeScreenNew extends ConsumerWidget {
     );
   }
   
-  /// 目標カードを構築（計算結果をキャッシュ）
+  /// 目標カードを構築（その日の時間を日次統計から取得）
   Widget _buildGoalCard(Goal goal) {
     final category = _getCategoryFromDetectionItem(goal.detectionItem);
     final color = _getGoalColor(category);
     
-    // 時間を分に変換して表示（メモ化）
-    final currentMinutes = (goal.achievedTime ?? 0) ~/ 60;
-    final targetMinutes = goal.targetTime ~/ 60;
-    
-    // 時間フォーマット（メモ化関数を使用）
-    final currentValue = _formatMinutes(currentMinutes);
-    final targetValue = _formatMinutes(targetMinutes);
-    
-    // 進捗率の計算
-    final percentage = targetMinutes > 0 
-        ? (currentMinutes / targetMinutes).clamp(0.0, 1.0)
-        : 0.0;
-    
-    return Padding(
-      padding: EdgeInsets.only(bottom: AppSpacing.sm),
-      child: GoalProgressCard(
-        goalName: goal.title,
-        percentage: percentage,
-        currentValue: currentValue,
-        targetValue: targetValue,
-        progressColor: color,
-        labelColor: color,
-        borderColor: color.withValues(alpha: 0.4),
-        backgroundColor: color.withValues(alpha: 0.1),
-        barBackgroundColor: AppColors.disabledGray.withValues(alpha: 0.2),
-      ),
+    // その日の時間を日次統計から取得（非同期処理のため、FutureBuilderを使用）
+    return FutureBuilder<int>(
+      future: _getTodayCategorySeconds(category),
+      builder: (context, snapshot) {
+        // その日の時間（秒単位）
+        final todaySeconds = snapshot.data ?? 0;
+        
+        // 目標時間を1日換算に変換（durationDaysで割る）- 秒単位で計算
+        final targetSecondsPerDay = goal.targetTime ~/ goal.durationDays;
+        
+        // 時間フォーマット（表示時に変換）
+        final currentMinutes = todaySeconds ~/ 60;
+        final targetMinutes = targetSecondsPerDay ~/ 60;
+        final currentValue = _formatMinutes(currentMinutes);
+        final targetValue = _formatMinutes(targetMinutes);
+        
+        // 進捗率の計算（秒単位で計算）
+        final percentage = targetSecondsPerDay > 0 
+            ? (todaySeconds / targetSecondsPerDay).clamp(0.0, 1.0)
+            : 0.0;
+        
+        return Padding(
+          padding: EdgeInsets.only(bottom: AppSpacing.sm),
+          child: GoalProgressCard(
+            goalName: goal.title,
+            percentage: percentage,
+            currentValue: currentValue,
+            targetValue: targetValue,
+            progressColor: color,
+            labelColor: color,
+            borderColor: color.withValues(alpha: 0.4),
+            backgroundColor: color.withValues(alpha: 0.1),
+            barBackgroundColor: AppColors.disabledGray.withValues(alpha: 0.2),
+          ),
+        );
+      },
     );
+  }
+  
+  /// その日のカテゴリ別時間を取得（秒単位）
+  Future<int> _getTodayCategorySeconds(String category) async {
+    try {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final manager = DailyStatisticsDataManager();
+      final dailyStats = await manager.getByDateWithAuth(today);
+      
+      if (dailyStats == null) {
+        return 0;
+      }
+      
+      // カテゴリに応じて時間を取得
+      switch (category) {
+        case 'study':
+          return dailyStats.categorySeconds['study'] ?? 0;
+        case 'pc':
+          return dailyStats.categorySeconds['pc'] ?? 0;
+        case 'smartphone':
+          return dailyStats.categorySeconds['smartphone'] ?? 0;
+        default:
+          return 0;
+      }
+    } catch (e) {
+      debugPrint('❌ [HomeScreen] 日次統計の取得エラー: $e');
+      return 0;
+    }
   }
   
   /// 分を時間フォーマットに変換（メモ化対応）

@@ -71,7 +71,7 @@ Future<List<Goal>> loadGoalsHelper(dynamic ref) async {
     getLocalAll: () => manager.getLocalGoals(),
     saveLocal: (items) => manager.saveLocalGoals(items),
     updateProvider: (items) => ref.read(goalsListProvider.notifier).updateList(items),
-    filter: (g) => !g.isDeleted,
+    filter: (_) => true, // 物理削除のため、フィルタリング不要
     functionName: 'loadGoalsHelper',
   );
 }
@@ -99,7 +99,7 @@ Future<List<Goal>> syncGoalsHelper(dynamic ref) async {
       firestoreMap[firestoreGoal.id] = firestoreGoal;
     }
 
-    // ローカルデータを処理（マージとフィルタリングを同時実行）
+    // ローカルデータを処理（マージ）
     for (final localGoal in localGoals) {
       final firestoreGoal = firestoreMap[localGoal.id];
       
@@ -108,27 +108,18 @@ Future<List<Goal>> syncGoalsHelper(dynamic ref) async {
         final selectedGoal = localGoal.lastModified.isAfter(firestoreGoal.lastModified)
             ? localGoal
             : firestoreGoal;
-        
-        // アクティブな目標のみ追加（フィルタリングを同時実行）
-        if (!selectedGoal.isDeleted) {
-          mergedGoals.add(selectedGoal);
-        }
+        mergedGoals.add(selectedGoal);
       } else {
-        // ローカルのみ、アクティブな目標のみ追加
-        if (!localGoal.isDeleted) {
-          mergedGoals.add(localGoal);
-        }
+        // ローカルのみ
+        mergedGoals.add(localGoal);
       }
     }
 
-    // Firestoreのみに存在するデータを追加（フィルタリングを同時実行）
+    // Firestoreのみに存在するデータを追加
     final localIds = localGoals.map((g) => g.id).toSet();
     for (final firestoreGoal in firestoreGoals) {
       if (!localIds.contains(firestoreGoal.id)) {
-        // アクティブな目標のみ追加
-        if (!firestoreGoal.isDeleted) {
-          mergedGoals.add(firestoreGoal);
-        }
+        mergedGoals.add(firestoreGoal);
       }
     }
 
@@ -168,16 +159,10 @@ Future<List<Goal>> syncGoalsHelper(dynamic ref) async {
   } catch (e) {
     debugPrint('❌ [syncGoalsHelper] エラー: $e');
     
-    // エラー時はローカルデータを使用（1回の走査でフィルタリング）
+    // エラー時はローカルデータを使用
     final localGoals = await manager.getLocalGoals();
-    final activeGoals = <Goal>[];
-    for (final goal in localGoals) {
-      if (!goal.isDeleted) {
-        activeGoals.add(goal);
-      }
-    }
-    ref.read(goalsListProvider.notifier).updateList(activeGoals);
-    return activeGoals;
+    ref.read(goalsListProvider.notifier).updateList(localGoals);
+    return localGoals;
   }
 }
 
@@ -230,15 +215,14 @@ Future<bool> updateGoalHelper({
     final updatedGoals = localGoals.map((g) => g.id == goal.id ? goal : g).toList();
     await manager.saveLocalGoals(updatedGoals);
     
-    final activeGoals = updatedGoals.where((g) => !g.isDeleted).toList();
-    ref.read(goalsListProvider.notifier).updateList(activeGoals);
+    ref.read(goalsListProvider.notifier).updateList(updatedGoals);
     showSnackBarMessage(context, 'オフラインのため、ローカルに保存しました', mounted: mounted);
   }
 
   return true;
 }
 
-/// 目標を削除するヘルパー関数（論理削除）
+/// 目標を削除するヘルパー関数（物理削除）
 Future<bool> deleteGoalHelper({
   required BuildContext context,
   required dynamic ref,
@@ -247,8 +231,8 @@ Future<bool> deleteGoalHelper({
 }) async {
   final manager = GoalDataManager();
 
-  // 論理削除を実行
-  final success = await manager.softDeleteGoalWithAuth(goalId);
+  // 物理削除を実行
+  final success = await manager.deleteGoalWithAuth(goalId);
 
   if (success) {
     // Providerから削除

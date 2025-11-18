@@ -114,7 +114,6 @@ Future<bool> addCountdownHelper({
     id: const Uuid().v4(),
     title: title.trim(),
     targetDate: targetDate,
-    isDeleted: false,
     lastModified: DateTime.now(),
   );
 
@@ -173,7 +172,7 @@ Future<List<Countdown>> loadCountdownsHelper(dynamic ref) async {
     getLocalAll: () => manager.getLocalCountdowns(),
     saveLocal: (items) => manager.saveLocalCountdowns(items),
     updateProvider: (items) => ref.read(countdownsListProvider.notifier).updateList(items),
-    filter: (c) => !c.isDeleted,
+    filter: (_) => true, // 物理削除のため、フィルタリング不要
     functionName: 'loadCountdownsHelper',
   );
 }
@@ -191,7 +190,7 @@ Future<List<Countdown>> syncCountdownsHelper(dynamic ref) async {
     manager: manager,
     syncWithAuth: () => manager.syncCountdownsWithAuth(),
     updateProvider: (items) => ref.read(countdownsListProvider.notifier).updateList(items),
-    filter: (c) => !c.isDeleted,
+    filter: (_) => true, // 物理削除のため、フィルタリング不要
     functionName: 'syncCountdownsHelper',
   );
 }
@@ -226,8 +225,7 @@ Future<bool> updateCountdownHelper({
     final updatedCountdowns = localCountdowns.map((c) => c.id == countdown.id ? countdown : c).toList();
     await manager.saveLocalCountdowns(updatedCountdowns);
     
-    final activeCountdowns = updatedCountdowns.where((c) => !c.isDeleted).toList();
-    ref.read(countdownsListProvider.notifier).updateList(activeCountdowns);
+    ref.read(countdownsListProvider.notifier).updateList(updatedCountdowns);
     showSnackBarMessage(
       context,
       'オフラインのため、ローカルに保存しました',
@@ -238,9 +236,9 @@ Future<bool> updateCountdownHelper({
   return success;
 }
 
-/// カウントダウンを削除するヘルパー関数（論理削除）
+/// カウントダウンを削除するヘルパー関数（物理削除）
 /// 
-/// カウントダウンを論理削除し、Providerから除外します。
+/// カウントダウンを物理削除し、Providerから除外します。
 /// 
 Future<bool> deleteCountdownHelper({
   required BuildContext context,
@@ -251,8 +249,8 @@ Future<bool> deleteCountdownHelper({
   // CountdownDataManagerのインスタンスを作成（DataUS層を使用）
   final manager = CountdownDataManager();
 
-  // 論理削除を実行（認証自動取得版）
-  final success = await manager.softDeleteCountdownWithAuth(countdownId);
+  // 物理削除を実行（認証自動取得版）
+  final success = await manager.deleteCountdownWithAuth(countdownId);
 
   if (success) {
     // Notifierを使用してProviderから削除

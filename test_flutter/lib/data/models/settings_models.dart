@@ -323,3 +323,75 @@ abstract class TimeSettings with _$TimeSettings {
   }
 }
 
+/// トラッキング設定モデル
+/// 
+/// トラッキング画面の設定（カメラのオン/オフ、省電力モード）を管理します。
+@freezed
+abstract class TrackingSettings with _$TrackingSettings {
+  const TrackingSettings._();
+
+  const factory TrackingSettings({
+    /// 固定ID（'tracking_settings'）
+    required String id,
+    /// カメラのオン/オフ状態
+    required bool isCameraOn,
+    /// 省電力モードのオン/オフ状態
+    required bool isPowerSavingMode,
+    /// 最終更新日時
+    required DateTime lastModified,
+  }) = _TrackingSettings;
+
+  /// デフォルト値を持つコンストラクタ
+  factory TrackingSettings.defaultSettings() => TrackingSettings(
+        id: 'tracking_settings',
+        isCameraOn: true,
+        isPowerSavingMode: false,
+        lastModified: DateTime.now(),
+      );
+
+  /// JSON形式から生成
+  factory TrackingSettings.fromJson(Map<String, dynamic> json) =>
+      _$TrackingSettingsFromJson(json);
+
+  /// JSON形式から生成（null安全版）
+  /// 
+  /// null値が含まれている場合でもデフォルト値で補完して生成します。
+  factory TrackingSettings.fromJsonSafe(Map<String, dynamic> json) {
+    try {
+      return TrackingSettings.fromJson(json);
+    } catch (e) {
+      // null値が含まれている場合はデフォルト値で補完
+      return TrackingSettings(
+        id: json['id'] as String? ?? 'tracking_settings',
+        isCameraOn: json['isCameraOn'] as bool? ?? true,
+        isPowerSavingMode: json['isPowerSavingMode'] as bool? ?? false,
+        lastModified: json['lastModified'] != null
+            ? (json['lastModified'] is String
+                ? DateTime.tryParse(json['lastModified'] as String) ?? DateTime.now()
+                : DateTime.now())
+            : DateTime.now(),
+      );
+    }
+  }
+
+  /// Firestoreデータから生成
+  factory TrackingSettings.fromFirestore(Map<String, dynamic> data) {
+    return TrackingSettings(
+      id: data['id'] as String? ?? 'tracking_settings',
+      isCameraOn: data['isCameraOn'] as bool? ?? true,
+      isPowerSavingMode: data['isPowerSavingMode'] as bool? ?? false,
+      lastModified: (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  /// Firestore形式に変換
+  Map<String, dynamic> toFirestore() {
+    return {
+      'id': id,
+      'isCameraOn': isCameraOn,
+      'isPowerSavingMode': isPowerSavingMode,
+      'lastModified': Timestamp.fromDate(lastModified),
+    };
+  }
+}
+

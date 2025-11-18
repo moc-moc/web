@@ -81,3 +81,19 @@ Map<String, dynamic> _$TimeSettingsToJson(_TimeSettings instance) =>
       'dayBoundaryTime': instance.dayBoundaryTime,
       'lastModified': instance.lastModified.toIso8601String(),
     };
+
+_TrackingSettings _$TrackingSettingsFromJson(Map<String, dynamic> json) =>
+    _TrackingSettings(
+      id: json['id'] as String,
+      isCameraOn: json['isCameraOn'] as bool,
+      isPowerSavingMode: json['isPowerSavingMode'] as bool,
+      lastModified: DateTime.parse(json['lastModified'] as String),
+    );
+
+Map<String, dynamic> _$TrackingSettingsToJson(_TrackingSettings instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'isCameraOn': instance.isCameraOn,
+      'isPowerSavingMode': instance.isPowerSavingMode,
+      'lastModified': instance.lastModified.toIso8601String(),
+    };

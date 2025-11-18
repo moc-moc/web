@@ -84,33 +84,16 @@ class GoalDataManager extends BaseHiveDataManager<Goal> {
     await manager.saveLocal(goals);
   }
 
-  /// 目標を論理削除（認証自動取得版）
-  Future<bool> softDeleteGoalWithAuth(String id) async {
-    return await manager.updatePartialWithAuth(id, {'isDeleted': true});
+  /// 目標を削除（認証自動取得版・物理削除）
+  Future<bool> deleteGoalWithAuth(String id) async {
+    return await manager.deleteWithAuth(id);
   }
 
   /// アクティブな目標のみを取得（認証自動取得版）
   /// 
-  /// Firestoreクエリで`isDeleted=false`をフィルタリングして取得（パフォーマンス最適化）
+  /// 全目標を取得します（物理削除のため、削除済みは存在しません）
   Future<List<Goal>> getActiveGoalsWithAuth() async {
-    try {
-      final userId = FirebaseAuth.instance.currentUser?.uid;
-      if (userId == null) {
-        debugPrint('⚠️ [getActiveGoalsWithAuth] ユーザー未認証');
-        return [];
-      }
-      
-      // FirestoreクエリでisDeleted=falseをフィルタリング
-      return await manager.getAllWithQuery(
-        userId,
-        whereConditions: {'isDeleted': false},
-      );
-    } catch (e) {
-      debugPrint('❌ [getActiveGoalsWithAuth] クエリ取得エラー: $e');
-      // フォールバック: 全取得後にフィルタリング
-      final goals = await getAllGoalsWithAuth();
-      return goals.where((goal) => !goal.isDeleted).toList();
-    }
+    return await getAllGoalsWithAuth();
   }
 
   /// Firestoreから直接目標を取得（認証自動取得版）

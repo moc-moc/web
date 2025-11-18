@@ -11,7 +11,7 @@ import 'package:test_flutter/feature/countdown/countdown_model.dart';
 /// - ローカルストレージ（SharedPreferences）との同期
 /// - リトライ機能（失敗時の自動再試行）
 /// - クエリ機能（条件付き取得）
-/// - 論理削除サポート
+/// - 物理削除（Firestoreから完全に削除）
 class CountdownDataManager extends BaseDataManager<Countdown> {
   @override
   String getCollectionPath(String userId) => 'users/$userId/countdowns';
@@ -85,14 +85,10 @@ class CountdownDataManager extends BaseDataManager<Countdown> {
   }
 
   /// アクティブなカウントダウンのみを取得（認証自動取得版）
+  /// 
+  /// 全カウントダウンを取得します（物理削除のため、削除済みは存在しません）
   Future<List<Countdown>> getActiveCountdownsWithAuth() async {
-    final countdowns = await getAllCountdownsWithAuth();
-    return countdowns.where((countdown) => !countdown.isDeleted).toList();
-  }
-
-  /// カウントダウンを論理削除（認証自動取得版）
-  Future<bool> softDeleteCountdownWithAuth(String id) async {
-    return await manager.updatePartialWithAuth(id, {'isDeleted': true});
+    return await getAllCountdownsWithAuth();
   }
 }
 

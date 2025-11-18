@@ -17,6 +17,7 @@ import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart
 import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
+import 'package:test_flutter/feature/setting/settings_functions.dart';
 
 /// トラッキング中画面（新デザインシステム版）
 class TrackingScreenNew extends ConsumerStatefulWidget {
@@ -73,8 +74,50 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   void initState() {
     super.initState();
     _sessionStartTime = DateTime.now();
-    _initializeCamera();
+    _loadTrackingSettings();
     _startTimer();
+  }
+
+  /// トラッキング設定を読み込む
+  Future<void> _loadTrackingSettings() async {
+    try {
+      // 設定を同期して読み込む
+      final settings = await syncTrackingSettingsHelper(ref);
+      
+      // 設定を反映
+      setState(() {
+        _isCameraOn = settings.isCameraOn;
+        _isPowerSavingMode = settings.isPowerSavingMode;
+      });
+      
+      // カメラを初期化（設定を反映した後）
+      _initializeCamera();
+    } catch (e) {
+      LogMk.logError(
+        '❌ トラッキング設定の読み込みに失敗しました: $e',
+        tag: 'TrackingScreen._loadTrackingSettings',
+      );
+      // エラー時はデフォルト値でカメラを初期化
+      _initializeCamera();
+    }
+  }
+
+  /// トラッキング設定を保存する
+  Future<void> _saveTrackingSettings() async {
+    try {
+      final currentSettings = ref.read(trackingSettingsProvider);
+      final updatedSettings = currentSettings.copyWith(
+        isCameraOn: _isCameraOn,
+        isPowerSavingMode: _isPowerSavingMode,
+      );
+      
+      await saveTrackingSettingsHelper(ref, updatedSettings);
+    } catch (e) {
+      LogMk.logError(
+        '❌ トラッキング設定の保存に失敗しました: $e',
+        tag: 'TrackingScreen._saveTrackingSettings',
+      );
+    }
   }
 
   @override
@@ -782,6 +825,8 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
                     setState(() {
                       _isCameraOn = !_isCameraOn;
                     });
+                    // 設定を保存
+                    _saveTrackingSettings();
                   },
                 ),
                 SizedBox(height: AppSpacing.sm),
@@ -795,6 +840,8 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
                     });
                     // 省電力モードを切り替え
                     await _detectionController?.setPowerSavingMode(_isPowerSavingMode);
+                    // 設定を保存
+                    _saveTrackingSettings();
                   },
                 ),
               ],

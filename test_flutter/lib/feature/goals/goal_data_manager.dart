@@ -14,15 +14,21 @@ class GoalDataManager extends BaseHiveDataManager<Goal> {
 
   @override
   Goal convertFromFirestore(Map<String, dynamic> data) {
+    final targetTime = data['targetTime'] as int;
+    final durationDays = data['durationDays'] as int;
+    final targetSecondsPerDay = data['targetSecondsPerDay'] as int? ?? 
+        (durationDays > 0 ? targetTime ~/ durationDays : 0);
+    
     return Goal(
       id: data['id'] as String,
       tag: data['tag'] as String,
       title: data['title'] as String,
-      targetTime: data['targetTime'] as int,
+      targetTime: targetTime,
       comparisonType: ComparisonType.values.byName(data['comparisonType'] as String),
       detectionItem: DetectionItem.values.byName(data['detectionItem'] as String),
       startDate: (data['startDate'] as Timestamp).toDate(),
-      durationDays: data['durationDays'] as int,
+      durationDays: durationDays,
+      targetSecondsPerDay: targetSecondsPerDay,
       consecutiveAchievements: data['consecutiveAchievements'] as int? ?? 0,
       achievedTime: data['achievedTime'] as int?,
       isDeleted: data['isDeleted'] as bool? ?? false,
@@ -32,6 +38,11 @@ class GoalDataManager extends BaseHiveDataManager<Goal> {
 
   @override
   Map<String, dynamic> convertToFirestore(Goal item) {
+    // targetSecondsPerDayを自動計算（既に設定されている場合はそれを使用）
+    final targetSecondsPerDay = item.targetSecondsPerDay > 0 
+        ? item.targetSecondsPerDay 
+        : (item.durationDays > 0 ? item.targetTime ~/ item.durationDays : 0);
+    
     return {
       'id': item.id,
       'tag': item.tag,
@@ -41,6 +52,7 @@ class GoalDataManager extends BaseHiveDataManager<Goal> {
       'detectionItem': item.detectionItem.name,
       'startDate': Timestamp.fromDate(item.startDate),
       'durationDays': item.durationDays,
+      'targetSecondsPerDay': targetSecondsPerDay,
       'consecutiveAchievements': item.consecutiveAchievements,
       'achievedTime': item.achievedTime,
       'isDeleted': item.isDeleted,

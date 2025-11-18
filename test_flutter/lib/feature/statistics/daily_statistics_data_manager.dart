@@ -69,6 +69,25 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
     }
   }
 
+  /// 指定日付の日次統計をローカルから取得
+  /// 
+  /// **パラメータ**:
+  /// - `date`: 取得する日付（時刻部分は無視される）
+  /// 
+  /// **戻り値**: 該当日の統計データ、存在しない場合はnull
+  Future<DailyStatistics?> getByDateLocal(DateTime date) async {
+    try {
+      final dateOnly = DateTime(date.year, date.month, date.day);
+      final id = _formatDateId(dateOnly);
+      
+      final allData = await manager.getLocalAll();
+      return allData.where((d) => d.id == id).firstOrNull;
+    } catch (e) {
+      debugPrint('❌ [getByDateLocal] 取得エラー: $e');
+      return null;
+    }
+  }
+
   /// 日付をID形式に変換（例: "2024-01-15"）
   String _formatDateId(DateTime date) {
     final year = date.year.toString();

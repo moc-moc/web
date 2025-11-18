@@ -6,12 +6,14 @@ import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
-import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/statistics/statistics_aggregation_service.dart';
 import 'package:test_flutter/feature/tracking/state_management.dart';
 import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
+import 'package:test_flutter/feature/statistics/session_info_model.dart';
+import 'package:test_flutter/feature/streak/streak_data_manager.dart';
+import 'package:test_flutter/data/services/log_service.dart';
 
 /// トラッキング終了画面（新デザインシステム版）
 class TrackingFinishedScreenNew extends ConsumerStatefulWidget {
@@ -22,34 +24,29 @@ class TrackingFinishedScreenNew extends ConsumerStatefulWidget {
 }
 
 class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScreenNew> {
-  TrackingSession? _session;
+  SessionInfo? _sessionInfo;
   bool _isLoading = true;
-  final TrackingSessionDataManager _sessionManager = TrackingSessionDataManager();
   final StatisticsAggregationService _aggregationService = StatisticsAggregationService();
+  final StreakDataManager _streakManager = StreakDataManager();
   bool _isAggregating = false;
 
   @override
-  void initState() {
-    super.initState();
-    _loadLatestSession();
-  }
-
-  Future<void> _loadLatestSession() async {
-    try {
-      // ローカルのみから最新セッションを取得
-      final session = await _sessionManager.getLatestSessionLocal();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Navigator引数からSessionInfoを取得
+    final arguments = ModalRoute.of(context)?.settings.arguments;
+    if (arguments is SessionInfo) {
+      _sessionInfo = arguments;
       if (mounted) {
         setState(() {
-          _session = session;
           _isLoading = false;
         });
         
         // 画面表示後に集計処理を開始（バックグラウンドで実行）
-        if (session != null) {
-          _aggregateSessionData(session);
+        _aggregateSessionData(_sessionInfo!);
         }
-      }
-    } catch (e) {
+    } else {
+      // 引数がない場合はエラー表示
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -61,7 +58,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
   /// セッションデータの集計処理
   /// 
   /// 画面表示後にバックグラウンドで実行されます。
-  Future<void> _aggregateSessionData(TrackingSession session) async {
+  Future<void> _aggregateSessionData(SessionInfo sessionInfo) async {
     if (_isAggregating) return;
     
     setState(() {
@@ -69,7 +66,28 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     });
 
     try {
-      final success = await _aggregationService.aggregateSessionData(session);
+      // SessionInfoをTrackingSessionに変換（統計集計サービス用）
+      final trackingSession = TrackingSession(
+        id: sessionInfo.id,
+        startTime: sessionInfo.startTime,
+        endTime: sessionInfo.endTime,
+        categorySeconds: Map<String, int>.from(sessionInfo.categorySeconds),
+        detectionPeriods: List<DetectionPeriod>.from(sessionInfo.detectionPeriods),
+        lastModified: sessionInfo.lastModified,
+      );
+      
+      // 統計集計処理を実行
+      final success = await _aggregationService.aggregateSessionData(trackingSession);
+      
+      // ストリーク更新を実行
+      try {
+        await _streakManager.trackFinished();
+      } catch (e) {
+        LogMk.logError(
+          '❌ ストリーク更新エラー: $e',
+          tag: 'TrackingFinishedScreen._aggregateSessionData',
+        );
+      }
       
       if (!success && mounted) {
         // エラー時はユーザーに通知
@@ -107,8 +125,8 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
       );
     }
 
-    final session = _session;
-    if (session == null) {
+    final sessionInfo = _sessionInfo;
+    if (sessionInfo == null) {
       return AppScaffold(
         backgroundColor: AppColors.backgroundSecondary,
         body: Center(
@@ -119,6 +137,16 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
         ),
       );
     }
+    
+    // SessionInfoをTrackingSessionに変換（表示用）
+    final session = TrackingSession(
+      id: sessionInfo.id,
+      startTime: sessionInfo.startTime,
+      endTime: sessionInfo.endTime,
+      categorySeconds: Map<String, int>.from(sessionInfo.categorySeconds),
+      detectionPeriods: List<DetectionPeriod>.from(sessionInfo.detectionPeriods),
+      lastModified: sessionInfo.lastModified,
+    );
 
     return AppScaffold(
       backgroundColor: AppColors.backgroundSecondary,
@@ -647,12 +675,12 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
               Row(
                 children: [
                   Text(
-                    '${previousSeconds}秒 → ${afterSeconds}秒',
+                    '$previousSeconds秒 → $afterSeconds秒',
                     style: AppTextStyles.body2,
                   ),
                   SizedBox(width: AppSpacing.sm),
                   Text(
-                    '+${plusSeconds}秒',
+                    '+$plusSeconds秒',
                     style: AppTextStyles.body2.copyWith(
                       color: color.withValues(alpha: 1.0),
                       fontWeight: FontWeight.bold,

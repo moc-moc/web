@@ -38,6 +38,7 @@ abstract class Goal with _$Goal {
     required DetectionItem detectionItem,
     required DateTime startDate,
     required int durationDays,
+    @Default(0) int targetSecondsPerDay,
     @Default(0) int consecutiveAchievements,
     int? achievedTime,
     @Default(false) bool isDeleted,

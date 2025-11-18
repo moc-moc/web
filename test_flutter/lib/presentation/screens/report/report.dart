@@ -715,47 +715,6 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     return [];
   }
 
-  /// 日次データを生成（統計データから）- 将来の最適化用
-  /// 
-  /// 現在は使用していませんが、将来的にFirestoreの統計データから
-  /// 直接時系列データを取得してパフォーマンスを向上させるために用意しています。
-  @Deprecated('将来の最適化用。現在は使用していません。')
-  Future<List<CategoryDataPoint>> _generateDailyDataFromStats(DateTime date) async {
-    try {
-      final dailyManager = DailyStatisticsDataManager();
-      final dateOnly = DateTime(date.year, date.month, date.day);
-      final dailyStats = await dailyManager.getByDateWithAuth(dateOnly);
-      
-      if (dailyStats != null && dailyStats.hourlyCategorySeconds.isNotEmpty) {
-        // Firestoreから時間ごとのデータを取得
-        final dataPoints = <CategoryDataPoint>[];
-        for (int hour = 0; hour < 24; hour++) {
-          final hourKey = hour.toString();
-          final hourlyData = dailyStats.hourlyCategorySeconds[hourKey] ?? <String, int>{};
-          
-          final hourValues = <String, double>{
-            'study': (hourlyData['study'] ?? 0) / 3600.0,
-            'pc': (hourlyData['pc'] ?? 0) / 3600.0,
-            'smartphone': (hourlyData['smartphone'] ?? 0) / 3600.0,
-            'personOnly': (hourlyData['personOnly'] ?? 0) / 3600.0,
-            'nothingDetected': (hourlyData['nothingDetected'] ?? 0) / 3600.0,
-          };
-          
-          dataPoints.add(CategoryDataPoint(
-            label: '$hour:00',
-            values: hourValues,
-          ));
-        }
-        return dataPoints;
-      }
-    } catch (e) {
-      debugPrint('❌ [report.dart] 日次統計データ取得エラー: $e');
-    }
-    
-    // Firestoreから取得できない場合は、ローカルのセッションデータから計算
-    return _generateDailyData(ref.read(trackingSessionsProvider), date);
-  }
-
   /// 日次データを生成（セッションデータから）
   List<CategoryDataPoint> _generateDailyData(List<TrackingSession> sessions, DateTime date) {
     final dayStart = DateTime(date.year, date.month, date.day);
@@ -804,48 +763,6 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     }
     
     return dataPoints;
-  }
-
-  /// 週次データを生成（統計データから）- 将来の最適化用
-  /// 
-  /// 現在は使用していませんが、将来的にFirestoreの統計データから
-  /// 直接時系列データを取得してパフォーマンスを向上させるために用意しています。
-  @Deprecated('将来の最適化用。現在は使用していません。')
-  Future<List<CategoryDataPoint>> _generateWeeklyDataFromStats(DateTime date) async {
-    try {
-      final weeklyManager = WeeklyStatisticsDataManager();
-      final weeklyStats = await weeklyManager.getByWeekWithAuth(date);
-      
-      if (weeklyStats != null && weeklyStats.dailyCategorySeconds.isNotEmpty) {
-        // Firestoreから日ごとのデータを取得
-        final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        final dataPoints = <CategoryDataPoint>[];
-        
-        for (int day = 0; day < 7; day++) {
-          final dayKey = day.toString();
-          final dailyData = weeklyStats.dailyCategorySeconds[dayKey] ?? <String, int>{};
-          
-          final dayValues = <String, double>{
-            'study': (dailyData['study'] ?? 0) / 3600.0,
-            'pc': (dailyData['pc'] ?? 0) / 3600.0,
-            'smartphone': (dailyData['smartphone'] ?? 0) / 3600.0,
-            'personOnly': (dailyData['personOnly'] ?? 0) / 3600.0,
-            'nothingDetected': (dailyData['nothingDetected'] ?? 0) / 3600.0,
-          };
-          
-          dataPoints.add(CategoryDataPoint(
-            label: weekDays[day],
-            values: dayValues,
-          ));
-        }
-        return dataPoints;
-      }
-    } catch (e) {
-      debugPrint('❌ [report.dart] 週次統計データ取得エラー: $e');
-    }
-    
-    // Firestoreから取得できない場合は、ローカルのセッションデータから計算
-    return _generateWeeklyData(ref.read(trackingSessionsProvider), date);
   }
 
   /// 週次データを生成（セッションデータから）
@@ -897,51 +814,6 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     return dataPoints;
   }
 
-  /// 月次データを生成（統計データから）- 将来の最適化用
-  /// 
-  /// 現在は使用していませんが、将来的にFirestoreの統計データから
-  /// 直接時系列データを取得してパフォーマンスを向上させるために用意しています。
-  @Deprecated('将来の最適化用。現在は使用していません。')
-  Future<List<CategoryDataPoint>> _generateMonthlyDataFromStats(DateTime date) async {
-    try {
-      final monthlyManager = MonthlyStatisticsDataManager();
-      final monthlyStats = await monthlyManager.getByMonthWithAuth(
-        date.year,
-        date.month,
-      );
-      
-      if (monthlyStats != null && monthlyStats.dailyCategorySeconds.isNotEmpty) {
-        // Firestoreから日ごとのデータを取得
-        final daysInMonth = DateTime(date.year, date.month + 1, 0).day;
-        final dataPoints = <CategoryDataPoint>[];
-        
-        for (int day = 1; day <= daysInMonth; day++) {
-          final dayKey = day.toString();
-          final dailyData = monthlyStats.dailyCategorySeconds[dayKey] ?? <String, int>{};
-          
-          final dayValues = <String, double>{
-            'study': (dailyData['study'] ?? 0) / 3600.0,
-            'pc': (dailyData['pc'] ?? 0) / 3600.0,
-            'smartphone': (dailyData['smartphone'] ?? 0) / 3600.0,
-            'personOnly': 0.0, // 月次統計には含まれない
-            'nothingDetected': 0.0, // 月次統計には含まれない
-          };
-          
-          dataPoints.add(CategoryDataPoint(
-            label: '$day',
-            values: dayValues,
-          ));
-        }
-        return dataPoints;
-      }
-    } catch (e) {
-      debugPrint('❌ [report.dart] 月次統計データ取得エラー: $e');
-    }
-    
-    // Firestoreから取得できない場合は、ローカルのセッションデータから計算
-    return _generateMonthlyData(ref.read(trackingSessionsProvider), date);
-  }
-
   /// 月次データを生成（セッションデータから）
   List<CategoryDataPoint> _generateMonthlyData(List<TrackingSession> sessions, DateTime date) {
     final monthStart = DateTime(date.year, date.month, 1);
@@ -989,48 +861,6 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     }
     
     return dataPoints;
-  }
-
-  /// 年次データを生成（統計データから）- 将来の最適化用
-  /// 
-  /// 現在は使用していませんが、将来的にFirestoreの統計データから
-  /// 直接時系列データを取得してパフォーマンスを向上させるために用意しています。
-  @Deprecated('将来の最適化用。現在は使用していません。')
-  Future<List<CategoryDataPoint>> _generateYearlyDataFromStats(DateTime date) async {
-    try {
-      final yearlyManager = YearlyStatisticsDataManager();
-      final yearlyStats = await yearlyManager.getByYearWithAuth(date.year);
-      
-      if (yearlyStats != null && yearlyStats.monthlyCategorySeconds.isNotEmpty) {
-        // Firestoreから月ごとのデータを取得
-        final monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        final dataPoints = <CategoryDataPoint>[];
-        
-        for (int month = 1; month <= 12; month++) {
-          final monthKey = month.toString();
-          final monthlyData = yearlyStats.monthlyCategorySeconds[monthKey] ?? <String, int>{};
-          
-          final monthValues = <String, double>{
-            'study': (monthlyData['study'] ?? 0) / 3600.0,
-            'pc': (monthlyData['pc'] ?? 0) / 3600.0,
-            'smartphone': (monthlyData['smartphone'] ?? 0) / 3600.0,
-            'personOnly': 0.0, // 年次統計には含まれない
-            'nothingDetected': 0.0, // 年次統計には含まれない
-          };
-          
-          dataPoints.add(CategoryDataPoint(
-            label: monthLabels[month - 1],
-            values: monthValues,
-          ));
-        }
-        return dataPoints;
-      }
-    } catch (e) {
-      debugPrint('❌ [report.dart] 年次統計データ取得エラー: $e');
-    }
-    
-    // Firestoreから取得できない場合は、ローカルのセッションデータから計算
-    return _generateYearlyData(ref.read(trackingSessionsProvider), date);
   }
 
   /// 年次データを生成（セッションデータから）

@@ -24,6 +24,9 @@ class HomeScreenNew extends ConsumerStatefulWidget {
 class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   static const double _statCardMinHeight = 160;
 
+  // 今日の日次統計データ（ローカルから取得）
+  Map<String, int> _todayCategorySeconds = {};
+
   @override
   void initState() {
     super.initState();
@@ -38,9 +41,37 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         loadTotalDataWithBackgroundRefreshHelper(ref),
         loadStreakDataWithBackgroundRefreshHelper(ref),
         loadTrackingSettingsWithBackgroundRefreshHelper(ref),
+        _loadTodayStatistics(),
       ]);
     } catch (e) {
       debugPrint('❌ [HomeScreen] データ読み込みエラー: $e');
+    }
+  }
+  
+  /// 今日の日次統計をローカルから読み込む
+  Future<void> _loadTodayStatistics() async {
+    try {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      final manager = DailyStatisticsDataManager();
+      final dailyStats = await manager.getByDateLocal(today);
+      
+      if (mounted) {
+        setState(() {
+          if (dailyStats != null) {
+            _todayCategorySeconds = Map<String, int>.from(dailyStats.categorySeconds);
+          } else {
+            _todayCategorySeconds = {};
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('❌ [HomeScreen] 日次統計の読み込みエラー: $e');
+      if (mounted) {
+        setState(() {
+          _todayCategorySeconds = {};
+        });
+      }
     }
   }
 
@@ -373,20 +404,16 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
     );
   }
   
-  /// 目標カードを構築（その日の時間を日次統計から取得）
+  /// 目標カードを構築（その日の時間をローカルの日次統計から取得）
   Widget _buildGoalCard(Goal goal) {
     final category = _getCategoryFromDetectionItem(goal.detectionItem);
     final color = _getGoalColor(category);
     
-    // その日の時間を日次統計から取得（非同期処理のため、FutureBuilderを使用）
-    return FutureBuilder<int>(
-      future: _getTodayCategorySeconds(category),
-      builder: (context, snapshot) {
-        // その日の時間（秒単位）
-        final todaySeconds = snapshot.data ?? 0;
+    // その日の時間（秒単位）を状態変数から取得
+    final todaySeconds = _getTodayCategorySeconds(category);
         
-        // 目標時間を1日換算に変換（durationDaysで割る）- 秒単位で計算
-        final targetSecondsPerDay = goal.targetTime ~/ goal.durationDays;
+        // 目標時間は1日換算データを使用（goal.targetSecondsPerDay）
+        final targetSecondsPerDay = goal.targetSecondsPerDay;
         
         // 時間フォーマット（表示時に変換）
         final currentMinutes = todaySeconds ~/ 60;
@@ -413,35 +440,18 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
             barBackgroundColor: AppColors.disabledGray.withValues(alpha: 0.2),
           ),
         );
-      },
-    );
   }
   
-  /// その日のカテゴリ別時間を取得（秒単位）
-  Future<int> _getTodayCategorySeconds(String category) async {
-    try {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final manager = DailyStatisticsDataManager();
-      final dailyStats = await manager.getByDateWithAuth(today);
-      
-      if (dailyStats == null) {
-        return 0;
-      }
-      
-      // カテゴリに応じて時間を取得
+  /// その日のカテゴリ別時間を状態変数から取得（秒単位）
+  int _getTodayCategorySeconds(String category) {
       switch (category) {
         case 'study':
-          return dailyStats.categorySeconds['study'] ?? 0;
+        return _todayCategorySeconds['study'] ?? 0;
         case 'pc':
-          return dailyStats.categorySeconds['pc'] ?? 0;
+        return _todayCategorySeconds['pc'] ?? 0;
         case 'smartphone':
-          return dailyStats.categorySeconds['smartphone'] ?? 0;
+        return _todayCategorySeconds['smartphone'] ?? 0;
         default:
-          return 0;
-      }
-    } catch (e) {
-      debugPrint('❌ [HomeScreen] 日次統計の取得エラー: $e');
       return 0;
     }
   }

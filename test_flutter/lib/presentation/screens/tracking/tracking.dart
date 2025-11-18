@@ -8,18 +8,18 @@ import 'package:test_flutter/presentation/widgets/progress_bars.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/presentation/widgets/camera_preview_widget.dart';
 import 'package:test_flutter/feature/tracking/tracking_functions.dart';
-import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_controller.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_result.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
-import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/setting/settings_functions.dart';
 import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_data_manager.dart';
+import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
+import 'package:test_flutter/feature/statistics/session_info_model.dart';
 
 /// トラッキング中画面（新デザインシステム版）
 class TrackingScreenNew extends ConsumerStatefulWidget {
@@ -31,6 +31,7 @@ class TrackingScreenNew extends ConsumerStatefulWidget {
 
 class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   Timer? _timer;
+  Timer? _autoSaveTimer; // 5分ごとの自動保存タイマー
   int _elapsedSeconds = 0;
   bool _isCameraOn = true;
   bool _isPowerSavingMode = false;
@@ -58,7 +59,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   // セッション管理
   DateTime? _sessionStartTime;
   final List<DetectionPeriod> _detectionPeriods = [];
-  final TrackingSessionDataManager _sessionManager = TrackingSessionDataManager();
+  final DailyStatisticsDataManager _dailyStatsManager = DailyStatisticsDataManager();
   
   // 最後の検出結果の信頼度（セッション終了時に使用）
   double? _lastDetectionConfidence;
@@ -82,6 +83,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     _loadTrackingSettings();
     _loadTodayStatistics();
     _startTimer();
+    _startAutoSaveTimer();
   }
   
   /// その日の日次統計を読み込む
@@ -159,6 +161,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   @override
   void dispose() {
     _timer?.cancel();
+    _autoSaveTimer?.cancel();
     // 画面が閉じられる場合（例：戻るボタン）はカメラリソースも解放する
     _detectionSubscription?.cancel();
     _detectionController?.dispose();
@@ -355,6 +358,99 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       });
     });
   }
+  
+  /// 5分ごとの自動保存タイマーを開始
+  void _startAutoSaveTimer() {
+    _autoSaveTimer = Timer.periodic(const Duration(minutes: 5), (timer) async {
+      if (!mounted || _isStopping) {
+        timer.cancel();
+        return;
+      }
+      
+      await _saveSessionProgress();
+    });
+  }
+  
+  /// セッションの途中保存（5分ごと）
+  Future<void> _saveSessionProgress() async {
+    if (_sessionStartTime == null) return;
+    
+    try {
+      final now = DateTime.now();
+      final today = DateTime(now.year, now.month, now.day);
+      
+      // 現在のセッション情報をSessionInfoに変換
+      final sessionInfo = SessionInfo(
+        id: '${_sessionStartTime!.millisecondsSinceEpoch}',
+        startTime: _sessionStartTime!,
+        endTime: now,
+        categorySeconds: {
+          'study': _studySeconds,
+          'pc': _pcSeconds,
+          'smartphone': _smartphoneSeconds,
+          'personOnly': _personOnlySeconds,
+        },
+        detectionPeriods: List<DetectionPeriod>.from(_detectionPeriods),
+        lastModified: now,
+      );
+      
+      // 今日の日次統計を取得または作成
+      final existingDailyStats = await _dailyStatsManager.getByDateLocal(today);
+      
+      if (existingDailyStats != null) {
+        // 既存のセッションリストを更新（同じIDのセッションがあれば置き換え、なければ追加）
+        final updatedSessions = List<SessionInfo>.from(existingDailyStats.sessions);
+        final existingIndex = updatedSessions.indexWhere((s) => s.id == sessionInfo.id);
+        if (existingIndex >= 0) {
+          updatedSessions[existingIndex] = sessionInfo;
+        } else {
+          updatedSessions.add(sessionInfo);
+        }
+        
+        // 日次統計を更新
+        final updatedDailyStats = existingDailyStats.copyWith(
+          sessions: updatedSessions,
+          lastModified: now,
+        );
+        
+        // 保存
+        await _dailyStatsManager.saveOrUpdateWithAuth(updatedDailyStats);
+        
+        LogMk.logDebug(
+          '✅ セッション途中保存完了: ${sessionInfo.id}',
+          tag: 'TrackingScreen._saveSessionProgress',
+        );
+      } else {
+        // 新規作成
+        final year = today.year.toString();
+        final month = today.month.toString().padLeft(2, '0');
+        final day = today.day.toString().padLeft(2, '0');
+        final id = '$year-$month-$day';
+        
+        final newDailyStats = DailyStatistics(
+          id: id,
+          date: today,
+          categorySeconds: {},
+          totalWorkTimeSeconds: 0,
+          sessions: [sessionInfo],
+          lastModified: now,
+        );
+        
+        await _dailyStatsManager.saveOrUpdateWithAuth(newDailyStats);
+        
+        LogMk.logDebug(
+          '✅ 新規日次統計作成・セッション保存完了: ${sessionInfo.id}',
+          tag: 'TrackingScreen._saveSessionProgress',
+        );
+      }
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        '❌ セッション途中保存エラー: $e',
+        tag: 'TrackingScreen._saveSessionProgress',
+        stackTrace: stackTrace,
+      );
+    }
+  }
 
   String _formatDuration(int seconds) {
     final hours = seconds ~/ 3600;
@@ -446,6 +542,8 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       try {
         _timer?.cancel();
         _timer = null;
+        _autoSaveTimer?.cancel();
+        _autoSaveTimer = null;
         LogMk.logDebug(
           '✅ タイマーを停止しました',
           tag: 'TrackingScreen._handleStop',
@@ -534,7 +632,8 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       // 最後のカテゴリの期間を確定して時間を加算
       _finalizeCurrentPeriod(sessionEndTime);
 
-      // セッションデータを作成
+      // SessionInfoを作成してDailyStatisticsに保存
+      SessionInfo? sessionInfo;
       if (_sessionStartTime != null) {
         // デバッグ: カテゴリ別時間をログに出力
         LogMk.logDebug(
@@ -558,11 +657,26 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
           tag: 'TrackingScreen._handleStop',
         );
         
-        // セッション開始時刻からIDを生成（日時ベース）
-        final nextSessionId = await _sessionManager.getNextSessionId(_sessionStartTime!);
-        
-        final session = TrackingSession(
-          id: nextSessionId,
+        // SessionInfoを作成
+        final sessionId = '${_sessionStartTime!.millisecondsSinceEpoch}';
+        final createdSessionInfo = SessionInfo(
+          id: sessionId,
+          startTime: _sessionStartTime!,
+          endTime: sessionEndTime,
+          categorySeconds: {
+            'study': _studySeconds,
+            'pc': _pcSeconds,
+            'smartphone': _smartphoneSeconds,
+            'personOnly': _personOnlySeconds,
+          },
+          detectionPeriods: List<DetectionPeriod>.from(_detectionPeriods),
+          lastModified: DateTime.now(),
+        );
+        sessionInfo = createdSessionInfo;
+
+        // TrackingSessionも作成（ログ出力用）
+        final trackingSession = TrackingSession(
+          id: sessionId,
           startTime: _sessionStartTime!,
           endTime: sessionEndTime,
           categorySeconds: {
@@ -576,20 +690,62 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         );
 
         // ログに出力
-        _logSessionData(session);
+        _logSessionData(trackingSession);
 
-        // Firestoreとローカルの両方に保存（Firestoreへの保存に失敗した場合はローカルのみに保存）
+        // DailyStatisticsにセッション情報を保存
         try {
-          await _sessionManager.addSessionWithAuth(session);
-          // Providerを更新して、report画面などで最新データが表示されるようにする
-          ref.read(trackingSessionsProvider.notifier).upsertSession(session);
+          final today = DateTime(sessionEndTime.year, sessionEndTime.month, sessionEndTime.day);
+          final existingDailyStats = await _dailyStatsManager.getByDateLocal(today);
+          
+          if (existingDailyStats != null) {
+            // 既存のセッションリストを更新（同じIDのセッションがあれば置き換え、なければ追加）
+            final updatedSessions = List<SessionInfo>.from(existingDailyStats.sessions);
+            final existingIndex = updatedSessions.indexWhere((s) => s.id == createdSessionInfo.id);
+            if (existingIndex >= 0) {
+              updatedSessions[existingIndex] = createdSessionInfo;
+            } else {
+              updatedSessions.add(createdSessionInfo);
+            }
+            
+            // 日次統計を更新
+            final updatedDailyStats = existingDailyStats.copyWith(
+              sessions: updatedSessions,
+              lastModified: DateTime.now(),
+            );
+            
+            // 保存
+            await _dailyStatsManager.saveOrUpdateWithAuth(updatedDailyStats);
+            
           LogMk.logDebug(
-            '✅ トラッキングセッションを保存しました: ${session.id}',
+              '✅ DailyStatisticsにセッション情報を保存しました: ${createdSessionInfo.id}',
             tag: 'TrackingScreen._handleStop',
           );
+          } else {
+            // 新規作成
+            final year = today.year.toString();
+            final month = today.month.toString().padLeft(2, '0');
+            final day = today.day.toString().padLeft(2, '0');
+            final id = '$year-$month-$day';
+            
+            final newDailyStats = DailyStatistics(
+              id: id,
+              date: today,
+              categorySeconds: {},
+              totalWorkTimeSeconds: 0,
+              sessions: [createdSessionInfo],
+              lastModified: DateTime.now(),
+            );
+            
+            await _dailyStatsManager.saveOrUpdateWithAuth(newDailyStats);
+            
+            LogMk.logDebug(
+              '✅ 新規DailyStatistics作成・セッション保存完了: ${createdSessionInfo.id}',
+              tag: 'TrackingScreen._handleStop',
+            );
+          }
         } catch (e, stackTrace) {
           LogMk.logError(
-            '❌ トラッキングセッションの保存に失敗しました: $e',
+            '❌ DailyStatisticsへのセッション保存に失敗しました: $e',
             tag: 'TrackingScreen._handleStop',
             stackTrace: stackTrace,
           );
@@ -601,9 +757,13 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         Navigator.of(context).pop();
       }
       
-      // 次の画面へ遷移
+      // 次の画面へ遷移（SessionInfoを引数として渡す）
       if (mounted) {
-        NavigationHelper.push(context, AppRoutes.trackingFinishedNew);
+        NavigationHelper.push(
+          context,
+          AppRoutes.trackingFinishedNew,
+          arguments: sessionInfo,
+        );
       }
     } catch (e, stackTrace) {
       LogMk.logError(

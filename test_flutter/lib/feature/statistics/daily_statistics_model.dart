@@ -2,6 +2,7 @@
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:test_flutter/feature/statistics/session_info_model.dart';
 
 part 'daily_statistics_model.freezed.dart';
 part 'daily_statistics_model.g.dart';
@@ -60,6 +61,10 @@ abstract class DailyStatistics with _$DailyStatistics {
     /// 値: カテゴリ別秒数のMap {study: 600, pc: 300, ...}
     @Default({}) Map<String, Map<String, int>> hourlyCategorySeconds,
     
+    /// セッション情報のリスト
+    /// その日のトラッキングセッションを保持
+    @Default([]) @JsonKey(toJson: _sessionsToJson, fromJson: _sessionsFromJson) List<SessionInfo> sessions,
+    
     /// 最終更新日時
     required DateTime lastModified,
   }) = _DailyStatistics;
@@ -92,6 +97,15 @@ abstract class DailyStatistics with _$DailyStatistics {
       );
     }
 
+    // sessionsの変換（後方互換性のためnullチェック）
+    List<SessionInfo> sessions = [];
+    if (data['sessions'] != null) {
+      final sessionsData = data['sessions'] as List<dynamic>;
+      sessions = sessionsData
+          .map((e) => SessionInfo.fromFirestore(e as Map<String, dynamic>))
+          .toList();
+    }
+
     return DailyStatistics(
       id: data['id'] as String,
       date: (data['date'] as Timestamp).toDate(),
@@ -99,6 +113,7 @@ abstract class DailyStatistics with _$DailyStatistics {
       totalWorkTimeSeconds: data['totalWorkTimeSeconds'] as int,
       pieChartData: pieChartDataModel,
       hourlyCategorySeconds: hourlyCategorySeconds,
+      sessions: sessions,
       lastModified: (data['lastModified'] as Timestamp).toDate(),
     );
   }
@@ -114,6 +129,7 @@ abstract class DailyStatistics with _$DailyStatistics {
       'hourlyCategorySeconds': hourlyCategorySeconds.map(
         (key, value) => MapEntry(key, value),
       ),
+      'sessions': sessions.map((s) => s.toFirestore()).toList(),
       'lastModified': Timestamp.fromDate(lastModified),
     };
   }
@@ -126,4 +142,16 @@ Map<String, dynamic>? _pieChartDataToJson(PieChartDataModel? instance) =>
 /// JSONからPieChartDataModelを生成するヘルパー関数
 PieChartDataModel? _pieChartDataFromJson(Map<String, dynamic>? json) =>
     json != null ? PieChartDataModel.fromJson(json) : null;
+
+/// SessionInfoリストをJSONに変換するヘルパー関数
+List<Map<String, dynamic>> _sessionsToJson(List<SessionInfo> sessions) =>
+    sessions.map((s) => s.toFirestore()).toList();
+
+/// JSONからSessionInfoリストを生成するヘルパー関数
+List<SessionInfo> _sessionsFromJson(List<dynamic>? json) {
+  if (json == null) return [];
+  return json
+      .map((e) => SessionInfo.fromFirestore(e as Map<String, dynamic>))
+      .toList();
+}
 

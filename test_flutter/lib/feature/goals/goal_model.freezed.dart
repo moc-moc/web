@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Goal {
 
- String get id; String get tag; String get title; int get targetTime; ComparisonType get comparisonType; DetectionItem get detectionItem; DateTime get startDate; int get durationDays; int get consecutiveAchievements; int? get achievedTime; bool get isDeleted; DateTime get lastModified;
+ String get id; String get tag; String get title; int get targetTime; ComparisonType get comparisonType; DetectionItem get detectionItem; DateTime get startDate; int get durationDays; int get targetSecondsPerDay; int get consecutiveAchievements; int? get achievedTime; bool get isDeleted; DateTime get lastModified;
 /// Create a copy of Goal
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $GoalCopyWith<Goal> get copyWith => _$GoalCopyWithImpl<Goal>(this as Goal, _$ide
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Goal&&(identical(other.id, id) || other.id == id)&&(identical(other.tag, tag) || other.tag == tag)&&(identical(other.title, title) || other.title == title)&&(identical(other.targetTime, targetTime) || other.targetTime == targetTime)&&(identical(other.comparisonType, comparisonType) || other.comparisonType == comparisonType)&&(identical(other.detectionItem, detectionItem) || other.detectionItem == detectionItem)&&(identical(other.startDate, startDate) || other.startDate == startDate)&&(identical(other.durationDays, durationDays) || other.durationDays == durationDays)&&(identical(other.consecutiveAchievements, consecutiveAchievements) || other.consecutiveAchievements == consecutiveAchievements)&&(identical(other.achievedTime, achievedTime) || other.achievedTime == achievedTime)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Goal&&(identical(other.id, id) || other.id == id)&&(identical(other.tag, tag) || other.tag == tag)&&(identical(other.title, title) || other.title == title)&&(identical(other.targetTime, targetTime) || other.targetTime == targetTime)&&(identical(other.comparisonType, comparisonType) || other.comparisonType == comparisonType)&&(identical(other.detectionItem, detectionItem) || other.detectionItem == detectionItem)&&(identical(other.startDate, startDate) || other.startDate == startDate)&&(identical(other.durationDays, durationDays) || other.durationDays == durationDays)&&(identical(other.targetSecondsPerDay, targetSecondsPerDay) || other.targetSecondsPerDay == targetSecondsPerDay)&&(identical(other.consecutiveAchievements, consecutiveAchievements) || other.consecutiveAchievements == consecutiveAchievements)&&(identical(other.achievedTime, achievedTime) || other.achievedTime == achievedTime)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,tag,title,targetTime,comparisonType,detectionItem,startDate,durationDays,consecutiveAchievements,achievedTime,isDeleted,lastModified);
+int get hashCode => Object.hash(runtimeType,id,tag,title,targetTime,comparisonType,detectionItem,startDate,durationDays,targetSecondsPerDay,consecutiveAchievements,achievedTime,isDeleted,lastModified);
 
 @override
 String toString() {
-  return 'Goal(id: $id, tag: $tag, title: $title, targetTime: $targetTime, comparisonType: $comparisonType, detectionItem: $detectionItem, startDate: $startDate, durationDays: $durationDays, consecutiveAchievements: $consecutiveAchievements, achievedTime: $achievedTime, isDeleted: $isDeleted, lastModified: $lastModified)';
+  return 'Goal(id: $id, tag: $tag, title: $title, targetTime: $targetTime, comparisonType: $comparisonType, detectionItem: $detectionItem, startDate: $startDate, durationDays: $durationDays, targetSecondsPerDay: $targetSecondsPerDay, consecutiveAchievements: $consecutiveAchievements, achievedTime: $achievedTime, isDeleted: $isDeleted, lastModified: $lastModified)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $GoalCopyWith<$Res>  {
   factory $GoalCopyWith(Goal value, $Res Function(Goal) _then) = _$GoalCopyWithImpl;
 @useResult
 $Res call({
- String id, String tag, String title, int targetTime, ComparisonType comparisonType, DetectionItem detectionItem, DateTime startDate, int durationDays, int consecutiveAchievements, int? achievedTime, bool isDeleted, DateTime lastModified
+ String id, String tag, String title, int targetTime, ComparisonType comparisonType, DetectionItem detectionItem, DateTime startDate, int durationDays, int targetSecondsPerDay, int consecutiveAchievements, int? achievedTime, bool isDeleted, DateTime lastModified
 });
 
 
@@ -65,7 +65,7 @@ class _$GoalCopyWithImpl<$Res>
 
 /// Create a copy of Goal
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? tag = null,Object? title = null,Object? targetTime = null,Object? comparisonType = null,Object? detectionItem = null,Object? startDate = null,Object? durationDays = null,Object? consecutiveAchievements = null,Object? achievedTime = freezed,Object? isDeleted = null,Object? lastModified = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? tag = null,Object? title = null,Object? targetTime = null,Object? comparisonType = null,Object? detectionItem = null,Object? startDate = null,Object? durationDays = null,Object? targetSecondsPerDay = null,Object? consecutiveAchievements = null,Object? achievedTime = freezed,Object? isDeleted = null,Object? lastModified = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,tag: null == tag ? _self.tag : tag // ignore: cast_nullable_to_non_nullable
@@ -75,6 +75,7 @@ as int,comparisonType: null == comparisonType ? _self.comparisonType : compariso
 as ComparisonType,detectionItem: null == detectionItem ? _self.detectionItem : detectionItem // ignore: cast_nullable_to_non_nullable
 as DetectionItem,startDate: null == startDate ? _self.startDate : startDate // ignore: cast_nullable_to_non_nullable
 as DateTime,durationDays: null == durationDays ? _self.durationDays : durationDays // ignore: cast_nullable_to_non_nullable
+as int,targetSecondsPerDay: null == targetSecondsPerDay ? _self.targetSecondsPerDay : targetSecondsPerDay // ignore: cast_nullable_to_non_nullable
 as int,consecutiveAchievements: null == consecutiveAchievements ? _self.consecutiveAchievements : consecutiveAchievements // ignore: cast_nullable_to_non_nullable
 as int,achievedTime: freezed == achievedTime ? _self.achievedTime : achievedTime // ignore: cast_nullable_to_non_nullable
 as int?,isDeleted: null == isDeleted ? _self.isDeleted : isDeleted // ignore: cast_nullable_to_non_nullable
@@ -164,10 +165,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String tag,  String title,  int targetTime,  ComparisonType comparisonType,  DetectionItem detectionItem,  DateTime startDate,  int durationDays,  int consecutiveAchievements,  int? achievedTime,  bool isDeleted,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String tag,  String title,  int targetTime,  ComparisonType comparisonType,  DetectionItem detectionItem,  DateTime startDate,  int durationDays,  int targetSecondsPerDay,  int consecutiveAchievements,  int? achievedTime,  bool isDeleted,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Goal() when $default != null:
-return $default(_that.id,_that.tag,_that.title,_that.targetTime,_that.comparisonType,_that.detectionItem,_that.startDate,_that.durationDays,_that.consecutiveAchievements,_that.achievedTime,_that.isDeleted,_that.lastModified);case _:
+return $default(_that.id,_that.tag,_that.title,_that.targetTime,_that.comparisonType,_that.detectionItem,_that.startDate,_that.durationDays,_that.targetSecondsPerDay,_that.consecutiveAchievements,_that.achievedTime,_that.isDeleted,_that.lastModified);case _:
   return orElse();
 
 }
@@ -185,10 +186,10 @@ return $default(_that.id,_that.tag,_that.title,_that.targetTime,_that.comparison
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String tag,  String title,  int targetTime,  ComparisonType comparisonType,  DetectionItem detectionItem,  DateTime startDate,  int durationDays,  int consecutiveAchievements,  int? achievedTime,  bool isDeleted,  DateTime lastModified)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String tag,  String title,  int targetTime,  ComparisonType comparisonType,  DetectionItem detectionItem,  DateTime startDate,  int durationDays,  int targetSecondsPerDay,  int consecutiveAchievements,  int? achievedTime,  bool isDeleted,  DateTime lastModified)  $default,) {final _that = this;
 switch (_that) {
 case _Goal():
-return $default(_that.id,_that.tag,_that.title,_that.targetTime,_that.comparisonType,_that.detectionItem,_that.startDate,_that.durationDays,_that.consecutiveAchievements,_that.achievedTime,_that.isDeleted,_that.lastModified);case _:
+return $default(_that.id,_that.tag,_that.title,_that.targetTime,_that.comparisonType,_that.detectionItem,_that.startDate,_that.durationDays,_that.targetSecondsPerDay,_that.consecutiveAchievements,_that.achievedTime,_that.isDeleted,_that.lastModified);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -205,10 +206,10 @@ return $default(_that.id,_that.tag,_that.title,_that.targetTime,_that.comparison
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String tag,  String title,  int targetTime,  ComparisonType comparisonType,  DetectionItem detectionItem,  DateTime startDate,  int durationDays,  int consecutiveAchievements,  int? achievedTime,  bool isDeleted,  DateTime lastModified)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String tag,  String title,  int targetTime,  ComparisonType comparisonType,  DetectionItem detectionItem,  DateTime startDate,  int durationDays,  int targetSecondsPerDay,  int consecutiveAchievements,  int? achievedTime,  bool isDeleted,  DateTime lastModified)?  $default,) {final _that = this;
 switch (_that) {
 case _Goal() when $default != null:
-return $default(_that.id,_that.tag,_that.title,_that.targetTime,_that.comparisonType,_that.detectionItem,_that.startDate,_that.durationDays,_that.consecutiveAchievements,_that.achievedTime,_that.isDeleted,_that.lastModified);case _:
+return $default(_that.id,_that.tag,_that.title,_that.targetTime,_that.comparisonType,_that.detectionItem,_that.startDate,_that.durationDays,_that.targetSecondsPerDay,_that.consecutiveAchievements,_that.achievedTime,_that.isDeleted,_that.lastModified);case _:
   return null;
 
 }
@@ -220,7 +221,7 @@ return $default(_that.id,_that.tag,_that.title,_that.targetTime,_that.comparison
 @JsonSerializable()
 
 class _Goal implements Goal {
-  const _Goal({required this.id, required this.tag, required this.title, required this.targetTime, required this.comparisonType, required this.detectionItem, required this.startDate, required this.durationDays, this.consecutiveAchievements = 0, this.achievedTime, this.isDeleted = false, required this.lastModified});
+  const _Goal({required this.id, required this.tag, required this.title, required this.targetTime, required this.comparisonType, required this.detectionItem, required this.startDate, required this.durationDays, this.targetSecondsPerDay = 0, this.consecutiveAchievements = 0, this.achievedTime, this.isDeleted = false, required this.lastModified});
   factory _Goal.fromJson(Map<String, dynamic> json) => _$GoalFromJson(json);
 
 @override final  String id;
@@ -231,6 +232,7 @@ class _Goal implements Goal {
 @override final  DetectionItem detectionItem;
 @override final  DateTime startDate;
 @override final  int durationDays;
+@override@JsonKey() final  int targetSecondsPerDay;
 @override@JsonKey() final  int consecutiveAchievements;
 @override final  int? achievedTime;
 @override@JsonKey() final  bool isDeleted;
@@ -249,16 +251,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Goal&&(identical(other.id, id) || other.id == id)&&(identical(other.tag, tag) || other.tag == tag)&&(identical(other.title, title) || other.title == title)&&(identical(other.targetTime, targetTime) || other.targetTime == targetTime)&&(identical(other.comparisonType, comparisonType) || other.comparisonType == comparisonType)&&(identical(other.detectionItem, detectionItem) || other.detectionItem == detectionItem)&&(identical(other.startDate, startDate) || other.startDate == startDate)&&(identical(other.durationDays, durationDays) || other.durationDays == durationDays)&&(identical(other.consecutiveAchievements, consecutiveAchievements) || other.consecutiveAchievements == consecutiveAchievements)&&(identical(other.achievedTime, achievedTime) || other.achievedTime == achievedTime)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Goal&&(identical(other.id, id) || other.id == id)&&(identical(other.tag, tag) || other.tag == tag)&&(identical(other.title, title) || other.title == title)&&(identical(other.targetTime, targetTime) || other.targetTime == targetTime)&&(identical(other.comparisonType, comparisonType) || other.comparisonType == comparisonType)&&(identical(other.detectionItem, detectionItem) || other.detectionItem == detectionItem)&&(identical(other.startDate, startDate) || other.startDate == startDate)&&(identical(other.durationDays, durationDays) || other.durationDays == durationDays)&&(identical(other.targetSecondsPerDay, targetSecondsPerDay) || other.targetSecondsPerDay == targetSecondsPerDay)&&(identical(other.consecutiveAchievements, consecutiveAchievements) || other.consecutiveAchievements == consecutiveAchievements)&&(identical(other.achievedTime, achievedTime) || other.achievedTime == achievedTime)&&(identical(other.isDeleted, isDeleted) || other.isDeleted == isDeleted)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,tag,title,targetTime,comparisonType,detectionItem,startDate,durationDays,consecutiveAchievements,achievedTime,isDeleted,lastModified);
+int get hashCode => Object.hash(runtimeType,id,tag,title,targetTime,comparisonType,detectionItem,startDate,durationDays,targetSecondsPerDay,consecutiveAchievements,achievedTime,isDeleted,lastModified);
 
 @override
 String toString() {
-  return 'Goal(id: $id, tag: $tag, title: $title, targetTime: $targetTime, comparisonType: $comparisonType, detectionItem: $detectionItem, startDate: $startDate, durationDays: $durationDays, consecutiveAchievements: $consecutiveAchievements, achievedTime: $achievedTime, isDeleted: $isDeleted, lastModified: $lastModified)';
+  return 'Goal(id: $id, tag: $tag, title: $title, targetTime: $targetTime, comparisonType: $comparisonType, detectionItem: $detectionItem, startDate: $startDate, durationDays: $durationDays, targetSecondsPerDay: $targetSecondsPerDay, consecutiveAchievements: $consecutiveAchievements, achievedTime: $achievedTime, isDeleted: $isDeleted, lastModified: $lastModified)';
 }
 
 
@@ -269,7 +271,7 @@ abstract mixin class _$GoalCopyWith<$Res> implements $GoalCopyWith<$Res> {
   factory _$GoalCopyWith(_Goal value, $Res Function(_Goal) _then) = __$GoalCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String tag, String title, int targetTime, ComparisonType comparisonType, DetectionItem detectionItem, DateTime startDate, int durationDays, int consecutiveAchievements, int? achievedTime, bool isDeleted, DateTime lastModified
+ String id, String tag, String title, int targetTime, ComparisonType comparisonType, DetectionItem detectionItem, DateTime startDate, int durationDays, int targetSecondsPerDay, int consecutiveAchievements, int? achievedTime, bool isDeleted, DateTime lastModified
 });
 
 
@@ -286,7 +288,7 @@ class __$GoalCopyWithImpl<$Res>
 
 /// Create a copy of Goal
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? tag = null,Object? title = null,Object? targetTime = null,Object? comparisonType = null,Object? detectionItem = null,Object? startDate = null,Object? durationDays = null,Object? consecutiveAchievements = null,Object? achievedTime = freezed,Object? isDeleted = null,Object? lastModified = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? tag = null,Object? title = null,Object? targetTime = null,Object? comparisonType = null,Object? detectionItem = null,Object? startDate = null,Object? durationDays = null,Object? targetSecondsPerDay = null,Object? consecutiveAchievements = null,Object? achievedTime = freezed,Object? isDeleted = null,Object? lastModified = null,}) {
   return _then(_Goal(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,tag: null == tag ? _self.tag : tag // ignore: cast_nullable_to_non_nullable
@@ -296,6 +298,7 @@ as int,comparisonType: null == comparisonType ? _self.comparisonType : compariso
 as ComparisonType,detectionItem: null == detectionItem ? _self.detectionItem : detectionItem // ignore: cast_nullable_to_non_nullable
 as DetectionItem,startDate: null == startDate ? _self.startDate : startDate // ignore: cast_nullable_to_non_nullable
 as DateTime,durationDays: null == durationDays ? _self.durationDays : durationDays // ignore: cast_nullable_to_non_nullable
+as int,targetSecondsPerDay: null == targetSecondsPerDay ? _self.targetSecondsPerDay : targetSecondsPerDay // ignore: cast_nullable_to_non_nullable
 as int,consecutiveAchievements: null == consecutiveAchievements ? _self.consecutiveAchievements : consecutiveAchievements // ignore: cast_nullable_to_non_nullable
 as int,achievedTime: freezed == achievedTime ? _self.achievedTime : achievedTime // ignore: cast_nullable_to_non_nullable
 as int?,isDeleted: null == isDeleted ? _self.isDeleted : isDeleted // ignore: cast_nullable_to_non_nullable

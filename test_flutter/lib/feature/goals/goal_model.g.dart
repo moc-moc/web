@@ -15,6 +15,7 @@ _Goal _$GoalFromJson(Map<String, dynamic> json) => _Goal(
   detectionItem: $enumDecode(_$DetectionItemEnumMap, json['detectionItem']),
   startDate: DateTime.parse(json['startDate'] as String),
   durationDays: (json['durationDays'] as num).toInt(),
+  targetSecondsPerDay: (json['targetSecondsPerDay'] as num?)?.toInt() ?? 0,
   consecutiveAchievements:
       (json['consecutiveAchievements'] as num?)?.toInt() ?? 0,
   achievedTime: (json['achievedTime'] as num?)?.toInt(),
@@ -31,6 +32,7 @@ Map<String, dynamic> _$GoalToJson(_Goal instance) => <String, dynamic>{
   'detectionItem': _$DetectionItemEnumMap[instance.detectionItem]!,
   'startDate': instance.startDate.toIso8601String(),
   'durationDays': instance.durationDays,
+  'targetSecondsPerDay': instance.targetSecondsPerDay,
   'consecutiveAchievements': instance.consecutiveAchievements,
   'achievedTime': instance.achievedTime,
   'isDeleted': instance.isDeleted,

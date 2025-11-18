@@ -325,7 +325,9 @@ mixin _$DailyStatistics {
 @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? get pieChartData;/// 時間ごとのカテゴリ別秒数（24時間分）
 /// キー: "0", "1", ..., "23" (時間)
 /// 値: カテゴリ別秒数のMap {study: 600, pc: 300, ...}
- Map<String, Map<String, int>> get hourlyCategorySeconds;/// 最終更新日時
+ Map<String, Map<String, int>> get hourlyCategorySeconds;/// セッション情報のリスト
+/// その日のトラッキングセッションを保持
+@JsonKey(toJson: _sessionsToJson, fromJson: _sessionsFromJson) List<SessionInfo> get sessions;/// 最終更新日時
  DateTime get lastModified;
 /// Create a copy of DailyStatistics
 /// with the given fields replaced by the non-null parameter values.
@@ -339,16 +341,16 @@ $DailyStatisticsCopyWith<DailyStatistics> get copyWith => _$DailyStatisticsCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DailyStatistics&&(identical(other.id, id) || other.id == id)&&(identical(other.date, date) || other.date == date)&&const DeepCollectionEquality().equals(other.categorySeconds, categorySeconds)&&(identical(other.totalWorkTimeSeconds, totalWorkTimeSeconds) || other.totalWorkTimeSeconds == totalWorkTimeSeconds)&&(identical(other.pieChartData, pieChartData) || other.pieChartData == pieChartData)&&const DeepCollectionEquality().equals(other.hourlyCategorySeconds, hourlyCategorySeconds)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DailyStatistics&&(identical(other.id, id) || other.id == id)&&(identical(other.date, date) || other.date == date)&&const DeepCollectionEquality().equals(other.categorySeconds, categorySeconds)&&(identical(other.totalWorkTimeSeconds, totalWorkTimeSeconds) || other.totalWorkTimeSeconds == totalWorkTimeSeconds)&&(identical(other.pieChartData, pieChartData) || other.pieChartData == pieChartData)&&const DeepCollectionEquality().equals(other.hourlyCategorySeconds, hourlyCategorySeconds)&&const DeepCollectionEquality().equals(other.sessions, sessions)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,date,const DeepCollectionEquality().hash(categorySeconds),totalWorkTimeSeconds,pieChartData,const DeepCollectionEquality().hash(hourlyCategorySeconds),lastModified);
+int get hashCode => Object.hash(runtimeType,id,date,const DeepCollectionEquality().hash(categorySeconds),totalWorkTimeSeconds,pieChartData,const DeepCollectionEquality().hash(hourlyCategorySeconds),const DeepCollectionEquality().hash(sessions),lastModified);
 
 @override
 String toString() {
-  return 'DailyStatistics(id: $id, date: $date, categorySeconds: $categorySeconds, totalWorkTimeSeconds: $totalWorkTimeSeconds, pieChartData: $pieChartData, hourlyCategorySeconds: $hourlyCategorySeconds, lastModified: $lastModified)';
+  return 'DailyStatistics(id: $id, date: $date, categorySeconds: $categorySeconds, totalWorkTimeSeconds: $totalWorkTimeSeconds, pieChartData: $pieChartData, hourlyCategorySeconds: $hourlyCategorySeconds, sessions: $sessions, lastModified: $lastModified)';
 }
 
 
@@ -359,7 +361,7 @@ abstract mixin class $DailyStatisticsCopyWith<$Res>  {
   factory $DailyStatisticsCopyWith(DailyStatistics value, $Res Function(DailyStatistics) _then) = _$DailyStatisticsCopyWithImpl;
 @useResult
 $Res call({
- String id, DateTime date, Map<String, int> categorySeconds, int totalWorkTimeSeconds,@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? pieChartData, Map<String, Map<String, int>> hourlyCategorySeconds, DateTime lastModified
+ String id, DateTime date, Map<String, int> categorySeconds, int totalWorkTimeSeconds,@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? pieChartData, Map<String, Map<String, int>> hourlyCategorySeconds,@JsonKey(toJson: _sessionsToJson, fromJson: _sessionsFromJson) List<SessionInfo> sessions, DateTime lastModified
 });
 
 
@@ -376,7 +378,7 @@ class _$DailyStatisticsCopyWithImpl<$Res>
 
 /// Create a copy of DailyStatistics
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? date = null,Object? categorySeconds = null,Object? totalWorkTimeSeconds = null,Object? pieChartData = freezed,Object? hourlyCategorySeconds = null,Object? lastModified = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? date = null,Object? categorySeconds = null,Object? totalWorkTimeSeconds = null,Object? pieChartData = freezed,Object? hourlyCategorySeconds = null,Object? sessions = null,Object? lastModified = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,date: null == date ? _self.date : date // ignore: cast_nullable_to_non_nullable
@@ -384,7 +386,8 @@ as DateTime,categorySeconds: null == categorySeconds ? _self.categorySeconds : c
 as Map<String, int>,totalWorkTimeSeconds: null == totalWorkTimeSeconds ? _self.totalWorkTimeSeconds : totalWorkTimeSeconds // ignore: cast_nullable_to_non_nullable
 as int,pieChartData: freezed == pieChartData ? _self.pieChartData : pieChartData // ignore: cast_nullable_to_non_nullable
 as PieChartDataModel?,hourlyCategorySeconds: null == hourlyCategorySeconds ? _self.hourlyCategorySeconds : hourlyCategorySeconds // ignore: cast_nullable_to_non_nullable
-as Map<String, Map<String, int>>,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as Map<String, Map<String, int>>,sessions: null == sessions ? _self.sessions : sessions // ignore: cast_nullable_to_non_nullable
+as List<SessionInfo>,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }
@@ -482,10 +485,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  DateTime date,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  Map<String, Map<String, int>> hourlyCategorySeconds,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  DateTime date,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  Map<String, Map<String, int>> hourlyCategorySeconds, @JsonKey(toJson: _sessionsToJson, fromJson: _sessionsFromJson)  List<SessionInfo> sessions,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DailyStatistics() when $default != null:
-return $default(_that.id,_that.date,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.hourlyCategorySeconds,_that.lastModified);case _:
+return $default(_that.id,_that.date,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.hourlyCategorySeconds,_that.sessions,_that.lastModified);case _:
   return orElse();
 
 }
@@ -503,10 +506,10 @@ return $default(_that.id,_that.date,_that.categorySeconds,_that.totalWorkTimeSec
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  DateTime date,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  Map<String, Map<String, int>> hourlyCategorySeconds,  DateTime lastModified)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  DateTime date,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  Map<String, Map<String, int>> hourlyCategorySeconds, @JsonKey(toJson: _sessionsToJson, fromJson: _sessionsFromJson)  List<SessionInfo> sessions,  DateTime lastModified)  $default,) {final _that = this;
 switch (_that) {
 case _DailyStatistics():
-return $default(_that.id,_that.date,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.hourlyCategorySeconds,_that.lastModified);case _:
+return $default(_that.id,_that.date,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.hourlyCategorySeconds,_that.sessions,_that.lastModified);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -523,10 +526,10 @@ return $default(_that.id,_that.date,_that.categorySeconds,_that.totalWorkTimeSec
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  DateTime date,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  Map<String, Map<String, int>> hourlyCategorySeconds,  DateTime lastModified)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  DateTime date,  Map<String, int> categorySeconds,  int totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson)  PieChartDataModel? pieChartData,  Map<String, Map<String, int>> hourlyCategorySeconds, @JsonKey(toJson: _sessionsToJson, fromJson: _sessionsFromJson)  List<SessionInfo> sessions,  DateTime lastModified)?  $default,) {final _that = this;
 switch (_that) {
 case _DailyStatistics() when $default != null:
-return $default(_that.id,_that.date,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.hourlyCategorySeconds,_that.lastModified);case _:
+return $default(_that.id,_that.date,_that.categorySeconds,_that.totalWorkTimeSeconds,_that.pieChartData,_that.hourlyCategorySeconds,_that.sessions,_that.lastModified);case _:
   return null;
 
 }
@@ -538,7 +541,7 @@ return $default(_that.id,_that.date,_that.categorySeconds,_that.totalWorkTimeSec
 @JsonSerializable()
 
 class _DailyStatistics extends DailyStatistics {
-  const _DailyStatistics({required this.id, required this.date, required final  Map<String, int> categorySeconds, required this.totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) this.pieChartData, final  Map<String, Map<String, int>> hourlyCategorySeconds = const {}, required this.lastModified}): _categorySeconds = categorySeconds,_hourlyCategorySeconds = hourlyCategorySeconds,super._();
+  const _DailyStatistics({required this.id, required this.date, required final  Map<String, int> categorySeconds, required this.totalWorkTimeSeconds, @JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) this.pieChartData, final  Map<String, Map<String, int>> hourlyCategorySeconds = const {}, @JsonKey(toJson: _sessionsToJson, fromJson: _sessionsFromJson) final  List<SessionInfo> sessions = const [], required this.lastModified}): _categorySeconds = categorySeconds,_hourlyCategorySeconds = hourlyCategorySeconds,_sessions = sessions,super._();
   factory _DailyStatistics.fromJson(Map<String, dynamic> json) => _$DailyStatisticsFromJson(json);
 
 /// 識別子（日付ベース、例: "2024-01-15"）
@@ -573,6 +576,17 @@ class _DailyStatistics extends DailyStatistics {
   return EqualUnmodifiableMapView(_hourlyCategorySeconds);
 }
 
+/// セッション情報のリスト
+/// その日のトラッキングセッションを保持
+ final  List<SessionInfo> _sessions;
+/// セッション情報のリスト
+/// その日のトラッキングセッションを保持
+@override@JsonKey(toJson: _sessionsToJson, fromJson: _sessionsFromJson) List<SessionInfo> get sessions {
+  if (_sessions is EqualUnmodifiableListView) return _sessions;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_sessions);
+}
+
 /// 最終更新日時
 @override final  DateTime lastModified;
 
@@ -589,16 +603,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DailyStatistics&&(identical(other.id, id) || other.id == id)&&(identical(other.date, date) || other.date == date)&&const DeepCollectionEquality().equals(other._categorySeconds, _categorySeconds)&&(identical(other.totalWorkTimeSeconds, totalWorkTimeSeconds) || other.totalWorkTimeSeconds == totalWorkTimeSeconds)&&(identical(other.pieChartData, pieChartData) || other.pieChartData == pieChartData)&&const DeepCollectionEquality().equals(other._hourlyCategorySeconds, _hourlyCategorySeconds)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DailyStatistics&&(identical(other.id, id) || other.id == id)&&(identical(other.date, date) || other.date == date)&&const DeepCollectionEquality().equals(other._categorySeconds, _categorySeconds)&&(identical(other.totalWorkTimeSeconds, totalWorkTimeSeconds) || other.totalWorkTimeSeconds == totalWorkTimeSeconds)&&(identical(other.pieChartData, pieChartData) || other.pieChartData == pieChartData)&&const DeepCollectionEquality().equals(other._hourlyCategorySeconds, _hourlyCategorySeconds)&&const DeepCollectionEquality().equals(other._sessions, _sessions)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,date,const DeepCollectionEquality().hash(_categorySeconds),totalWorkTimeSeconds,pieChartData,const DeepCollectionEquality().hash(_hourlyCategorySeconds),lastModified);
+int get hashCode => Object.hash(runtimeType,id,date,const DeepCollectionEquality().hash(_categorySeconds),totalWorkTimeSeconds,pieChartData,const DeepCollectionEquality().hash(_hourlyCategorySeconds),const DeepCollectionEquality().hash(_sessions),lastModified);
 
 @override
 String toString() {
-  return 'DailyStatistics(id: $id, date: $date, categorySeconds: $categorySeconds, totalWorkTimeSeconds: $totalWorkTimeSeconds, pieChartData: $pieChartData, hourlyCategorySeconds: $hourlyCategorySeconds, lastModified: $lastModified)';
+  return 'DailyStatistics(id: $id, date: $date, categorySeconds: $categorySeconds, totalWorkTimeSeconds: $totalWorkTimeSeconds, pieChartData: $pieChartData, hourlyCategorySeconds: $hourlyCategorySeconds, sessions: $sessions, lastModified: $lastModified)';
 }
 
 
@@ -609,7 +623,7 @@ abstract mixin class _$DailyStatisticsCopyWith<$Res> implements $DailyStatistics
   factory _$DailyStatisticsCopyWith(_DailyStatistics value, $Res Function(_DailyStatistics) _then) = __$DailyStatisticsCopyWithImpl;
 @override @useResult
 $Res call({
- String id, DateTime date, Map<String, int> categorySeconds, int totalWorkTimeSeconds,@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? pieChartData, Map<String, Map<String, int>> hourlyCategorySeconds, DateTime lastModified
+ String id, DateTime date, Map<String, int> categorySeconds, int totalWorkTimeSeconds,@JsonKey(toJson: _pieChartDataToJson, fromJson: _pieChartDataFromJson) PieChartDataModel? pieChartData, Map<String, Map<String, int>> hourlyCategorySeconds,@JsonKey(toJson: _sessionsToJson, fromJson: _sessionsFromJson) List<SessionInfo> sessions, DateTime lastModified
 });
 
 
@@ -626,7 +640,7 @@ class __$DailyStatisticsCopyWithImpl<$Res>
 
 /// Create a copy of DailyStatistics
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? date = null,Object? categorySeconds = null,Object? totalWorkTimeSeconds = null,Object? pieChartData = freezed,Object? hourlyCategorySeconds = null,Object? lastModified = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? date = null,Object? categorySeconds = null,Object? totalWorkTimeSeconds = null,Object? pieChartData = freezed,Object? hourlyCategorySeconds = null,Object? sessions = null,Object? lastModified = null,}) {
   return _then(_DailyStatistics(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,date: null == date ? _self.date : date // ignore: cast_nullable_to_non_nullable
@@ -634,7 +648,8 @@ as DateTime,categorySeconds: null == categorySeconds ? _self._categorySeconds : 
 as Map<String, int>,totalWorkTimeSeconds: null == totalWorkTimeSeconds ? _self.totalWorkTimeSeconds : totalWorkTimeSeconds // ignore: cast_nullable_to_non_nullable
 as int,pieChartData: freezed == pieChartData ? _self.pieChartData : pieChartData // ignore: cast_nullable_to_non_nullable
 as PieChartDataModel?,hourlyCategorySeconds: null == hourlyCategorySeconds ? _self._hourlyCategorySeconds : hourlyCategorySeconds // ignore: cast_nullable_to_non_nullable
-as Map<String, Map<String, int>>,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as Map<String, Map<String, int>>,sessions: null == sessions ? _self._sessions : sessions // ignore: cast_nullable_to_non_nullable
+as List<SessionInfo>,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }

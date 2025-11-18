@@ -248,7 +248,6 @@ class AuthMk {
         throw error;
       }
       
-      LogMk.logDebug('ユーザーID取得: ${user.uid}', tag: 'AuthMk.getCurrentUserId');
       return user.uid;
     } catch (e) {
       if (e is DataManagerError) {

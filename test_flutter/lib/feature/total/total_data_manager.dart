@@ -21,7 +21,6 @@ class TotalDataManager extends BaseDataManager<TotalData> {
   TotalData convertFromFirestore(Map<String, dynamic> data) {
     return TotalData(
       id: data['id'] as String,
-      totalLoginDays: data['totalLoginDays'] as int,
       totalWorkTimeMinutes: data['totalWorkTimeMinutes'] as int,
       lastTrackedDate: (data['lastTrackedDate'] as Timestamp).toDate(),
       lastModified: (data['lastModified'] as Timestamp).toDate(),
@@ -32,7 +31,6 @@ class TotalDataManager extends BaseDataManager<TotalData> {
   Map<String, dynamic> convertToFirestore(TotalData item) {
     return {
       'id': item.id,
-      'totalLoginDays': item.totalLoginDays,
       'totalWorkTimeMinutes': item.totalWorkTimeMinutes,
       'lastTrackedDate': Timestamp.fromDate(item.lastTrackedDate),
       'lastModified': Timestamp.fromDate(item.lastModified),
@@ -53,29 +51,28 @@ class TotalDataManager extends BaseDataManager<TotalData> {
   /// 累計データを取得（認証自動取得版・Firestore優先）
   /// 
   /// Firestoreから最新データを取得し、取得できない場合のみローカルを使用します。
+  /// パフォーマンス最適化: 全データ取得ではなく単一データ取得を使用
   Future<TotalData?> getTotalDataWithAuth() async {
-    // Firestoreから取得を試みる（Firestore優先）
     try {
-      final allData = await manager.getAllWithAuth();
-      if (allData.isNotEmpty) {
-        final firestoreData = allData.first;
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        debugPrint('⚠️ [getTotalDataWithAuth] ユーザー未認証');
+        return await getLocalTotalData();
+      }
+      
+      // Firestoreから単一データを取得（パフォーマンス最適化）
+      final firestoreData = await manager.getById(userId, 'user_total');
+      if (firestoreData != null) {
         // Firestoreから取得できた場合は、ローカルにも保存
         await updateLocalTotalData(firestoreData);
-        debugPrint('✅ Firestoreからデータ取得・ローカル保存完了');
         return firestoreData;
       }
     } catch (e) {
-      debugPrint('⚠️ Firestore取得失敗（オフライン？）: $e');
+      debugPrint('⚠️ [getTotalDataWithAuth] Firestore取得失敗（オフライン？）: $e');
     }
     
     // Firestoreから取得できない場合のみローカルを使用
-    final localData = await getLocalTotalData();
-    if (localData != null) {
-      debugPrint('📱 ローカルデータを使用');
-      return localData;
-    }
-    
-    return null;
+    return await getLocalTotalData();
   }
 
   /// ローカルから累計データを取得
@@ -109,7 +106,6 @@ class TotalDataManager extends BaseDataManager<TotalData> {
     // ローカルになければ初期値を返す
     return TotalData(
       id: 'user_total',
-      totalLoginDays: 0,
       totalWorkTimeMinutes: 0,
       lastTrackedDate: DateTime.now(),
       lastModified: DateTime.now(),
@@ -129,7 +125,7 @@ class TotalDataManager extends BaseDataManager<TotalData> {
   /// **パラメータ**:
   /// - `workTimeMinutes`: 作業時間（分単位）
   /// 
-  /// **戻り値**: {'success': bool, 'message': String, 'totalLoginDays': int, 'totalWorkTimeMinutes': int}
+  /// **戻り値**: {'success': bool, 'message': String, 'totalWorkTimeMinutes': int}
   Future<Map<String, dynamic>> trackFinished({required int workTimeMinutes}) async {
     try {
       // 1. ローカルから現在のTotalDataを取得
@@ -141,7 +137,6 @@ class TotalDataManager extends BaseDataManager<TotalData> {
       if (currentData == null) {
         final newData = TotalData(
           id: 'user_total',
-          totalLoginDays: 1,
           totalWorkTimeMinutes: workTimeMinutes,
           lastTrackedDate: now,
           lastModified: now,
@@ -149,60 +144,39 @@ class TotalDataManager extends BaseDataManager<TotalData> {
         
         // ローカルに保存
         await saveLocalTotalData(newData);
-        debugPrint('✅ [trackFinished] ローカル保存完了: totalLoginDays=${newData.totalLoginDays}, totalWorkTime=${newData.totalWorkTimeMinutes}分');
         
         // ログイン済みならFirestoreにも保存（upsert: 存在確認付き）
         final currentUser = FirebaseAuth.instance.currentUser;
         if (currentUser != null) {
           try {
             final userId = currentUser.uid;
-            debugPrint('🔍 [trackFinished] ユーザーID取得成功: $userId');
-            debugPrint('🔥 [trackFinished] Firestore保存開始...');
-            final firestoreSuccess = await manager.saveWithRetry(userId, newData);
-            debugPrint('🔥 [trackFinished] Firestore保存結果: $firestoreSuccess');
-            if (firestoreSuccess) {
-              debugPrint('✅ [trackFinished] Firestore保存成功！');
-            } else {
-              debugPrint('❌ [trackFinished] Firestore保存失敗（リトライキューに追加された可能性）');
-            }
+            await manager.saveWithRetry(userId, newData);
           } catch (e) {
             debugPrint('❌ Firestore保存エラー: $e');
-            debugPrint('❌ スタックトレース: ${StackTrace.current}');
           }
-        } else {
-          debugPrint('⚠️ [trackFinished] Firestore保存スキップ（未ログイン）');
         }
         
         return {
           'success': true,
-          'message': '1日目のトラッキング完了！作業時間: ${formatWorkTime(workTimeMinutes)}',
-          'totalLoginDays': 1,
+          'message': 'トラッキング完了！作業時間: ${formatWorkTime(workTimeMinutes)}',
           'totalWorkTimeMinutes': workTimeMinutes,
         };
       }
       
-      int newLoginDays;
       int newWorkTimeMinutes;
       
       // 3. 同じ日かチェック
       if (_isSameDay(currentData.lastTrackedDate, now)) {
         // 同じ日なら作業時間のみ加算
-        newLoginDays = currentData.totalLoginDays;
         newWorkTimeMinutes = currentData.totalWorkTimeMinutes + workTimeMinutes;
-        
-        debugPrint('✅ [trackFinished] 本日2回目以降 - 作業時間のみ加算');
       } else {
-        // 4. 別の日ならログイン日数+1、作業時間加算
-        newLoginDays = currentData.totalLoginDays + 1;
+        // 4. 別の日なら作業時間加算
         newWorkTimeMinutes = currentData.totalWorkTimeMinutes + workTimeMinutes;
-        
-        debugPrint('✅ [trackFinished] 新しい日 - ログイン日数+1、作業時間加算');
       }
       
       // 5. 新しいTotalDataを作成
       final updatedData = TotalData(
         id: 'user_total',
-        totalLoginDays: newLoginDays,
         totalWorkTimeMinutes: newWorkTimeMinutes,
         lastTrackedDate: now,
         lastModified: now,
@@ -210,34 +184,21 @@ class TotalDataManager extends BaseDataManager<TotalData> {
       
       // ローカルに保存
       await updateLocalTotalData(updatedData);
-      debugPrint('✅ [trackFinished] ローカル更新完了: totalLoginDays=${updatedData.totalLoginDays}, totalWorkTime=${updatedData.totalWorkTimeMinutes}分');
       
       // 6. ログイン済みならFirestoreにも保存（upsert: 存在確認付き）
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
         try {
           final userId = currentUser.uid;
-          debugPrint('🔍 [trackFinished] ユーザーID取得成功: $userId');
-          debugPrint('🔥 [trackFinished] Firestore保存開始...');
-          final firestoreSuccess = await manager.saveWithRetry(userId, updatedData);
-          debugPrint('🔥 [trackFinished] Firestore保存結果: $firestoreSuccess');
-          if (firestoreSuccess) {
-            debugPrint('✅ [trackFinished] Firestore保存成功！');
-          } else {
-            debugPrint('❌ [trackFinished] Firestore保存失敗（リトライキューに追加された可能性）');
-          }
+          await manager.saveWithRetry(userId, updatedData);
         } catch (e) {
           debugPrint('❌ Firestore保存エラー: $e');
-          debugPrint('❌ スタックトレース: ${StackTrace.current}');
         }
-      } else {
-        debugPrint('⚠️ [trackFinished] Firestore保存スキップ（未ログイン）');
       }
       
       return {
         'success': true,
-        'message': 'トラッキング完了！総ログイン: $newLoginDays日、総作業時間: ${formatWorkTime(newWorkTimeMinutes)}',
-        'totalLoginDays': newLoginDays,
+        'message': 'トラッキング完了！総作業時間: ${formatWorkTime(newWorkTimeMinutes)}',
         'totalWorkTimeMinutes': newWorkTimeMinutes,
       };
       
@@ -246,11 +207,14 @@ class TotalDataManager extends BaseDataManager<TotalData> {
       return {
         'success': false,
         'message': 'エラーが発生しました',
-        'totalLoginDays': 0,
         'totalWorkTimeMinutes': 0,
       };
     }
   }
+
+  // フォーマット結果のキャッシュ（パフォーマンス最適化）
+  static final Map<int, String> _formatWorkTimeCache = {};
+  static const int _maxCacheSize = 100;
 
   /// 作業時間を「X日 X時間 X分」形式でフォーマット
   /// 
@@ -263,7 +227,14 @@ class TotalDataManager extends BaseDataManager<TotalData> {
   /// - 90分 → "1時間 30分"
   /// - 1500分 → "1日 1時間 0分"
   /// - 30分 → "30分"
+  /// 
+  /// **パフォーマンス最適化**: 結果をキャッシュして再利用
   String formatWorkTime(int minutes) {
+    // キャッシュから取得を試みる
+    if (_formatWorkTimeCache.containsKey(minutes)) {
+      return _formatWorkTimeCache[minutes]!;
+    }
+    
     final days = minutes ~/ (24 * 60);
     final hours = (minutes % (24 * 60)) ~/ 60;
     final mins = minutes % 60;
@@ -280,7 +251,14 @@ class TotalDataManager extends BaseDataManager<TotalData> {
       parts.add('$mins分');
     }
     
-    return parts.join(' ');
+    final result = parts.join(' ');
+    
+    // キャッシュに保存（サイズ制限あり）
+    if (_formatWorkTimeCache.length < _maxCacheSize) {
+      _formatWorkTimeCache[minutes] = result;
+    }
+    
+    return result;
   }
 
   // ===== ヘルパーメソッド =====

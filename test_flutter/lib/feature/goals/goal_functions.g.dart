@@ -64,7 +64,7 @@ final class GoalsListProvider extends $NotifierProvider<GoalsList, List<Goal>> {
   }
 }
 
-String _$goalsListHash() => r'7f4436f3a6a8b06fbfebe7c48d2ae495939fabff';
+String _$goalsListHash() => r'380791173361b9aa016cb75368ac765776635c41';
 
 /// 目標機能用の関数群
 ///

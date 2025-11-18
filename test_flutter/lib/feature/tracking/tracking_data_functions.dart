@@ -2,7 +2,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 // Project files
-import 'package:test_flutter/feature/base/data_helper_functions.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 
@@ -16,7 +15,7 @@ class TrackingSessionsNotifier extends _$TrackingSessionsNotifier {
     return const [];
   }
 
-  /// Firestore/ローカルから取得したセッションでリスト全体を更新
+  /// ローカルから取得したセッションでリスト全体を更新
   void updateSessions(List<TrackingSession> sessions) {
     state = sessions;
   }
@@ -34,32 +33,25 @@ class TrackingSessionsNotifier extends _$TrackingSessionsNotifier {
   }
 }
 
-/// トラッキングセッションをFirestoreから読み込み（Firestore優先）
+/// トラッキングセッションをローカルから読み込み
+/// 
+/// Firestoreには保存しないため、ローカルのみから取得します。
 Future<List<TrackingSession>> loadTrackingSessionsHelper(dynamic ref) async {
   final manager = TrackingSessionDataManager();
 
-  return await loadListDataHelper<TrackingSession>(
-    ref: ref,
-    manager: manager,
-    getAllWithAuth: () => manager.getAllWithAuth(),
-    getLocalAll: () => manager.getLocalAll(),
-    saveLocal: (items) => manager.saveLocal(items),
-    updateProvider: (items) =>
-        ref.read(trackingSessionsProvider.notifier).updateSessions(items),
-    functionName: 'loadTrackingSessionsHelper',
-  );
+  try {
+    final items = await manager.getLocalAll();
+    ref.read(trackingSessionsProvider.notifier).updateSessions(items);
+    return items;
+  } catch (e) {
+    return [];
+  }
 }
 
-/// トラッキングセッションをFirestoreとローカルで同期
+/// トラッキングセッションを同期
+/// 
+/// Firestoreには保存しないため、ローカルのみから取得してProviderを更新します。
 Future<List<TrackingSession>> syncTrackingSessionsHelper(dynamic ref) async {
-  final manager = TrackingSessionDataManager();
-
-  return await syncListDataHelper<TrackingSession>(
-    ref: ref,
-    manager: manager,
-    syncWithAuth: () => manager.syncWithAuth(),
-    updateProvider: (items) =>
-        ref.read(trackingSessionsProvider.notifier).updateSessions(items),
-    functionName: 'syncTrackingSessionsHelper',
-  );
+  // Firestoreには保存しないため、ローカルのみから取得
+  return await loadTrackingSessionsHelper(ref);
 }

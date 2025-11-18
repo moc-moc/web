@@ -539,14 +539,12 @@ class FormSection extends StatelessWidget {
 
 /// 累計データ表示カード
 ///
-/// 総ログイン日数と総作業時間を横並びで表示します。
+/// 総作業時間を表示します。
 class TotalStatsCard extends StatelessWidget {
-  final int totalLoginDays;
   final String totalWorkTime;
 
   const TotalStatsCard({
     super.key,
-    required this.totalLoginDays,
     required this.totalWorkTime,
   });
 
@@ -554,73 +552,34 @@ class TotalStatsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: CustomCard(
-              height: 120,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.calendar_today,
-                      color: AppColors.blue,
-                      size: 28,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '$totalLoginDays日',
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      '総ログイン',
-                      style: TextStyle(color: AppColors.gray, fontSize: 12),
-                    ),
-                  ],
+      child: CustomCard(
+        height: 120,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.timer, color: AppColors.green, size: 28),
+              const SizedBox(height: 6),
+              Text(
+                totalWorkTime,
+                style: const TextStyle(
+                  color: AppColors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
                 ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: CustomCard(
-              height: 120,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.timer, color: AppColors.green, size: 28),
-                    const SizedBox(height: 6),
-                    Text(
-                      totalWorkTime,
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      '総作業時間',
-                      style: TextStyle(color: AppColors.gray, fontSize: 12),
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 2),
+              const Text(
+                '総作業時間',
+                style: TextStyle(color: AppColors.gray, fontSize: 12),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -112,7 +112,6 @@ class SharedMk {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = json.encode(items);
       await prefs.setString(key, jsonString);
-      debugPrint('✅ リストデータ保存完了: $key (${items.length}件)');
     } catch (e) {
       debugPrint('❌ リストデータ保存エラー: $e');
     }
@@ -279,7 +278,6 @@ class SharedMk {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('${key}_last_sync', time.millisecondsSinceEpoch);
-      debugPrint('✅ 最終同期時刻設定完了: $key');
     } catch (e) {
       debugPrint('❌ 最終同期時刻設定エラー: $e');
     }

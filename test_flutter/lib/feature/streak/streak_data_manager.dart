@@ -53,12 +53,18 @@ class StreakDataManager extends BaseDataManager<StreakData> {
   /// 連続継続日数データを取得（認証自動取得版・Firestore優先）
   /// 
   /// Firestoreから最新データを取得し、取得できない場合のみローカルを使用します。
+  /// パフォーマンス最適化: 全データ取得ではなく単一データ取得を使用
   Future<StreakData?> getStreakDataWithAuth() async {
-    // Firestoreから取得を試みる（Firestore優先）
     try {
-      final allData = await manager.getAllWithAuth();
-      if (allData.isNotEmpty) {
-        final firestoreData = allData.first;
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        debugPrint('⚠️ [getStreakDataWithAuth] ユーザー未認証');
+        return await getLocalStreakData();
+      }
+      
+      // Firestoreから単一データを取得（パフォーマンス最適化）
+      final firestoreData = await manager.getById(userId, 'user_streak');
+      if (firestoreData != null) {
         // Firestoreから取得できた場合は、ローカルにも保存
         await updateLocalStreakData(firestoreData);
         debugPrint('✅ Firestoreからデータ取得・ローカル保存完了');
@@ -179,8 +185,12 @@ class StreakDataManager extends BaseDataManager<StreakData> {
         };
       }
       
+      // 日付比較結果をキャッシュ（同じ日付の比較を避ける）
+      final lastTrackedDate = currentData.lastTrackedDate;
+      final isSameDayResult = _isSameDay(lastTrackedDate, now);
+      
       // 3. 同じ日かチェック
-      if (_isSameDay(currentData.lastTrackedDate, now)) {
+      if (isSameDayResult) {
         // 同じ日でもlastModifiedだけ更新
         final updatedData = currentData.copyWith(
           lastModified: now,
@@ -211,8 +221,9 @@ class StreakDataManager extends BaseDataManager<StreakData> {
       
       int newStreak;
       
-      // 4. 前日なら連続日数+1
-      if (_isYesterday(currentData.lastTrackedDate, now)) {
+      // 4. 前日なら連続日数+1（日付比較結果を再利用）
+      final isYesterdayResult = _isYesterday(lastTrackedDate, now);
+      if (isYesterdayResult) {
         newStreak = currentData.currentStreak + 1;
       } else {
         // 5. 1日以上空いていたらリセット

@@ -806,10 +806,7 @@ class ONNXDetectionService implements DetectionService {
       dynamic outputData;
       try {
         outputData = outputTensor['data'];
-        if (outputData == null) {
-          // データが直接テンソルにある場合
-          outputData = outputTensor;
-        }
+        outputData ??= outputTensor;
       } catch (e) {
         LogMk.logError(
           '❌ [ONNXDetectionService] データ取得エラー: $e',

@@ -1,6 +1,3 @@
-// Flutterライブラリ
-import 'package:flutter/material.dart';
-
 // 外部パッケージ
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -36,10 +33,6 @@ part 'streak_functions.g.dart';
 class StreakDataNotifier extends _$StreakDataNotifier {
   @override
   StreakData build() {
-    debugPrint('🔍 [StreakDataNotifier.build] ★★★ Provider初期化実行（keepAlive: true）★★★');
-    debugPrint('🔍 [StreakDataNotifier.build] スタックトレース:');
-    debugPrint(StackTrace.current.toString().split('\n').take(5).join('\n'));
-    
     // 初期値を返す
     return StreakData(
       id: 'user_streak',
@@ -52,13 +45,11 @@ class StreakDataNotifier extends _$StreakDataNotifier {
 
   /// 連続継続日数データを更新
   void updateStreak(StreakData newData) {
-    debugPrint('🔍 [StreakDataNotifier.updateStreak] 更新: ${newData.currentStreak}日連続');
     state = newData;
   }
 
   /// データをリセット
   void reset() {
-    debugPrint('🔍 [StreakDataNotifier.reset] リセット実行');
     state = StreakData(
       id: 'user_streak',
       currentStreak: 0,

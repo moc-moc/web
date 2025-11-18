@@ -116,14 +116,11 @@ class AuthServiceUN {
       final isFirebaseAuthenticated = AuthMk.checkFirebaseAuthState();
       
       if (hasStoredAuth && isFirebaseAuthenticated) {
-        debugPrint('✅ 認証状態を復元しました');
         return true;
       } else {
-        debugPrint('ℹ️ 認証状態が見つからないか無効です');
         return false;
       }
     } catch (e) {
-      debugPrint('❌ 認証状態復元エラー: $e');
       return false;
     }
   }
@@ -138,14 +135,8 @@ class AuthServiceUN {
       }
       
       final userInfo = await getCurrentUserInfo();
-      
-      if (userInfo != null) {
-        debugPrint('ログイン中のユーザー: ${userInfo.email}');
-      }
-      
       return userInfo;
     } catch (e) {
-      debugPrint('❌ 認証初期化エラー: $e');
       return null;
     }
   }

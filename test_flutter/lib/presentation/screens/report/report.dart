@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
@@ -7,17 +8,19 @@ import 'package:test_flutter/presentation/widgets/charts.dart';
 import 'package:test_flutter/dummy_data/report_data.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
+import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
+import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 
 /// レポート画面（新デザインシステム版）
-class ReportScreenNew extends StatefulWidget {
+class ReportScreenNew extends ConsumerStatefulWidget {
   const ReportScreenNew({super.key});
 
   @override
-  State<ReportScreenNew> createState() => _ReportScreenNewState();
+  ConsumerState<ReportScreenNew> createState() => _ReportScreenNewState();
 }
 
-class _ReportScreenNewState extends State<ReportScreenNew> {
-  int _selectedPeriodIndex = 3; // 0: Day, 1: Week, 2: Month, 3: Year
+class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
+  int _selectedPeriodIndex = 0; // 0: Day, 1: Week, 2: Month, 3: Year
   DateTime _selectedDate = DateTime.now();
 
   @override
@@ -217,18 +220,143 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
 
   Widget _buildStatHighlights() {
     final totalFocused = _getSelectedTotalHours();
-    final totalChange = reportStats['totalFocusedWorkChange'] as double;
+    final previousTotal = _getPreviousPeriodTotalHours();
+    final totalChange = _calculatePercentageChange(totalFocused, previousTotal);
     final periodDescriptor = _getPeriodDescriptor();
 
     return _buildHeroStatCard(
       icon: Icons.schedule,
       title: 'Total Time ($periodDescriptor)',
-      value: _formatHoursWhole(totalFocused),
+      value: _formatMinutes(totalFocused),
       subtitle: 'Tracked focus time',
       changeLabel: _formatChange(totalChange, isPercentage: true),
       accentColor: AppColors.blue,
       isPositive: totalChange >= 0,
     );
+  }
+  
+  /// 前期間の合計時間を取得
+  double _getPreviousPeriodTotalHours() {
+    final sessions = ref.watch(trackingSessionsProvider);
+    
+    if (sessions.isEmpty) {
+      return 0.0;
+    }
+    
+    DateTime previousDate;
+    switch (_selectedPeriodIndex) {
+      case 0: // Daily: 前日
+        previousDate = _selectedDate.subtract(const Duration(days: 1));
+        return _getTotalHoursForDate(sessions, previousDate);
+      case 1: // Weekly: 先週
+        previousDate = _selectedDate.subtract(const Duration(days: 7));
+        return _getTotalHoursForWeek(sessions, previousDate);
+      case 2: // Monthly: 先月
+        final previousMonth = DateTime(
+          _selectedDate.year,
+          _selectedDate.month - 1,
+          _selectedDate.day,
+        );
+        return _getTotalHoursForMonth(sessions, previousMonth);
+      case 3: // Yearly: 前年
+        final previousYear = DateTime(
+          _selectedDate.year - 1,
+          _selectedDate.month,
+          _selectedDate.day,
+        );
+        return _getTotalHoursForYear(sessions, previousYear);
+      default:
+        return 0.0;
+    }
+  }
+  
+  /// 指定日の合計時間を取得
+  double _getTotalHoursForDate(List<TrackingSession> sessions, DateTime date) {
+    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+    
+    final daySessions = sessions.where((s) =>
+      s.startTime.isAfter(dayStart.subtract(const Duration(seconds: 1))) &&
+      s.startTime.isBefore(dayEnd)
+    ).toList();
+    
+    double total = 0.0;
+    for (final session in daySessions) {
+      for (final period in session.detectionPeriods) {
+        final durationHours = period.endTime.difference(period.startTime).inSeconds / 3600.0;
+        total += durationHours;
+      }
+    }
+    return total;
+  }
+  
+  /// 指定週の合計時間を取得
+  double _getTotalHoursForWeek(List<TrackingSession> sessions, DateTime date) {
+    final weekStart = date.subtract(Duration(days: date.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 7));
+    
+    final weekSessions = sessions.where((s) =>
+      s.startTime.isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
+      s.startTime.isBefore(weekEnd)
+    ).toList();
+    
+    double total = 0.0;
+    for (final session in weekSessions) {
+      for (final period in session.detectionPeriods) {
+        final durationHours = period.endTime.difference(period.startTime).inSeconds / 3600.0;
+        total += durationHours;
+      }
+    }
+    return total;
+  }
+  
+  /// 指定月の合計時間を取得
+  double _getTotalHoursForMonth(List<TrackingSession> sessions, DateTime date) {
+    final monthStart = DateTime(date.year, date.month, 1);
+    final monthEnd = DateTime(date.year, date.month + 1, 1);
+    
+    final monthSessions = sessions.where((s) =>
+      s.startTime.isAfter(monthStart.subtract(const Duration(seconds: 1))) &&
+      s.startTime.isBefore(monthEnd)
+    ).toList();
+    
+    double total = 0.0;
+    for (final session in monthSessions) {
+      for (final period in session.detectionPeriods) {
+        final durationHours = period.endTime.difference(period.startTime).inSeconds / 3600.0;
+        total += durationHours;
+      }
+    }
+    return total;
+  }
+  
+  /// 指定年の合計時間を取得
+  double _getTotalHoursForYear(List<TrackingSession> sessions, DateTime date) {
+    final yearStart = DateTime(date.year, 1, 1);
+    final yearEnd = DateTime(date.year + 1, 1, 1);
+    
+    final yearSessions = sessions.where((s) =>
+      s.startTime.isAfter(yearStart.subtract(const Duration(seconds: 1))) &&
+      s.startTime.isBefore(yearEnd)
+    ).toList();
+    
+    double total = 0.0;
+    for (final session in yearSessions) {
+      for (final period in session.detectionPeriods) {
+        final durationHours = period.endTime.difference(period.startTime).inSeconds / 3600.0;
+        total += durationHours;
+      }
+    }
+    return total;
+  }
+  
+  /// 変化率を計算（パーセンテージ）
+  double _calculatePercentageChange(double current, double previous) {
+    if (previous == 0.0) {
+      // 前期間が0の場合は、現在が0より大きければ100%、そうでなければ0%
+      return current > 0 ? 100.0 : 0.0;
+    }
+    return ((current - previous) / previous) * 100.0;
   }
 
   Widget _buildHeroStatCard({
@@ -346,8 +474,17 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
     );
   }
 
-  String _formatHoursWhole(double hours) {
-    return '${hours.round()}h';
+  String _formatMinutes(double hours) {
+    final minutes = (hours * 60).round();
+    if (minutes < 60) {
+      return '${minutes}m';
+    }
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (m == 0) {
+      return '${h}h';
+    }
+    return '${h}h ${m}m';
   }
 
   String _formatChange(
@@ -374,6 +511,25 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
   List<CategoryDataPoint> _getDataPointsForCurrentPeriod({
     bool forChart = false,
   }) {
+    final sessions = ref.watch(trackingSessionsProvider);
+    
+    // ローカルにデータがある場合は、それを使用
+    if (sessions.isNotEmpty) {
+      switch (_selectedPeriodIndex) {
+        case 0:
+          return _generateDailyData(sessions, _selectedDate);
+        case 1:
+          return _generateWeeklyData(sessions, _selectedDate);
+        case 2:
+          return _generateMonthlyData(sessions, _selectedDate);
+        case 3:
+          return _generateYearlyData(sessions, _selectedDate);
+        default:
+          return _generateWeeklyData(sessions, _selectedDate);
+      }
+    }
+    
+    // ローカルにデータがない場合は、ダミーデータを使用
     switch (_selectedPeriodIndex) {
       case 0:
         return dailyReportData;
@@ -386,6 +542,203 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
       default:
         return weeklyReportData;
     }
+  }
+
+  /// 日次データを生成
+  List<CategoryDataPoint> _generateDailyData(List<TrackingSession> sessions, DateTime date) {
+    final dayStart = DateTime(date.year, date.month, date.day);
+    final dayEnd = dayStart.add(const Duration(days: 1));
+    
+    // 該当日のセッションをフィルタ
+    final daySessions = sessions.where((s) =>
+      s.startTime.isAfter(dayStart.subtract(const Duration(seconds: 1))) &&
+      s.startTime.isBefore(dayEnd)
+    ).toList();
+    
+    // 24時間分のデータポイントを生成
+    final dataPoints = <CategoryDataPoint>[];
+    for (int hour = 0; hour < 24; hour++) {
+      final hourStart = dayStart.add(Duration(hours: hour));
+      final hourEnd = hourStart.add(const Duration(hours: 1));
+      
+      final hourValues = <String, double>{
+        'study': 0.0,
+        'pc': 0.0,
+        'smartphone': 0.0,
+        'personOnly': 0.0,
+        'nothingDetected': 0.0,
+      };
+      
+      // この時間帯に該当するセッションの時間を集計
+      for (final session in daySessions) {
+        for (final period in session.detectionPeriods) {
+          final periodStart = period.startTime.isAfter(hourStart) ? period.startTime : hourStart;
+          final periodEnd = period.endTime.isBefore(hourEnd) ? period.endTime : hourEnd;
+          
+          if (periodStart.isBefore(periodEnd)) {
+            final durationHours = periodEnd.difference(periodStart).inSeconds / 3600.0;
+            final category = period.category;
+            if (hourValues.containsKey(category)) {
+              hourValues[category] = (hourValues[category] ?? 0.0) + durationHours;
+            }
+          }
+        }
+      }
+      
+      dataPoints.add(CategoryDataPoint(
+        label: '$hour:00',
+        values: hourValues,
+      ));
+    }
+    
+    return dataPoints;
+  }
+
+  /// 週次データを生成
+  List<CategoryDataPoint> _generateWeeklyData(List<TrackingSession> sessions, DateTime date) {
+    final weekStart = date.subtract(Duration(days: date.weekday - 1));
+    final weekEnd = weekStart.add(const Duration(days: 7));
+    
+    // 該当週のセッションをフィルタ
+    final weekSessions = sessions.where((s) =>
+      s.startTime.isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
+      s.startTime.isBefore(weekEnd)
+    ).toList();
+    
+    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final dataPoints = <CategoryDataPoint>[];
+    
+    for (int day = 0; day < 7; day++) {
+      final dayStart = weekStart.add(Duration(days: day));
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      
+      final dayValues = <String, double>{
+        'study': 0.0,
+        'pc': 0.0,
+        'smartphone': 0.0,
+        'personOnly': 0.0,
+        'nothingDetected': 0.0,
+      };
+      
+      // この日のセッションの時間を集計
+      for (final session in weekSessions) {
+        if (session.startTime.isAfter(dayStart.subtract(const Duration(seconds: 1))) &&
+            session.startTime.isBefore(dayEnd)) {
+          for (final period in session.detectionPeriods) {
+            final category = period.category;
+            final durationHours = period.endTime.difference(period.startTime).inSeconds / 3600.0;
+            if (dayValues.containsKey(category)) {
+              dayValues[category] = (dayValues[category] ?? 0.0) + durationHours;
+            }
+          }
+        }
+      }
+      
+      dataPoints.add(CategoryDataPoint(
+        label: weekDays[day],
+        values: dayValues,
+      ));
+    }
+    
+    return dataPoints;
+  }
+
+  /// 月次データを生成
+  List<CategoryDataPoint> _generateMonthlyData(List<TrackingSession> sessions, DateTime date) {
+    final monthStart = DateTime(date.year, date.month, 1);
+    final monthEnd = DateTime(date.year, date.month + 1, 1);
+    final daysInMonth = monthEnd.difference(monthStart).inDays;
+    
+    // 該当月のセッションをフィルタ
+    final monthSessions = sessions.where((s) =>
+      s.startTime.isAfter(monthStart.subtract(const Duration(seconds: 1))) &&
+      s.startTime.isBefore(monthEnd)
+    ).toList();
+    
+    final dataPoints = <CategoryDataPoint>[];
+    
+    for (int day = 1; day <= daysInMonth; day++) {
+      final dayStart = DateTime(date.year, date.month, day);
+      final dayEnd = dayStart.add(const Duration(days: 1));
+      
+      final dayValues = <String, double>{
+        'study': 0.0,
+        'pc': 0.0,
+        'smartphone': 0.0,
+        'personOnly': 0.0,
+        'nothingDetected': 0.0,
+      };
+      
+      // この日のセッションの時間を集計
+      for (final session in monthSessions) {
+        if (session.startTime.isAfter(dayStart.subtract(const Duration(seconds: 1))) &&
+            session.startTime.isBefore(dayEnd)) {
+          for (final period in session.detectionPeriods) {
+            final category = period.category;
+            final durationHours = period.endTime.difference(period.startTime).inSeconds / 3600.0;
+            if (dayValues.containsKey(category)) {
+              dayValues[category] = (dayValues[category] ?? 0.0) + durationHours;
+            }
+          }
+        }
+      }
+      
+      dataPoints.add(CategoryDataPoint(
+        label: '$day',
+        values: dayValues,
+      ));
+    }
+    
+    return dataPoints;
+  }
+
+  /// 年次データを生成
+  List<CategoryDataPoint> _generateYearlyData(List<TrackingSession> sessions, DateTime date) {
+    final yearStart = DateTime(date.year, 1, 1);
+    final yearEnd = DateTime(date.year + 1, 1, 1);
+    
+    // 該当年のセッションをフィルタ
+    final yearSessions = sessions.where((s) =>
+      s.startTime.isAfter(yearStart.subtract(const Duration(seconds: 1))) &&
+      s.startTime.isBefore(yearEnd)
+    ).toList();
+    
+    final monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final dataPoints = <CategoryDataPoint>[];
+    
+    for (int month = 1; month <= 12; month++) {
+      final monthStart = DateTime(date.year, month, 1);
+      final monthEnd = DateTime(date.year, month + 1, 1);
+      
+      final monthValues = <String, double>{
+        'study': 0.0,
+        'pc': 0.0,
+        'smartphone': 0.0,
+        'personOnly': 0.0,
+        'nothingDetected': 0.0,
+      };
+      
+      // この月のセッションの時間を集計
+      for (final session in yearSessions) {
+        if (session.startTime.isAfter(monthStart.subtract(const Duration(seconds: 1))) &&
+            session.startTime.isBefore(monthEnd)) {
+          for (final period in session.detectionPeriods) {
+            final category = period.category;
+            final durationHours = period.endTime.difference(period.startTime).inSeconds / 3600.0;
+            if (monthValues.containsKey(category)) {
+              monthValues[category] = (monthValues[category] ?? 0.0) + durationHours;
+            }
+          }
+        }
+      }
+      
+      dataPoints.add(CategoryDataPoint(
+        label: monthLabels[month - 1],
+        values: monthValues,
+      ));
+    }
+    
+    return dataPoints;
   }
 
   double _sumAllCategories(CategoryDataPoint point) {
@@ -491,12 +844,12 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
                 runSpacing: AppSpacing.xs,
                 children: [
                   _buildLegendPill('Study', AppColors.green),
-                  _buildLegendPill('PC', AppColors.blue),
+                  _buildLegendPill('PC', const Color.fromRGBO(20, 120, 230, 1)),
                   _buildLegendPill('Phone', AppColors.orange),
                   if (_selectedPeriodIndex <= 1)
                     _buildLegendPill('People', AppColors.gray),
                   if (_selectedPeriodIndex <= 1)
-                    _buildLegendPill('No Detection', AppColors.disabledGray),
+                    _buildLegendPill('No Detection', AppColors.lightblackgray),
                 ],
               ),
             ],
@@ -525,13 +878,26 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
             },
             getLeftTitles: (value, meta) {
               if (value == 0 || value == maxY) {
+                final minutes = (value * 60).round();
+                String label;
+                if (minutes < 60) {
+                  label = '${minutes}m';
+                } else {
+                  final h = minutes ~/ 60;
+                  final m = minutes % 60;
+                  if (m == 0) {
+                    label = '${h}h';
+                  } else {
+                    label = '${h}h ${m}m';
+                  }
+                }
                 return Padding(
                   padding: EdgeInsets.only(
                     bottom: value == 0 ? AppSpacing.xs : 0,
                     top: value == maxY ? AppSpacing.sm : 0,
                   ),
                   child: Text(
-                    '${value.toInt()}h',
+                    label,
                     style: AppTextStyles.caption,
                   ),
                 );
@@ -566,7 +932,12 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
 
   Widget _buildDistributionCard() {
     final sections = _getPieChartSections();
-    final total = categorySummary.values.reduce((a, b) => a + b);
+    final summary = _getCategorySummary();
+    final isMonthOrYear = _selectedPeriodIndex == 2 || _selectedPeriodIndex == 3;
+    // 月次と年次ではpeopleとno detectionを含めない
+    final total = isMonthOrYear
+        ? (summary['study'] ?? 0) + (summary['pc'] ?? 0) + (summary['smartphone'] ?? 0)
+        : summary.values.reduce((a, b) => a + b);
     final titleStyle = AppTextStyles.body1.copyWith(
       color: AppColors.textSecondary,
       fontWeight: FontWeight.w600,
@@ -589,7 +960,7 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
             children: [
               AppPieChart(
                 sections: sections,
-                centerText: '${total.toInt()}h',
+                centerText: _formatMinutesShort(total),
                 radius: 80,
                 strokeWidth: 22,
                 backgroundColor: AppColors.blackgray,
@@ -601,31 +972,33 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
                   children: [
                     _buildLegendRow(
                       'Study',
-                      categorySummary['study'] ?? 0,
+                      summary['study'] ?? 0,
                       AppColors.green,
                     ),
                     _buildLegendRow(
                       'PC',
-                      categorySummary['pc'] ?? 0,
-                      AppColors.blue,
+                      summary['pc'] ?? 0,
+                      const Color.fromRGBO(20, 120, 230, 1),
                     ),
                     _buildLegendRow(
                       'Smartphone',
-                      categorySummary['smartphone'] ?? 0,
+                      summary['smartphone'] ?? 0,
                       AppColors.orange,
                     ),
-                    _buildLegendRow(
-                      'People',
-                      categorySummary['personOnly'] ?? 0,
-                      AppColors.gray,
-                      dimWhenZero: true,
-                    ),
-                    _buildLegendRow(
-                      'No Detection',
-                      categorySummary['nothingDetected'] ?? 0,
-                      AppColors.disabledGray,
-                      dimWhenZero: true,
-                    ),
+                    if (_selectedPeriodIndex <= 1)
+                      _buildLegendRow(
+                        'People',
+                        summary['personOnly'] ?? 0,
+                        AppColors.gray,
+                        dimWhenZero: true,
+                      ),
+                    if (_selectedPeriodIndex <= 1)
+                      _buildLegendRow(
+                        'No Detection',
+                        summary['nothingDetected'] ?? 0,
+                        AppColors.lightblackgray,
+                        dimWhenZero: true,
+                      ),
                   ],
                 ),
               ),
@@ -666,7 +1039,7 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
             ),
           ),
           Text(
-            _formatHoursShort(hours),
+            _formatMinutesShort(hours),
             style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.bold),
           ),
         ],
@@ -674,13 +1047,17 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
     );
   }
 
-  String _formatHoursShort(double hours) {
-    final h = hours.floor();
-    final minutes = ((hours - h) * 60).round();
-    if (minutes == 0) {
+  String _formatMinutesShort(double hours) {
+    final minutes = (hours * 60).round();
+    if (minutes < 60) {
+      return '${minutes}m';
+    }
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    if (m == 0) {
       return '${h}h';
     }
-    return '${h}h ${minutes.toString().padLeft(2, '0')}m';
+    return '${h}h ${m.toString().padLeft(2, '0')}m';
   }
 
   List<BarChartGroupData> _getChartData() {
@@ -705,12 +1082,13 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
       }
 
       addSegment(point.values['study'], AppColors.green);
-      addSegment(point.values['pc'], AppColors.blue);
+      // PC用の濃い青
+      addSegment(point.values['pc'], const Color.fromRGBO(20, 120, 230, 1));
       addSegment(point.values['smartphone'], AppColors.orange);
 
       if (isDay || isWeek) {
         addSegment(point.values['personOnly'], AppColors.gray);
-        addSegment(point.values['nothingDetected'], AppColors.disabledGray);
+        addSegment(point.values['nothingDetected'], AppColors.lightblackgray);
       }
 
       final barWidth = (isDay || isMonth || data.length > 20)
@@ -727,7 +1105,7 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
           BarChartRodData(
             toY: cursor,
             width: barWidth,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(8),
             rodStackItems: List.from(stackItems),
           ),
         ],
@@ -736,18 +1114,52 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
   }
 
   double _getMaxY() {
-    switch (_selectedPeriodIndex) {
-      case 0:
-        return 2.0;
-      case 1:
-        return 10.0;
-      case 2:
-        return 15.0;
-      case 3:
-        return 250.0;
-      default:
-        return 10.0;
+    final data = _getChartData();
+    if (data.isEmpty) {
+      // デフォルト値
+      switch (_selectedPeriodIndex) {
+        case 0:
+          return 2.0;
+        case 1:
+          return 10.0;
+        case 2:
+          return 15.0;
+        case 3:
+          return 250.0;
+        default:
+          return 10.0;
+      }
     }
+    
+    // 一番長い棒の値を取得
+    double maxValue = 0.0;
+    for (final group in data) {
+      if (group.barRods.isNotEmpty) {
+        final rod = group.barRods.first;
+        if (rod.toY > maxValue) {
+          maxValue = rod.toY;
+        }
+      }
+    }
+    
+    // 最大値が0の場合はデフォルト値を返す
+    if (maxValue == 0.0) {
+      switch (_selectedPeriodIndex) {
+        case 0:
+          return 2.0;
+        case 1:
+          return 10.0;
+        case 2:
+          return 15.0;
+        case 3:
+          return 250.0;
+        default:
+          return 10.0;
+      }
+    }
+    
+    // 一番長い棒がちょうど枠の上につくように、少し余裕を持たせる（10%増し）
+    return maxValue * 1.1;
   }
 
   String _getBottomLabel(int index) {
@@ -760,43 +1172,87 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
   }
 
   List<PieChartSectionData> _getPieChartSections() {
-    final peopleValue = categorySummary['personOnly'] ?? 0;
-    final peopleColor = peopleValue == 0
-        ? AppColors.disabledGray
-        : AppColors.gray;
-    final nothingValue = categorySummary['nothingDetected'] ?? 0;
-    return [
+    final summary = _getCategorySummary();
+    final isMonthOrYear = _selectedPeriodIndex == 2 || _selectedPeriodIndex == 3;
+    
+    final sections = <PieChartSectionData>[
       PieChartSectionData(
-        value: categorySummary['study'],
+        value: summary['study'] ?? 0,
         color: AppColors.green,
         radius: 50,
         showTitle: false,
       ),
       PieChartSectionData(
-        value: categorySummary['pc'],
-        color: AppColors.blue,
+        value: summary['pc'] ?? 0,
+        color: const Color.fromRGBO(20, 120, 230, 1),
         radius: 50,
         showTitle: false,
       ),
       PieChartSectionData(
-        value: categorySummary['smartphone'],
+        value: summary['smartphone'] ?? 0,
         color: AppColors.orange,
         radius: 50,
         showTitle: false,
       ),
-      PieChartSectionData(
-        value: categorySummary['personOnly'],
-        color: peopleColor,
-        radius: 50,
-        showTitle: false,
-      ),
-      PieChartSectionData(
-        value: nothingValue,
-        color: AppColors.disabledGray,
-        radius: 50,
-        showTitle: false,
-      ),
     ];
+    
+    // 月次と年次ではpeopleとno detectionを含めない
+    if (!isMonthOrYear) {
+      final peopleValue = summary['personOnly'] ?? 0;
+      final peopleColor = peopleValue == 0
+          ? AppColors.disabledGray
+          : AppColors.gray;
+      final nothingValue = summary['nothingDetected'] ?? 0;
+      
+      sections.add(
+        PieChartSectionData(
+          value: peopleValue,
+          color: peopleColor,
+          radius: 50,
+          showTitle: false,
+        ),
+      );
+      sections.add(
+        PieChartSectionData(
+          value: nothingValue,
+          color: AppColors.lightblackgray,
+          radius: 50,
+          showTitle: false,
+        ),
+      );
+    }
+    
+    return sections;
+  }
+
+  /// カテゴリ別のサマリーを取得（ローカルのデータから計算、なければダミーデータ）
+  Map<String, double> _getCategorySummary() {
+    final sessions = ref.watch(trackingSessionsProvider);
+    
+    // ローカルにデータがある場合は、それから計算
+    if (sessions.isNotEmpty) {
+      final dataPoints = _getDataPointsForCurrentPeriod();
+      final summary = <String, double>{
+        'study': 0.0,
+        'pc': 0.0,
+        'smartphone': 0.0,
+        'personOnly': 0.0,
+        'nothingDetected': 0.0,
+      };
+      
+      for (final point in dataPoints) {
+        summary['study'] = (summary['study'] ?? 0.0) + (point.values['study'] ?? 0.0);
+        summary['pc'] = (summary['pc'] ?? 0.0) + (point.values['pc'] ?? 0.0);
+        summary['smartphone'] = (summary['smartphone'] ?? 0.0) + (point.values['smartphone'] ?? 0.0);
+        summary['personOnly'] = (summary['personOnly'] ?? 0.0) + (point.values['personOnly'] ?? 0.0);
+        summary['nothingDetected'] = (summary['nothingDetected'] ?? 0.0) + (point.values['nothingDetected'] ?? 0.0);
+      }
+      
+      return summary;
+    }
+    
+    // ローカルにデータがない場合は、ダミーデータを使用
+    return categorySummary;
   }
 
   Widget _buildBottomNavigationBar(BuildContext context) {

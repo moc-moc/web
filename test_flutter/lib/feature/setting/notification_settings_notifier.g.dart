@@ -70,7 +70,7 @@ final class NotificationSettingsNotifierProvider
 }
 
 String _$notificationSettingsNotifierHash() =>
-    r'3fb5871deca67f7ca8d6f3307a6374ed16c1e3ef';
+    r'7c2daeb24cd5d12e9de30de03af560c073bb0e57';
 
 /// 通知設定を管理するNotifier
 ///

@@ -247,7 +247,6 @@ class FirestoreMk {
           .doc('last_sync')
           .set({'timestamp': Timestamp.fromDate(time)});
       
-      debugPrint('✅ 最終同期時刻設定完了: $userId');
       return true;
     } catch (e) {
       debugPrint('❌ 最終同期時刻設定エラー: $e');

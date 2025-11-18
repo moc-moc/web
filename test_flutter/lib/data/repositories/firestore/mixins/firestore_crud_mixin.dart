@@ -78,7 +78,6 @@ mixin FirestoreCrudMixin<T> {
         }
       }
       
-      await LogMk.logInfo('✅ アイテム取得完了: ${items.length}件');
       return items;
     } catch (e) {
       await LogMk.logError(' アイテム取得エラー: $e');
@@ -104,7 +103,6 @@ mixin FirestoreCrudMixin<T> {
       // 2. モデルに変換
       final item = fromFirestore(data);
       
-      await LogMk.logInfo('✅ アイテム取得完了: $id');
       return item;
     } catch (e) {
       await LogMk.logError(' アイテム取得エラー: $e');

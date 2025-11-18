@@ -371,7 +371,6 @@ class _WidgetCatalogScreenState extends State<WidgetCatalogScreen> {
             ),
             SizedBox(height: AppSpacing.md),
             TotalStatsCard(
-              totalLoginDays: 142,
               totalWorkTime: '312時間',
             ),
           ],

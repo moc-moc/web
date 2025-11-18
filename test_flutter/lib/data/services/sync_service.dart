@@ -290,15 +290,17 @@ class SyncMk {
   /// FirestoreのTimestampオブジェクトを含むデータを、
   /// JSONエンコード可能な形式（DateTime → ISO8601文字列）に変換します。
   /// 
+  /// **パフォーマンス最適化**: Firestore形式から直接JSON形式に変換（モデル変換をスキップ）
+  /// 
   /// データ形式を自動判定:
-  /// - Firestore形式（Timestamp含む）: fromFirestore() → toJson()で変換
+  /// - Firestore形式（Timestamp含む）: 直接JSON形式に変換（最適化）
   /// - JSON形式（文字列のみ）: そのまま使用（既に変換済み）
   /// 
   /// **パラメータ**:
   /// - `dataList`: データリスト（Firestore形式またはJSON形式）
-  /// - `fromFirestore`: FirestoreデータをモデルTに変換する関数
-  /// - `toJson`: モデルTをJSON形式に変換する関数
-  /// - `fromJson`: JSON形式をモデルTに変換する関数（形式判定用）
+  /// - `fromFirestore`: FirestoreデータをモデルTに変換する関数（フォールバック用）
+  /// - `toJson`: モデルTをJSON形式に変換する関数（フォールバック用）
+  /// - `fromJson`: JSON形式をモデルTに変換する関数（フォールバック用）
   /// 
   /// **戻り値**: JSONエンコード可能なデータリスト
   /// 
@@ -317,6 +319,14 @@ class SyncMk {
     Map<String, dynamic> Function(T) toJson,
     T Function(Map<String, dynamic>) fromJson,
   ) {
+    // nullチェックと空リストチェック
+    if (dataList.isEmpty) {
+      return [];
+    }
+    
+    // パフォーマンス最適化: 事前割り当て（Web環境対応）
+    // Web環境ではList.lengthを直接設定するとnullで埋められるため、
+    // List.filled()を使用して初期化するか、単純にadd()を使用
     final jsonList = <Map<String, dynamic>>[];
     
     for (final data in dataList) {
@@ -325,37 +335,98 @@ class SyncMk {
         final isFirestoreFormat = _isFirestoreFormat(data);
         
         if (isFirestoreFormat) {
-          // Firestore形式（Timestamp含む）→ モデル → JSON形式
-          final item = fromFirestore(data);
-          final jsonData = toJson(item);
+          // パフォーマンス最適化: Firestore形式から直接JSON形式に変換
+          final jsonData = _convertFirestoreToJson(data);
           jsonList.add(jsonData);
         } else {
-          // 既にJSON形式 → 検証のためモデル化してから再JSON化
-          try {
-            final item = fromJson(data);
-            final jsonData = toJson(item);
-            jsonList.add(jsonData);
-          } catch (e) {
-            // fromJsonでエラーの場合はそのまま追加
-            jsonList.add(data);
-          }
+          // 既にJSON形式 → そのまま使用（変換不要）
+          jsonList.add(data);
         }
       } catch (e) {
-        // エラーが発生したアイテムはスキップ（ログなし）
+        // エラー時はフォールバック: モデル経由で変換
+        try {
+          final isFirestoreFormat = _isFirestoreFormat(data);
+          if (isFirestoreFormat) {
+            final item = fromFirestore(data);
+            final jsonData = toJson(item);
+            jsonList.add(jsonData);
+          } else {
+            jsonList.add(data);
+          }
+        } catch (e2) {
+          // エラーが発生したアイテムはスキップ
+        }
       }
     }
     
     return jsonList;
   }
+  
+  /// Firestore形式のデータを直接JSON形式に変換（パフォーマンス最適化）
+  /// 
+  /// TimestampオブジェクトをISO8601文字列に変換します。
+  static Map<String, dynamic> _convertFirestoreToJson(Map<String, dynamic> data) {
+    final jsonData = <String, dynamic>{};
+    
+    for (final entry in data.entries) {
+      final key = entry.key;
+      final value = entry.value;
+      
+      if (value == null) {
+        jsonData[key] = null;
+      } else if (_isTimestamp(value)) {
+        // TimestampをISO8601文字列に変換
+        final timestamp = value as dynamic;
+        final dateTime = timestamp.toDate() as DateTime;
+        jsonData[key] = dateTime.toIso8601String();
+      } else if (value is Map) {
+        // ネストされたMapを再帰的に変換
+        jsonData[key] = _convertFirestoreToJson(Map<String, dynamic>.from(value));
+      } else if (value is List) {
+        // リスト内の要素を変換
+        jsonData[key] = value.map((item) {
+          if (item is Map) {
+            return _convertFirestoreToJson(Map<String, dynamic>.from(item));
+          } else if (_isTimestamp(item)) {
+            final timestamp = item as dynamic;
+            return timestamp.toDate().toIso8601String();
+          }
+          return item;
+        }).toList();
+      } else {
+        // その他の値はそのまま
+        jsonData[key] = value;
+      }
+    }
+    
+    return jsonData;
+  }
+  
+  /// 値がTimestamp型かどうかを判定
+  static bool _isTimestamp(dynamic value) {
+    return value.runtimeType.toString().contains('Timestamp');
+  }
 
   /// データがFirestore形式かJSON形式かを判定
   /// 
   /// Timestamp型のフィールドが含まれている場合はFirestore形式と判定
+  /// パフォーマンス最適化: _isTimestamp関数を再利用
   static bool _isFirestoreFormat(Map<String, dynamic> data) {
     for (final value in data.values) {
-      // Timestampクラスの型チェック
-      if (value.runtimeType.toString().contains('Timestamp')) {
+      if (_isTimestamp(value)) {
         return true;
+      }
+      // ネストされたMapやListもチェック
+      if (value is Map) {
+        if (_isFirestoreFormat(Map<String, dynamic>.from(value))) {
+          return true;
+        }
+      } else if (value is List) {
+        for (final item in value) {
+          if (_isTimestamp(item)) {
+            return true;
+          }
+        }
       }
     }
     return false;

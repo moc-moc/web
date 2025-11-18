@@ -9,6 +9,7 @@ import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/setting/settings_functions.dart';
 import 'package:test_flutter/feature/total/total_functions.dart';
 import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
+import 'package:test_flutter/feature/statistics/statistics_functions.dart';
 
 /// アプリ全体で1回だけ呼び出すグローバル初期化関数
 class AppInitUN {
@@ -17,7 +18,6 @@ class AppInitUN {
   /// グローバルなProviderContainerを設定
   static void setGlobalContainer(ProviderContainer container) {
     _globalContainer = container;
-    debugPrint('✅ グローバルProviderContainerを設定しました');
   }
 
   /// グローバルなProviderContainerを取得
@@ -28,16 +28,18 @@ class AppInitUN {
   /// アプリ起動時の包括的な初期化
   static Future<AppContext?> initializeWithAuth() async {
     try {
+      // 認証復元
       final userInfo = await AuthServiceUN.initializeAuth();
-
       if (userInfo == null) {
-        debugPrint('ℹ️ [initializeWithAuth] 認証されていないため、データ読み込みをスキップします');
+        debugPrint('❌ 認証復元');
         return null;
       }
+      debugPrint('✅ 認証復元');
+      debugPrint('✅ ${userInfo.email}');
 
       final appContext = await initialize();
 
-      // データ読み込みを実行
+      // データ読み込みを実行（カテゴリーごとに結果を表示）
       await loadAllData();
 
       return appContext;
@@ -53,154 +55,153 @@ class AppInitUN {
   /// アプリ起動時と認証成功時の両方で使用されます。
   static Future<void> loadAllData() async {
     try {
-      debugPrint('🔄 [loadAllData] データ読み込み開始');
+      // 各カテゴリーの読み込み結果を追跡
+      bool countdownSuccess = false;
+      bool streakSuccess = false;
+      bool goalSuccess = false;
+      bool totalSuccess = false;
+      bool trackingSuccess = false;
 
-      await _loadCountdownData();
-      await _loadStreakData();
-      await _loadGoalData();
-      await _loadTotalData();
-      await _loadTrackingData();
-      await _loadSettingsData();
+      // カウントダウン
+      try {
+        await _loadCountdownData();
+        countdownSuccess = true;
+      } catch (e) {
+        debugPrint('⚠️ データカウントダウン');
+      }
 
-      debugPrint('✅ [loadAllData] すべてのデータ読み込み完了');
+      // ストリーク
+      try {
+        await _loadStreakData();
+        streakSuccess = true;
+      } catch (e) {
+        debugPrint('⚠️ データストリーク');
+      }
+
+      // ゴール
+      try {
+        await _loadGoalData();
+        goalSuccess = true;
+      } catch (e) {
+        debugPrint('⚠️ データゴール');
+      }
+
+      // トータル
+      try {
+        await _loadTotalData();
+        totalSuccess = true;
+      } catch (e) {
+        debugPrint('⚠️ データトータル');
+      }
+
+      // トラッキング
+      try {
+        await _loadTrackingData();
+        trackingSuccess = true;
+      } catch (e) {
+        debugPrint('⚠️ データトラッキング');
+      }
+
+      // 統計データ（個別に追跡）
+      bool dailyStatisticsSuccess = false;
+      bool weeklyStatisticsSuccess = false;
+      bool monthlyStatisticsSuccess = false;
+      bool yearlyStatisticsSuccess = false;
+
+      try {
+        final results = await _loadStatisticsData();
+        dailyStatisticsSuccess = results['daily'] ?? false;
+        weeklyStatisticsSuccess = results['weekly'] ?? false;
+        monthlyStatisticsSuccess = results['monthly'] ?? false;
+        yearlyStatisticsSuccess = results['yearly'] ?? false;
+      } catch (e) {
+        debugPrint('⚠️ データ統計');
+      }
+
+      // 設定（個別に追跡）
+      bool accountSettingsSuccess = false;
+      bool notificationSettingsSuccess = false;
+      bool displaySettingsSuccess = false;
+      bool timeSettingsSuccess = false;
+
+      try {
+        final container = getGlobalContainer();
+        if (container != null) {
+          try {
+            await syncAccountSettingsHelper(container);
+            accountSettingsSuccess = true;
+          } catch (e) {}
+
+          try {
+            await syncNotificationSettingsHelper(container);
+            notificationSettingsSuccess = true;
+          } catch (e) {}
+
+          try {
+            await syncDisplaySettingsHelper(container);
+            displaySettingsSuccess = true;
+          } catch (e) {}
+
+          try {
+            await syncTimeSettingsHelper(container);
+            timeSettingsSuccess = true;
+          } catch (e) {}
+        }
+      } catch (e) {
+        debugPrint('⚠️ 設定');
+      }
+
+      // 結果を表示
+      debugPrint(countdownSuccess ? '✅ データカウントダウン' : '❌ データカウントダウン');
+      debugPrint(streakSuccess ? '✅ データストリーク' : '❌ データストリーク');
+      debugPrint(goalSuccess ? '✅ データゴール' : '❌ データゴール');
+      debugPrint(totalSuccess ? '✅ データトータル' : '❌ データトータル');
+      debugPrint(trackingSuccess ? '✅ データトラッキング' : '❌ データトラッキング');
+      debugPrint(dailyStatisticsSuccess ? '✅ データ統計日次' : '❌ データ統計日次');
+      debugPrint(weeklyStatisticsSuccess ? '✅ データ統計週次' : '❌ データ統計週次');
+      debugPrint(monthlyStatisticsSuccess ? '✅ データ統計月次' : '❌ データ統計月次');
+      debugPrint(yearlyStatisticsSuccess ? '✅ データ統計年次' : '❌ データ統計年次');
+      debugPrint(accountSettingsSuccess ? '✅ 設定アカウント' : '❌ 設定アカウント');
+      debugPrint(notificationSettingsSuccess ? '✅ 設定通知' : '❌ 設定通知');
+      debugPrint(displaySettingsSuccess ? '✅ 設定表示' : '❌ 設定表示');
+      debugPrint(timeSettingsSuccess ? '✅ 設定時間' : '❌ 設定時間');
     } catch (e) {
       debugPrint('❌ [loadAllData] データ読み込みエラー: $e');
     }
   }
 
   static Future<void> _loadCountdownData() async {
-    try {
-      debugPrint('🔍 [_loadCountdownData] 開始');
-
-      final container = getGlobalContainer();
-
-      if (container == null) {
-        debugPrint('⚠️ [_loadCountdownData] ProviderContainerが設定されていません');
-        return;
-      }
-      debugPrint('🔍 [_loadCountdownData] ProviderContainer取得成功');
-
-      debugPrint('🔄 [_loadCountdownData] カウントダウンデータを同期中...');
-      final countdowns = await syncCountdownsHelper(container);
-      debugPrint(
-        '✅ [_loadCountdownData] カウントダウンデータ読み込み完了: ${countdowns.length}件',
-      );
-    } catch (e) {
-      debugPrint('❌ [_loadCountdownData] カウントダウンデータ読み込みエラー: $e');
-    }
+    final container = getGlobalContainer();
+    if (container == null) throw Exception('Container is null');
+    await syncCountdownsHelper(container);
   }
 
   static Future<void> _loadStreakData() async {
-    try {
-      debugPrint('🔍 [_loadStreakData] 開始');
-
-      final container = getGlobalContainer();
-
-      if (container == null) {
-        debugPrint('⚠️ [_loadStreakData] ProviderContainerが設定されていません');
-        return;
-      }
-      debugPrint('🔍 [_loadStreakData] ProviderContainer取得成功');
-
-      debugPrint('🔄 [_loadStreakData] Streakデータを同期中...');
-      final streakData = await syncStreakDataHelper(container);
-      debugPrint(
-        '✅ [_loadStreakData] Streakデータ読み込み完了: ${streakData.currentStreak}日連続',
-      );
-    } catch (e) {
-      debugPrint('❌ [_loadStreakData] Streakデータ読み込みエラー: $e');
-    }
+    final container = getGlobalContainer();
+    if (container == null) throw Exception('Container is null');
+    await syncStreakDataHelper(container);
   }
 
   static Future<void> _loadGoalData() async {
-    try {
-      debugPrint('🔍 [_loadGoalData] 開始');
-
-      final container = getGlobalContainer();
-
-      if (container == null) {
-        debugPrint('⚠️ [_loadGoalData] ProviderContainerが設定されていません');
-        return;
-      }
-      debugPrint('🔍 [_loadGoalData] ProviderContainer取得成功');
-
-      debugPrint('🔄 [_loadGoalData] Goalデータを同期中...');
-      final goals = await syncGoalsHelper(container);
-      debugPrint('✅ [_loadGoalData] Goalデータ読み込み完了: ${goals.length}件');
-    } catch (e) {
-      debugPrint('❌ [_loadGoalData] Goalデータ読み込みエラー: $e');
-    }
+    final container = getGlobalContainer();
+    if (container == null) throw Exception('Container is null');
+    await syncGoalsHelper(container);
   }
 
   static Future<void> _loadTotalData() async {
-    try {
-      debugPrint('🔍 [_loadTotalData] 開始');
-
-      final container = getGlobalContainer();
-
-      if (container == null) {
-        debugPrint('⚠️ [_loadTotalData] ProviderContainerが設定されていません');
-        return;
-      }
-      debugPrint('🔍 [_loadTotalData] ProviderContainer取得成功');
-
-      debugPrint('🔄 [_loadTotalData] Totalデータを同期中...');
-      final totalData = await syncTotalDataHelper(container);
-      debugPrint(
-        '✅ [_loadTotalData] Totalデータ読み込み完了: ${totalData.totalLoginDays}日、${totalData.totalWorkTimeMinutes}分',
-      );
-    } catch (e) {
-      debugPrint('❌ [_loadTotalData] Totalデータ読み込みエラー: $e');
-    }
+    final container = getGlobalContainer();
+    if (container == null) throw Exception('Container is null');
+    await syncTotalDataHelper(container);
   }
 
   static Future<void> _loadTrackingData() async {
-    try {
-      debugPrint('🔍 [_loadTrackingData] 開始');
-
-      final container = getGlobalContainer();
-
-      if (container == null) {
-        debugPrint('⚠️ [_loadTrackingData] ProviderContainerが設定されていません');
-        return;
-      }
-      debugPrint('🔍 [_loadTrackingData] ProviderContainer取得成功');
-
-      final sessions = await syncTrackingSessionsHelper(container);
-      debugPrint('✅ [_loadTrackingData] トラッキングデータ読み込み完了: ${sessions.length}件');
-    } catch (e) {
-      debugPrint('❌ [_loadTrackingData] トラッキングデータ読み込みエラー: $e');
-    }
+    final container = getGlobalContainer();
+    if (container == null) throw Exception('Container is null');
+    await syncTrackingSessionsHelper(container);
   }
 
-  static Future<void> _loadSettingsData() async {
-    try {
-      debugPrint('🔍 [_loadSettingsData] 開始');
-
-      final container = getGlobalContainer();
-
-      if (container == null) {
-        debugPrint('⚠️ [_loadSettingsData] ProviderContainerが設定されていません');
-        return;
-      }
-      debugPrint('🔍 [_loadSettingsData] ProviderContainer取得成功');
-
-      debugPrint('🔄 [_loadSettingsData] アカウント設定を同期中...');
-      await syncAccountSettingsHelper(container);
-
-      debugPrint('🔄 [_loadSettingsData] 通知設定を同期中...');
-      await syncNotificationSettingsHelper(container);
-
-      debugPrint('🔄 [_loadSettingsData] 表示設定を同期中...');
-      await syncDisplaySettingsHelper(container);
-
-      debugPrint('🔄 [_loadSettingsData] 時間設定を同期中...');
-      await syncTimeSettingsHelper(container);
-
-      debugPrint('✅ [_loadSettingsData] 設定データ読み込み完了');
-    } catch (e) {
-      debugPrint('❌ [_loadSettingsData] 設定データ読み込みエラー: $e');
-    }
+  static Future<Map<String, bool>> _loadStatisticsData() async {
+    return await syncAllStatisticsHelper();
   }
 
   /// アプリの初期化処理を実行
@@ -222,16 +223,13 @@ class AppInitUN {
       try {
         token = await AuthMk.getUserIdToken();
       } catch (e) {
-        debugPrint('⚠️ トークン取得に失敗しました。SecureStorageから取得を試みます: $e');
+        // トークン取得失敗時はSecureStorageから取得を試みる
       }
 
       final storedInfo = await SecureStorageMk.getUserInfoFromStorage();
 
       if (token == null || token.isEmpty) {
         token = storedInfo['token'];
-        if (token == null || token.isEmpty) {
-          debugPrint('⚠️ トークンが取得できませんでした。一部機能が制限される可能性があります。');
-        }
       }
 
       return AppContext(

@@ -112,6 +112,8 @@ class AppTimePicker extends StatelessWidget {
   final String? placeholder;
   final TimeOfDay? selectedTime;
   final ValueChanged<TimeOfDay> onTimeSelected;
+  final Color? backgroundColor;
+  final Color? labelColor;
 
   const AppTimePicker({
     super.key,
@@ -119,6 +121,8 @@ class AppTimePicker extends StatelessWidget {
     this.placeholder,
     this.selectedTime,
     required this.onTimeSelected,
+    this.backgroundColor,
+    this.labelColor,
   });
 
   @override
@@ -130,7 +134,7 @@ class AppTimePicker extends StatelessWidget {
           Text(
             label!,
             style: AppTextStyles.body2.copyWith(
-              color: AppColors.textSecondary,
+              color: labelColor ?? AppColors.textSecondary,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -165,7 +169,7 @@ class AppTimePicker extends StatelessWidget {
               vertical: AppSpacing.md,
             ),
             decoration: BoxDecoration(
-              color: AppColors.backgroundCard,
+              color: backgroundColor ?? AppColors.backgroundCard,
               borderRadius: BorderRadius.circular(AppRadius.medium),
             ),
             child: Row(

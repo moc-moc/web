@@ -99,7 +99,7 @@ final class StreakDataNotifierProvider
 }
 
 String _$streakDataNotifierHash() =>
-    r'6b19dbcbae4f852cfc7d38ee3878c35ec858b552';
+    r'1e3699a8ed235f3264d6378107c2b629f2988588';
 
 /// 連続継続日数機能用の関数群
 ///

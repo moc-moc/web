@@ -90,9 +90,27 @@ class GoalDataManager extends BaseHiveDataManager<Goal> {
   }
 
   /// アクティブな目標のみを取得（認証自動取得版）
+  /// 
+  /// Firestoreクエリで`isDeleted=false`をフィルタリングして取得（パフォーマンス最適化）
   Future<List<Goal>> getActiveGoalsWithAuth() async {
-    final goals = await getAllGoalsWithAuth();
-    return goals.where((goal) => !goal.isDeleted).toList();
+    try {
+      final userId = FirebaseAuth.instance.currentUser?.uid;
+      if (userId == null) {
+        debugPrint('⚠️ [getActiveGoalsWithAuth] ユーザー未認証');
+        return [];
+      }
+      
+      // FirestoreクエリでisDeleted=falseをフィルタリング
+      return await manager.getAllWithQuery(
+        userId,
+        whereConditions: {'isDeleted': false},
+      );
+    } catch (e) {
+      debugPrint('❌ [getActiveGoalsWithAuth] クエリ取得エラー: $e');
+      // フォールバック: 全取得後にフィルタリング
+      final goals = await getAllGoalsWithAuth();
+      return goals.where((goal) => !goal.isDeleted).toList();
+    }
   }
 
   /// Firestoreから直接目標を取得（認証自動取得版）
@@ -100,10 +118,7 @@ class GoalDataManager extends BaseHiveDataManager<Goal> {
   /// ローカルキャッシュを無視して、Firestoreから最新データを取得します。
   Future<List<Goal>> getGoalsFromFirestoreWithAuth() async {
     try {
-      debugPrint('🔍 [getGoalsFromFirestoreWithAuth] Firestoreから直接取得開始');
-      final goals = await manager.getAllWithAuth();
-      debugPrint('✅ [getGoalsFromFirestoreWithAuth] Firestoreから取得成功: ${goals.length}件');
-      return goals;
+      return await manager.getAllWithAuth();
     } catch (e) {
       debugPrint('❌ [getGoalsFromFirestoreWithAuth] 取得エラー: $e');
       return [];
@@ -118,7 +133,6 @@ class GoalDataManager extends BaseHiveDataManager<Goal> {
       // 現在の目標を取得
       final goal = await manager.getById(userId, id);
       if (goal == null) {
-        debugPrint('❌ 目標が見つかりません: $id');
         return false;
       }
 
@@ -141,7 +155,6 @@ class GoalDataManager extends BaseHiveDataManager<Goal> {
   Future<bool> recordAchievementWithAuth(String id, int achievedTime) async {
     final currentUser = FirebaseAuth.instance.currentUser;
     if (currentUser == null) {
-      debugPrint('⚠️ 未ログイン');
       return false;
     }
     return await recordAchievement(currentUser.uid, id, achievedTime);

@@ -1,29 +1,32 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/presentation/widgets/camera_preview_widget.dart';
-import 'package:test_flutter/dummy_data/goal_data.dart';
 import 'package:test_flutter/feature/tracking/tracking_functions.dart';
+import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_controller.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_result.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';
 import 'package:test_flutter/data/services/log_service.dart';
+import 'package:test_flutter/feature/goals/goal_functions.dart';
+import 'package:test_flutter/feature/goals/goal_model.dart';
 
 /// トラッキング中画面（新デザインシステム版）
-class TrackingScreenNew extends StatefulWidget {
+class TrackingScreenNew extends ConsumerStatefulWidget {
   const TrackingScreenNew({super.key});
 
   @override
-  State<TrackingScreenNew> createState() => _TrackingScreenNewState();
+  ConsumerState<TrackingScreenNew> createState() => _TrackingScreenNewState();
 }
 
-class _TrackingScreenNewState extends State<TrackingScreenNew> {
+class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   Timer? _timer;
   int _elapsedSeconds = 0;
   bool _isCameraOn = true;
@@ -56,6 +59,9 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
   
   // 最後の検出結果の信頼度（セッション終了時に使用）
   double? _lastDetectionConfidence;
+
+  // 停止処理中フラグ
+  bool _isStopping = false;
 
   // カテゴリのテーマカラー
   static const Color _studyColor = AppColors.green; // 緑
@@ -292,8 +298,11 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
   }
   
   /// 現在のカテゴリの経過時間を含めた秒数を取得
-  int _getCurrentCategorySeconds(int baseSeconds) {
-    if (_currentDetection != null && _categoryStartTime != null) {
+  /// 
+  /// [category]が現在検出されているカテゴリと一致する場合のみ、経過時間を加算します。
+  int _getCurrentCategorySeconds(int baseSeconds, String category) {
+    // 現在検出されているカテゴリと一致する場合のみ、経過時間を加算
+    if (_currentDetection == category && _categoryStartTime != null) {
       final now = DateTime.now();
       final duration = now.difference(_categoryStartTime!);
       return baseSeconds + duration.inSeconds;
@@ -302,113 +311,192 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
   }
 
   void _handleStop() async {
-    _timer?.cancel();
+    // 既に処理中の場合は何もしない
+    if (_isStopping) return;
     
-    final sessionEndTime = DateTime.now();
-    
-    // 最後のカテゴリの期間を確定して時間を加算
-    _finalizeCurrentPeriod(sessionEndTime);
-
-    // セッションデータを作成
-    if (_sessionStartTime != null) {
-      // デバッグ: カテゴリ別時間をログに出力
-      LogMk.logDebug(
-        '📊 カテゴリ別時間（セッション作成前）',
-        tag: 'TrackingScreen._handleStop',
-      );
-      LogMk.logDebug(
-        '  study: $_studySeconds秒',
-        tag: 'TrackingScreen._handleStop',
-      );
-      LogMk.logDebug(
-        '  pc: $_pcSeconds秒',
-        tag: 'TrackingScreen._handleStop',
-      );
-      LogMk.logDebug(
-        '  smartphone: $_smartphoneSeconds秒',
-        tag: 'TrackingScreen._handleStop',
-      );
-      LogMk.logDebug(
-        '  personOnly: $_personOnlySeconds秒',
-        tag: 'TrackingScreen._handleStop',
-      );
-      
-      // 次のセッションIDを取得
-      final nextSessionId = await _sessionManager.getNextSessionId();
-      
-      var session = TrackingSession(
-        id: nextSessionId,
-        startTime: _sessionStartTime!,
-        endTime: sessionEndTime,
-        categorySeconds: {
-          'study': _studySeconds,
-          'pc': _pcSeconds,
-          'smartphone': _smartphoneSeconds,
-          'personOnly': _personOnlySeconds,
-        },
-        detectionPeriods: _detectionPeriods,
-        lastModified: DateTime.now(),
-      );
-
-      // データ整合性チェックと自動修正
-      final validation = session.validateData();
-      if (!validation.$1) {
-        LogMk.logWarning(
-          '⚠️ データ整合性の問題を検出しました:',
-          tag: 'TrackingScreen._handleStop',
-        );
-        for (final issue in validation.$2) {
-          LogMk.logWarning('  - $issue', tag: 'TrackingScreen._handleStop');
-        }
-        
-        // detectionPeriodsからcategorySecondsを再計算して修正
-        final recalculated = session.recalculateCategorySeconds();
-        session = session.copyWith(categorySeconds: recalculated);
-        LogMk.logDebug(
-          '✅ categorySecondsを再計算して修正しました',
-          tag: 'TrackingScreen._handleStop',
-        );
-      }
-
-      // ログに出力
-      _logSessionData(session);
-
-      // データベースに保存
-      try {
-        await _sessionManager.addSessionWithAuth(session);
-        LogMk.logDebug(
-          '✅ トラッキングセッションを保存しました: ${session.id}',
-          tag: 'TrackingScreen._handleStop',
-        );
-      } catch (e, stackTrace) {
-        LogMk.logError(
-          '❌ トラッキングセッションの保存に失敗しました: $e',
-          tag: 'TrackingScreen._handleStop',
-          stackTrace: stackTrace,
-        );
-      }
-    }
-
-    // 検出を停止
-    await _detectionController?.stop();
-    
-    // ストリーム購読を停止
-    await _detectionSubscription?.cancel();
-    _detectionSubscription = null;
-    
-    // カメラリソースを解放
-    await _detectionController?.dispose();
-    await _cameraManager?.dispose();
-    
-    // 状態をクリア
+    // 処理中フラグを設定
     setState(() {
-      _detectionController = null;
-      _cameraManager = null;
+      _isStopping = true;
     });
     
-    // 次の画面へ遷移
+    // ローディングダイアログを表示
     if (mounted) {
-      NavigationHelper.push(context, AppRoutes.trackingFinishedNew);
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => WillPopScope(
+          onWillPop: () async => false,
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            child: Container(
+              padding: EdgeInsets.all(AppSpacing.xl),
+              decoration: BoxDecoration(
+                color: AppColors.backgroundCard,
+                borderRadius: BorderRadius.circular(AppRadius.large),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(
+                    color: AppColors.blue,
+                  ),
+                  SizedBox(height: AppSpacing.lg),
+                  Text(
+                    '処理中...',
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    
+    try {
+      // ===== 最優先: カメラ機能とモデルの検出を終了 =====
+      // タイマーを停止
+      _timer?.cancel();
+      
+      // 検出を停止
+      await _detectionController?.stop();
+      
+      // ストリーム購読を停止
+      await _detectionSubscription?.cancel();
+      _detectionSubscription = null;
+      
+      // カメラリソースを解放
+      await _detectionController?.dispose();
+      await _cameraManager?.dispose();
+      
+      // 状態をクリア
+      setState(() {
+        _detectionController = null;
+        _cameraManager = null;
+      });
+      
+      // ===== その後: セッションデータの処理 =====
+      final sessionEndTime = DateTime.now();
+      
+      // 最後のカテゴリの期間を確定して時間を加算
+      _finalizeCurrentPeriod(sessionEndTime);
+
+      // セッションデータを作成
+      if (_sessionStartTime != null) {
+        // デバッグ: カテゴリ別時間をログに出力
+        LogMk.logDebug(
+          '📊 カテゴリ別時間（セッション作成前）',
+          tag: 'TrackingScreen._handleStop',
+        );
+        LogMk.logDebug(
+          '  study: $_studySeconds秒',
+          tag: 'TrackingScreen._handleStop',
+        );
+        LogMk.logDebug(
+          '  pc: $_pcSeconds秒',
+          tag: 'TrackingScreen._handleStop',
+        );
+        LogMk.logDebug(
+          '  smartphone: $_smartphoneSeconds秒',
+          tag: 'TrackingScreen._handleStop',
+        );
+        LogMk.logDebug(
+          '  personOnly: $_personOnlySeconds秒',
+          tag: 'TrackingScreen._handleStop',
+        );
+        
+        // セッション開始時刻からIDを生成（日時ベース）
+        final nextSessionId = await _sessionManager.getNextSessionId(_sessionStartTime!);
+        
+        var session = TrackingSession(
+          id: nextSessionId,
+          startTime: _sessionStartTime!,
+          endTime: sessionEndTime,
+          categorySeconds: {
+            'study': _studySeconds,
+            'pc': _pcSeconds,
+            'smartphone': _smartphoneSeconds,
+            'personOnly': _personOnlySeconds,
+          },
+          detectionPeriods: _detectionPeriods,
+          lastModified: DateTime.now(),
+        );
+
+        // データ整合性チェックと自動修正
+        final validation = session.validateData();
+        if (!validation.$1) {
+          LogMk.logWarning(
+            '⚠️ データ整合性の問題を検出しました:',
+            tag: 'TrackingScreen._handleStop',
+          );
+          for (final issue in validation.$2) {
+            LogMk.logWarning('  - $issue', tag: 'TrackingScreen._handleStop');
+          }
+          
+          // detectionPeriodsからcategorySecondsを再計算して修正
+          final recalculated = session.recalculateCategorySeconds();
+          session = session.copyWith(categorySeconds: recalculated);
+          LogMk.logDebug(
+            '✅ categorySecondsを再計算して修正しました',
+            tag: 'TrackingScreen._handleStop',
+          );
+        }
+
+        // ログに出力
+        _logSessionData(session);
+
+        // ローカルのみに保存（統計集計用、Firestoreには保存しない）
+        try {
+          await _sessionManager.addSessionWithAuth(session);
+          // Providerを更新して、report画面などで最新データが表示されるようにする
+          ref.read(trackingSessionsProvider.notifier).upsertSession(session);
+          LogMk.logDebug(
+            '✅ トラッキングセッションをローカルに保存しました: ${session.id}',
+            tag: 'TrackingScreen._handleStop',
+          );
+        } catch (e, stackTrace) {
+          LogMk.logError(
+            '❌ トラッキングセッションの保存に失敗しました: $e',
+            tag: 'TrackingScreen._handleStop',
+            stackTrace: stackTrace,
+          );
+        }
+      }
+      
+      // ローディングダイアログを閉じる
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      
+      // 次の画面へ遷移
+      if (mounted) {
+        NavigationHelper.push(context, AppRoutes.trackingFinishedNew);
+      }
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        '❌ 停止処理中にエラーが発生しました: $e',
+        tag: 'TrackingScreen._handleStop',
+        stackTrace: stackTrace,
+      );
+      
+      // エラーが発生してもローディングダイアログを閉じる
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+      
+      // エラーが発生しても次の画面へ遷移
+      if (mounted) {
+        NavigationHelper.push(context, AppRoutes.trackingFinishedNew);
+      }
+    } finally {
+      // 処理中フラグをリセット
+      if (mounted) {
+        setState(() {
+          _isStopping = false;
+        });
+      }
     }
   }
 
@@ -816,7 +904,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
     final isDetected = _currentDetection == category;
     
     // 現在のカテゴリの場合は、追加で経過時間を加算
-    final displaySeconds = _getCurrentCategorySeconds(seconds);
+    final displaySeconds = _getCurrentCategorySeconds(seconds, category);
 
     return Container(
       decoration: BoxDecoration(
@@ -889,14 +977,21 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
 
 
   Widget _buildGoalProgress() {
-    // 今日の目標を取得（study, pc, smartphoneのみ）
-    final activeGoals = todaysGoals.where((goal) => 
-      goal.category == 'study' || 
-      goal.category == 'pc' || 
-      goal.category == 'smartphone'
-    ).toList();
+    final goals = ref.watch(goalsListProvider);
+    
+    // 今日の目標をフィルタリング（期間が今日を含む目標）
+    final now = DateTime.now();
+    final todaysGoals = goals.where((goal) {
+      final endDate = goal.startDate.add(Duration(days: goal.durationDays));
+      return now.isAfter(goal.startDate.subtract(const Duration(days: 1))) &&
+          now.isBefore(endDate.add(const Duration(days: 1)));
+    }).where((goal) => 
+      goal.detectionItem == DetectionItem.book || 
+      goal.detectionItem == DetectionItem.pc || 
+      goal.detectionItem == DetectionItem.smartphone
+    ).take(4).toList();
 
-    if (activeGoals.isEmpty) {
+    if (todaysGoals.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -921,17 +1016,19 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
         child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          ...activeGoals.asMap().entries.map((entry) {
+          ...todaysGoals.asMap().entries.map((entry) {
             final index = entry.key;
             final goal = entry.value;
-            final color = _getGoalColor(goal.category);
-            final currentHours = _getCurrentHours(goal.category);
-            final progress = (currentHours / goal.targetHours).clamp(0.0, 1.0);
-            final isDetected = _currentDetection == goal.category;
+            final category = _getCategoryFromDetectionItem(goal.detectionItem);
+            final color = _getGoalColor(category);
+            final currentHours = _getCurrentHours(category);
+            final targetHours = goal.targetTime / 3600.0;
+            final progress = (currentHours / targetHours).clamp(0.0, 1.0);
+            final isDetected = _currentDetection == category;
             
             return Padding(
               padding: EdgeInsets.only(
-                bottom: index < activeGoals.length - 1 ? AppSpacing.md : 0,
+                bottom: index < todaysGoals.length - 1 ? AppSpacing.md : 0,
               ),
               child: Container(
                 padding: EdgeInsets.all(AppSpacing.md),
@@ -972,7 +1069,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
                       children: [
                         Flexible(
                           child: Text(
-                            '${_formatTimeWithSeconds((currentHours * 3600).round())} / ${goal.targetHours.toStringAsFixed(1)}h',
+                            '${_formatTimeWithSeconds((currentHours * 3600).round())} / ${targetHours.toStringAsFixed(1)}h',
                             style: AppTextStyles.body2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -998,6 +1095,17 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
     );
   }
 
+  String _getCategoryFromDetectionItem(DetectionItem item) {
+    switch (item) {
+      case DetectionItem.book:
+        return 'study';
+      case DetectionItem.pc:
+        return 'pc';
+      case DetectionItem.smartphone:
+        return 'smartphone';
+    }
+  }
+
   Color _getGoalColor(String category) {
     switch (category) {
       case 'study':
@@ -1015,13 +1123,13 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
     int seconds;
     switch (category) {
       case 'study':
-        seconds = _getCurrentCategorySeconds(_studySeconds);
+        seconds = _getCurrentCategorySeconds(_studySeconds, category);
         break;
       case 'pc':
-        seconds = _getCurrentCategorySeconds(_pcSeconds);
+        seconds = _getCurrentCategorySeconds(_pcSeconds, category);
         break;
       case 'smartphone':
-        seconds = _getCurrentCategorySeconds(_smartphoneSeconds);
+        seconds = _getCurrentCategorySeconds(_smartphoneSeconds, category);
         break;
       default:
         return 0.0;

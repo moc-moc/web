@@ -1,24 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/app_bars.dart';
 import 'package:test_flutter/presentation/widgets/buttons.dart';
 import 'package:test_flutter/presentation/widgets/input_fields.dart';
-import 'package:test_flutter/dummy_data/user_data.dart';
+import 'package:test_flutter/feature/setting/account_settings_notifier.dart';
 
 /// アカウント設定画面（新デザインシステム版）
-class AccountSettingsScreenNew extends StatefulWidget {
+class AccountSettingsScreenNew extends ConsumerStatefulWidget {
   const AccountSettingsScreenNew({super.key});
 
   @override
-  State<AccountSettingsScreenNew> createState() =>
+  ConsumerState<AccountSettingsScreenNew> createState() =>
       _AccountSettingsScreenNewState();
 }
 
-class _AccountSettingsScreenNewState extends State<AccountSettingsScreenNew> {
+class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreenNew> {
   late TextEditingController _nameController;
   late TextEditingController _bioController;
   String _selectedColor = 'blue';
+  bool _isLoading = true;
 
   final List<Map<String, dynamic>> _avatarColors = [
     {'name': 'blue', 'color': AppColors.blue},
@@ -31,8 +33,27 @@ class _AccountSettingsScreenNewState extends State<AccountSettingsScreenNew> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: dummyUser.name);
-    _bioController = TextEditingController(text: dummyUser.bio);
+    _nameController = TextEditingController();
+    _bioController = TextEditingController();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadSettings();
+    });
+  }
+
+  Future<void> _loadSettings() async {
+    try {
+      await syncAccountSettingsHelper(ref);
+      final settings = ref.read(accountSettingsProvider);
+      setState(() {
+        _nameController.text = settings.accountName;
+        _selectedColor = settings.avatarColor;
+        _isLoading = false;
+      });
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -42,18 +63,38 @@ class _AccountSettingsScreenNewState extends State<AccountSettingsScreenNew> {
     super.dispose();
   }
 
-  void _handleSave() {
-    // ダミー: 保存処理
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Text('Settings saved!'),
-        backgroundColor: AppColors.success,
-      ),
+  Future<void> _handleSave() async {
+    final currentSettings = ref.read(accountSettingsProvider);
+    final updatedSettings = currentSettings.copyWith(
+      accountName: _nameController.text.isNotEmpty ? _nameController.text : 'ユーザー',
+      avatarColor: _selectedColor,
+      lastModified: DateTime.now(),
     );
+
+    final success = await saveAccountSettingsHelper(ref, updatedSettings);
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(success ? 'Settings saved!' : 'Failed to save settings'),
+          backgroundColor: success ? AppColors.success : AppColors.error,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return AppScaffold(
+        backgroundColor: AppColors.black,
+        appBar: AppBarWithBack(title: 'Account Settings'),
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return AppScaffold(
       backgroundColor: AppColors.black,
       appBar: AppBarWithBack(title: 'Account Settings'),

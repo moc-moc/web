@@ -104,7 +104,7 @@ class DetectionController {
   /// - `imageStream`: カメラ画像ストリーム
   /// - `interval`: 検出間隔（通常モード: 3秒、省電力モード: 10秒）
   void _startPeriodicDetection(Stream<CameraImageData> imageStream, Duration interval) {
-    bool _isProcessingDetection = false; // 検出処理中フラグ
+    bool isProcessingDetection = false; // 検出処理中フラグ
 
     // ストリームを購読するが、指定間隔ごとに1フレームだけ処理
     // それ以外のフレームは破棄（省電力のため）
@@ -131,11 +131,11 @@ class DetectionController {
           return;
         }
 
-        if (_isProcessingDetection) {
+        if (isProcessingDetection) {
           return;
         }
 
-        _isProcessingDetection = true;
+        isProcessingDetection = true;
 
         try {
           // カメラから1フレームだけ取得
@@ -149,7 +149,7 @@ class DetectionController {
             }
           }
         } finally {
-          _isProcessingDetection = false;
+          isProcessingDetection = false;
         }
       },
     );

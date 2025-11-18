@@ -139,7 +139,6 @@ class FirestoreHiveDataManager<T> {
         }
       }
       
-      await LogMk.logInfo('✅ アイテム取得完了: ${items.length}件');
       return items;
     } catch (e) {
       await LogMk.logError(' アイテム取得エラー: $e');
@@ -165,7 +164,6 @@ class FirestoreHiveDataManager<T> {
       // 2. モデルに変換
       final item = fromFirestore(data);
       
-      await LogMk.logInfo('✅ アイテム取得完了: $id');
       return item;
     } catch (e) {
       await LogMk.logError(' アイテム取得エラー: $e');
@@ -250,7 +248,6 @@ class FirestoreHiveDataManager<T> {
         }
       }
       
-      await LogMk.logInfo('✅ ローカルアイテム取得完了: ${items.length}件');
       return items;
     } catch (e) {
       await LogMk.logError(' ローカルアイテム取得エラー: $e');
@@ -277,7 +274,6 @@ class FirestoreHiveDataManager<T> {
       // 2. モデルに変換
       final item = fromJson(data);
       
-      await LogMk.logInfo('✅ ローカルアイテム取得完了: $id');
       return item;
     } catch (e) {
       await LogMk.logError(' ローカルアイテム取得エラー: $e');
@@ -289,13 +285,16 @@ class FirestoreHiveDataManager<T> {
   /// 
   Future<void> saveLocal(List<T> items) async {
     try {
-      // 1. 各アイテムをMapに変換
-      final dataList = items.map((item) => toJson(item)).toList();
+      // 1. 各アイテムをMapに変換（パフォーマンス最適化: Web環境対応）
+      // Web環境ではList.lengthを直接設定するとnullで埋められるため、add()を使用
+      final dataList = <Map<String, dynamic>>[];
+      for (final item in items) {
+        dataList.add(toJson(item));
+      }
       
       // 2. ローカルに保存
       await HiveMk.saveAllToHive(hiveBoxName, dataList);
       
-      await LogMk.logInfo('✅ ローカルアイテム保存完了: ${items.length}件');
     } catch (e) {
       await LogMk.logError(' ローカルアイテム保存エラー: $e');
     }
@@ -394,11 +393,8 @@ class FirestoreHiveDataManager<T> {
     // Phase 1: 並行実行保護
     return await LockMk.withLock(_syncLock, () async {
       try {
-        await LogMk.logInfo('同期開始: $userId', tag: 'DataManager.sync');
-        
         // 1. 最終同期時刻を取得
         final lastSyncTime = await HiveMk.getLastSyncTimeFromHive(hiveBoxName);
-        await LogMk.logDebug('最終同期時刻: $lastSyncTime', tag: 'DataManager.sync');
         
         // 2. Firestoreから差分データを取得
         List<Map<String, dynamic>> remoteDataList;
@@ -407,16 +403,13 @@ class FirestoreHiveDataManager<T> {
             collectionPathBuilder(userId),
             lastSyncTime,
           );
-          await LogMk.logDebug('Firestore差分データ取得: ${remoteDataList.length}件', tag: 'DataManager.sync');
         } else {
           // 初回同期の場合は全データを取得
           remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
-          await LogMk.logDebug('Firestore全データ取得: ${remoteDataList.length}件', tag: 'DataManager.sync');
         }
         
         // 3. ローカルデータを取得
         final localDataList = await HiveMk.getAllFromHive(hiveBoxName);
-        await LogMk.logDebug('ローカルデータ取得: ${localDataList.length}件', tag: 'DataManager.sync');
         
         // 4. データをマージ（競合解決）
         final mergedDataList = SyncMk.mergeData(
@@ -425,7 +418,6 @@ class FirestoreHiveDataManager<T> {
           idField,
           lastModifiedField,
         );
-        await LogMk.logDebug('データマージ完了: ${mergedDataList.length}件', tag: 'DataManager.sync');
         
         // 5. マージ結果をローカルに保存
         await HiveMk.saveAllToHive(hiveBoxName, mergedDataList);
@@ -440,14 +432,10 @@ class FirestoreHiveDataManager<T> {
             final item = fromJson(data);
             items.add(item);
           } catch (e) {
-            await LogMk.logWarning(
-              '同期データ変換エラー: $e',
-              tag: 'DataManager.sync',
-            );
+            // エラー時はスキップ
           }
         }
         
-        await LogMk.logInfo('同期完了: ${items.length}件', tag: 'DataManager.sync');
         return items;
       } catch (e, stackTrace) {
         final error = DataManagerError.handleError(
@@ -1009,7 +997,10 @@ class FirestoreHiveDataManager<T> {
     try {
       return FirestoreMk.watchCollection(collectionPathBuilder(userId))
           .map((dataList) {
+            // パフォーマンス最適化: Web環境対応
+            // Web環境ではList.lengthを直接設定するとnullで埋められるため、add()を使用
             final items = <T>[];
+            
             for (final data in dataList) {
               try {
                 final item = fromFirestore(data);
@@ -1018,6 +1009,7 @@ class FirestoreHiveDataManager<T> {
                 LogMk.logWarning('watchAll: データ変換エラー: $e', tag: 'DataManager.watchAll');
               }
             }
+            
             return items;
           });
     } catch (e) {
@@ -1072,8 +1064,12 @@ class FirestoreHiveDataManager<T> {
       _realtimeSyncSubscription = watchAll(userId).listen(
         (items) async {
           try {
-            // ローカルに保存
-            final dataList = items.map((item) => toJson(item)).toList();
+            // ローカルに保存（パフォーマンス最適化: Web環境対応）
+            // Web環境ではList.lengthを直接設定するとnullで埋められるため、add()を使用
+            final dataList = <Map<String, dynamic>>[];
+            for (final item in items) {
+              dataList.add(toJson(item));
+            }
             await HiveMk.saveAllToHive(hiveBoxName, dataList);
             await LogMk.logDebug('リアルタイム同期: ${items.length}件保存', tag: 'DataManager.startRealtimeSync');
           } catch (e) {

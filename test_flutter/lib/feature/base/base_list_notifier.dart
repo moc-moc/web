@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 /// リスト管理Notifierの共通メソッドを提供するヘルパークラス
 /// 
 /// 各featureのリスト管理Notifierで共通のパターンを提供します。
@@ -35,8 +33,6 @@ class BaseListNotifierHelper {
   /// - `notifier`: Notifierインスタンス（stateプロパティを持つ）
   /// - `newList`: 新しいリスト
   static void updateList<T>(dynamic notifier, List<T> newList) {
-    final currentList = notifier.state as List<T>;
-    debugPrint('🔍 [BaseListNotifierHelper.updateList] 更新前: ${currentList.length}件 → 更新後: ${newList.length}件');
     notifier.state = newList;
   }
 

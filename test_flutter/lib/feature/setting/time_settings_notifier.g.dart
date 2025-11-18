@@ -69,7 +69,7 @@ final class TimeSettingsNotifierProvider
 }
 
 String _$timeSettingsNotifierHash() =>
-    r'1e4ac94a0bba194d86249fbe99de3cbcebd97f7d';
+    r'9407c6659e62b59efa1ae824a6f47b75c6b8debb';
 
 /// 時間設定を管理するNotifier
 ///

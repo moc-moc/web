@@ -35,6 +35,27 @@ abstract class AccountSettings with _$AccountSettings {
   factory AccountSettings.fromJson(Map<String, dynamic> json) =>
       _$AccountSettingsFromJson(json);
 
+  /// JSON形式から生成（null安全版）
+  /// 
+  /// null値が含まれている場合でもデフォルト値で補完して生成します。
+  factory AccountSettings.fromJsonSafe(Map<String, dynamic> json) {
+    try {
+      return AccountSettings.fromJson(json);
+    } catch (e) {
+      // null値が含まれている場合はデフォルト値で補完
+      return AccountSettings(
+        id: json['id'] as String? ?? 'account_settings',
+        accountName: json['accountName'] as String? ?? 'ユーザー',
+        avatarColor: json['avatarColor'] as String? ?? 'blue',
+        lastModified: json['lastModified'] != null
+            ? (json['lastModified'] is String
+                ? DateTime.tryParse(json['lastModified'] as String) ?? DateTime.now()
+                : DateTime.now())
+            : DateTime.now(),
+      );
+    }
+  }
+
   /// Firestoreデータから生成
   factory AccountSettings.fromFirestore(Map<String, dynamic> data) {
     return AccountSettings(
@@ -101,6 +122,32 @@ abstract class NotificationSettings with _$NotificationSettings {
   factory NotificationSettings.fromJson(Map<String, dynamic> json) =>
       _$NotificationSettingsFromJson(json);
 
+  /// JSON形式から生成（null安全版）
+  /// 
+  /// null値が含まれている場合でもデフォルト値で補完して生成します。
+  factory NotificationSettings.fromJsonSafe(Map<String, dynamic> json) {
+    try {
+      return NotificationSettings.fromJson(json);
+    } catch (e) {
+      // null値が含まれている場合はデフォルト値で補完
+      return NotificationSettings(
+        id: json['id'] as String? ?? 'notification_settings',
+        countdownNotification: json['countdownNotification'] as bool? ?? true,
+        goalDeadlineNotification: json['goalDeadlineNotification'] as bool? ?? true,
+        streakBreakNotification: json['streakBreakNotification'] as bool? ?? true,
+        dailyReportNotification: json['dailyReportNotification'] as bool? ?? true,
+        notificationFrequency: json['notificationFrequency'] as String? ?? 'both',
+        morningTime: json['morningTime'] as String? ?? '08:30',
+        eveningTime: json['eveningTime'] as String? ?? '22:00',
+        lastModified: json['lastModified'] != null
+            ? (json['lastModified'] is String
+                ? DateTime.tryParse(json['lastModified'] as String) ?? DateTime.now()
+                : DateTime.now())
+            : DateTime.now(),
+      );
+    }
+  }
+
   /// Firestoreデータから生成
   factory NotificationSettings.fromFirestore(Map<String, dynamic> data) {
     return NotificationSettings(
@@ -165,6 +212,28 @@ abstract class DisplaySettings with _$DisplaySettings {
   factory DisplaySettings.fromJson(Map<String, dynamic> json) =>
       _$DisplaySettingsFromJson(json);
 
+  /// JSON形式から生成（null安全版）
+  /// 
+  /// null値が含まれている場合でもデフォルト値で補完して生成します。
+  factory DisplaySettings.fromJsonSafe(Map<String, dynamic> json) {
+    try {
+      return DisplaySettings.fromJson(json);
+    } catch (e) {
+      // null値が含まれている場合はデフォルト値で補完
+      return DisplaySettings(
+        id: json['id'] as String? ?? 'display_settings',
+        category1Name: json['category1Name'] as String? ?? '勉強',
+        category2Name: json['category2Name'] as String? ?? 'スマホ',
+        category3Name: json['category3Name'] as String? ?? 'パソコン',
+        lastModified: json['lastModified'] != null
+            ? (json['lastModified'] is String
+                ? DateTime.tryParse(json['lastModified'] as String) ?? DateTime.now()
+                : DateTime.now())
+            : DateTime.now(),
+      );
+    }
+  }
+
   /// Firestoreデータから生成
   factory DisplaySettings.fromFirestore(Map<String, dynamic> data) {
     return DisplaySettings(
@@ -214,6 +283,26 @@ abstract class TimeSettings with _$TimeSettings {
   /// JSON形式から生成
   factory TimeSettings.fromJson(Map<String, dynamic> json) =>
       _$TimeSettingsFromJson(json);
+
+  /// JSON形式から生成（null安全版）
+  /// 
+  /// null値が含まれている場合でもデフォルト値で補完して生成します。
+  factory TimeSettings.fromJsonSafe(Map<String, dynamic> json) {
+    try {
+      return TimeSettings.fromJson(json);
+    } catch (e) {
+      // null値が含まれている場合はデフォルト値で補完
+      return TimeSettings(
+        id: json['id'] as String? ?? 'time_settings',
+        dayBoundaryTime: json['dayBoundaryTime'] as String? ?? '24:00',
+        lastModified: json['lastModified'] != null
+            ? (json['lastModified'] is String
+                ? DateTime.tryParse(json['lastModified'] as String) ?? DateTime.now()
+                : DateTime.now())
+            : DateTime.now(),
+      );
+    }
+  }
 
   /// Firestoreデータから生成
   factory TimeSettings.fromFirestore(Map<String, dynamic> data) {

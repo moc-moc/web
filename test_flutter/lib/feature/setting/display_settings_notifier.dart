@@ -19,13 +19,11 @@ part 'display_settings_notifier.g.dart';
 class DisplaySettingsNotifier extends _$DisplaySettingsNotifier {
   @override
   DisplaySettings build() {
-    debugPrint('🔍 [DisplaySettingsNotifier.build] ★★★ Provider初期化実行（keepAlive: true）★★★');
     return DisplaySettings.defaultSettings();
   }
 
   /// 設定を更新
   void updateSettings(DisplaySettings settings) {
-    debugPrint('🔍 [DisplaySettingsNotifier.updateSettings] 設定を更新');
     state = settings;
   }
 }
@@ -40,29 +38,23 @@ class DisplaySettingsNotifier extends _$DisplaySettingsNotifier {
 /// **戻り値**: 同期された表示設定
 Future<DisplaySettings> syncDisplaySettingsHelper(dynamic ref) async {
   try {
-    debugPrint('🔍 [syncDisplaySettingsHelper] 開始');
-    
     final userId = AuthMk.getCurrentUserId();
     
     // データマネージャーで同期
     final settingsList = await displaySettingsManager.sync(userId);
-    debugPrint('🔍 [syncDisplaySettingsHelper] 同期完了: ${settingsList.length}件');
     
     // IDが 'display_settings' のものを探す
     DisplaySettings settings;
     try {
       settings = settingsList.firstWhere((s) => s.id == 'display_settings');
-      debugPrint('🔍 [syncDisplaySettingsHelper] 表示設定を取得');
     } catch (e) {
       // データがない場合はデフォルト値を作成して保存
       settings = DisplaySettings.defaultSettings();
       await displaySettingsManager.saveWithRetry(userId, settings);
-      debugPrint('🔍 [syncDisplaySettingsHelper] デフォルト設定を作成');
     }
     
     // Notifierを使用してProviderを更新
     ref.read(displaySettingsProvider.notifier).updateSettings(settings);
-    debugPrint('✅ [syncDisplaySettingsHelper] Provider更新完了');
     
     return settings;
   } catch (e) {
@@ -86,8 +78,6 @@ Future<DisplaySettings> syncDisplaySettingsHelper(dynamic ref) async {
 /// **戻り値**: 保存に成功した場合true
 Future<bool> saveDisplaySettingsHelper(dynamic ref, DisplaySettings settings) async {
   try {
-    debugPrint('🔍 [saveDisplaySettingsHelper] 開始');
-    
     final userId = AuthMk.getCurrentUserId();
     
     // 最終更新日時を更新
@@ -99,9 +89,6 @@ Future<bool> saveDisplaySettingsHelper(dynamic ref, DisplaySettings settings) as
     if (success) {
       // Notifierを使用してProviderを更新
       ref.read(displaySettingsProvider.notifier).updateSettings(updatedSettings);
-      debugPrint('✅ [saveDisplaySettingsHelper] 保存成功');
-    } else {
-      debugPrint('❌ [saveDisplaySettingsHelper] 保存失敗');
     }
     
     return success;

@@ -39,9 +39,6 @@ part 'countdown_functions.g.dart';
 class CountdownsList extends _$CountdownsList {
   @override
   List<Countdown> build() {
-    debugPrint('🔍 [CountdownsList.build] ★★★ Provider初期化実行（keepAlive: true）★★★');
-    debugPrint('🔍 [CountdownsList.build] スタックトレース:');
-    debugPrint(StackTrace.current.toString().split('\n').take(5).join('\n'));
     return [];
   }
 
@@ -199,6 +196,48 @@ Future<List<Countdown>> syncCountdownsHelper(dynamic ref) async {
   );
 }
 
+/// カウントダウンを更新するヘルパー関数
+/// 
+/// カウントダウンを更新し、Firestoreと同期します。
+/// 
+Future<bool> updateCountdownHelper({
+  required BuildContext context,
+  required dynamic ref,
+  required Countdown countdown,
+  required bool mounted,
+}) async {
+  // CountdownDataManagerのインスタンスを作成（DataUS層を使用）
+  final manager = CountdownDataManager();
+
+  // Firestoreを更新
+  final success = await manager.updateCountdownWithAuth(countdown);
+
+  if (success) {
+    // 成功: リストを再読み込み
+    await syncCountdownsHelper(ref);
+    showSnackBarMessage(
+      context,
+      'カウントダウンを更新しました',
+      mounted: mounted,
+    );
+  } else {
+    // 失敗: ローカルを更新
+    final localCountdowns = await manager.getLocalCountdowns();
+    final updatedCountdowns = localCountdowns.map((c) => c.id == countdown.id ? countdown : c).toList();
+    await manager.saveLocalCountdowns(updatedCountdowns);
+    
+    final activeCountdowns = updatedCountdowns.where((c) => !c.isDeleted).toList();
+    ref.read(countdownsListProvider.notifier).updateList(activeCountdowns);
+    showSnackBarMessage(
+      context,
+      'オフラインのため、ローカルに保存しました',
+      mounted: mounted,
+    );
+  }
+
+  return success;
+}
+
 /// カウントダウンを削除するヘルパー関数（論理削除）
 /// 
 /// カウントダウンを論理削除し、Providerから除外します。
@@ -251,8 +290,6 @@ Future<bool> deleteCountdownHelper({
 /// 
 /// **戻り値**: 削除されたカウントダウンの件数
 Future<int> deleteExpiredCountdownsHelper(dynamic ref) async {
-  debugPrint('🔍 [deleteExpiredCountdownsHelper] 期限切れチェック開始');
-  
   // 現在のカウントダウンリストを取得（型を明示的にキャスト）
   final List<Countdown> countdowns = ref.read(countdownsListProvider) as List<Countdown>;
   final now = DateTime.now();
@@ -261,8 +298,6 @@ Future<int> deleteExpiredCountdownsHelper(dynamic ref) async {
   final expiredCountdowns = countdowns.where((countdown) {
     return countdown.targetDate.isBefore(now);
   }).toList();
-  
-  debugPrint('🔍 [deleteExpiredCountdownsHelper] 期限切れ: ${expiredCountdowns.length}件');
   
   if (expiredCountdowns.isEmpty) {
     return 0;
@@ -275,8 +310,6 @@ Future<int> deleteExpiredCountdownsHelper(dynamic ref) async {
   
   // 各期限切れカウントダウンを物理削除
   for (final countdown in expiredCountdowns) {
-    debugPrint('  物理削除中: ${countdown.title} (期限: ${countdown.targetDate})');
-    
     // 物理削除を実行（Firestoreから完全に削除）
     final success = await manager.deleteCountdownWithAuth(countdown.id);
     
@@ -291,10 +324,7 @@ Future<int> deleteExpiredCountdownsHelper(dynamic ref) async {
   if (deletedCount > 0) {
     final remainingCountdowns = ref.read(countdownsListProvider);
     await manager.saveLocalCountdowns(remainingCountdowns);
-    debugPrint('🔍 [deleteExpiredCountdownsHelper] ローカルストレージ更新: ${remainingCountdowns.length}件');
   }
-  
-  debugPrint('🔍 [deleteExpiredCountdownsHelper] 物理削除完了: $deletedCount件');
   
   return deletedCount;
 }

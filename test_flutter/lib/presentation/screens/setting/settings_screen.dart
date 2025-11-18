@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
-import 'package:test_flutter/dummy_data/user_data.dart';
+import 'package:test_flutter/feature/setting/account_settings_notifier.dart';
+import 'package:test_flutter/presentation/widgets/settings_widgets.dart';
 
 /// メイン設定画面（新デザインシステム版）
-class SettingsScreenNew extends StatelessWidget {
+class SettingsScreenNew extends ConsumerWidget {
   const SettingsScreenNew({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return AppScaffold(
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
@@ -22,7 +24,7 @@ class SettingsScreenNew extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // プロフィールセクション
-              _buildProfileSection(context),
+              _buildProfileSection(context, ref),
 
               // 設定項目リスト
               _buildSettingsSection(context),
@@ -36,7 +38,15 @@ class SettingsScreenNew extends StatelessWidget {
     );
   }
 
-  Widget _buildProfileSection(BuildContext context) {
+  Widget _buildProfileSection(BuildContext context, WidgetRef ref) {
+    final accountSettings = ref.watch(accountSettingsProvider);
+    final displayName = accountSettings.accountName.isNotEmpty 
+        ? accountSettings.accountName 
+        : 'ユーザー';
+    final userId = '@${accountSettings.id}';
+    final avatarColorName = accountSettings.avatarColor;
+    final avatarColor = CustomColorPicker.colors[avatarColorName] ?? AppColors.blue;
+    
     return Container(
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
@@ -51,18 +61,18 @@ class SettingsScreenNew extends StatelessWidget {
             width: 80,
             height: 80,
             decoration: BoxDecoration(
-              color: AppColors.blue.withValues(alpha: 0.2),
+              color: avatarColor.withValues(alpha: 0.2),
               shape: BoxShape.circle,
               border: Border.all(
-                color: AppColors.blue,
+                color: avatarColor,
                 width: 2,
               ),
             ),
             child: Center(
               child: Text(
-                dummyUser.name[0],
+                displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
                 style: TextStyle(
-                  color: AppColors.blue,
+                  color: avatarColor,
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                 ),
@@ -75,10 +85,10 @@ class SettingsScreenNew extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(dummyUser.name, style: AppTextStyles.h2),
+                Text(displayName, style: AppTextStyles.h2),
                 SizedBox(height: AppSpacing.xs),
                 Text(
-                  dummyUser.userId,
+                  userId,
                   style: AppTextStyles.body2.copyWith(color: AppColors.textSecondary),
                 ),
               ],

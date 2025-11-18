@@ -167,7 +167,7 @@ abstract class TrackingSession with _$TrackingSession {
         // 空白期間のチェック
         if (lastEndTime != null && period.startTime != lastEndTime) {
           final gapSeconds = period.startTime.difference(lastEndTime).inSeconds;
-          issues.add('検出期間[$i]: 前の期間との間に${gapSeconds}秒の空白があります');
+          issues.add('検出期間[$i]: 前の期間との間に$gapSeconds秒の空白があります');
         }
         
         lastEndTime = period.endTime;
@@ -176,7 +176,7 @@ abstract class TrackingSession with _$TrackingSession {
       // セッション終了時刻との整合性チェック
       if (lastEndTime != null && lastEndTime != endTime) {
         final gapSeconds = endTime.difference(lastEndTime).inSeconds;
-        issues.add('最後の検出期間とセッション終了時刻に${gapSeconds}秒の差があります');
+        issues.add('最後の検出期間とセッション終了時刻に$gapSeconds秒の差があります');
       }
     }
     
@@ -186,7 +186,7 @@ abstract class TrackingSession with _$TrackingSession {
       final calculated = recalculated[entry.key] ?? 0;
       final stored = entry.value;
       if ((calculated - stored).abs() > 1) { // 1秒の誤差は許容
-        issues.add('カテゴリ[${entry.key}]: 保存値(${stored}秒)と計算値(${calculated}秒)が不一致です');
+        issues.add('カテゴリ[${entry.key}]: 保存値($stored秒)と計算値($calculated秒)が不一致です');
       }
     }
     
@@ -201,7 +201,7 @@ abstract class TrackingSession with _$TrackingSession {
     
     final expectedTotal = totalCategorySeconds + nothingDetectedSeconds;
     if ((sessionTotalSeconds - expectedTotal).abs() > 1) {
-      issues.add('セッション全体時間(${sessionTotalSeconds}秒)とカテゴリ別時間の合計(${expectedTotal}秒)が不一致です');
+      issues.add('セッション全体時間($sessionTotalSeconds秒)とカテゴリ別時間の合計($expectedTotal秒)が不一致です');
     }
     
     return (issues.isEmpty, issues);

@@ -1,21 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
-import 'package:test_flutter/dummy_data/user_data.dart';
-import 'package:test_flutter/dummy_data/goal_data.dart';
+import 'package:test_flutter/feature/streak/streak_functions.dart';
+import 'package:test_flutter/feature/total/total_functions.dart';
+import 'package:test_flutter/feature/goals/goal_functions.dart';
+import 'package:test_flutter/feature/goals/goal_model.dart';
 
 /// ホーム画面（新デザインシステム版）
-class HomeScreenNew extends StatelessWidget {
+class HomeScreenNew extends ConsumerWidget {
   const HomeScreenNew({super.key});
 
   static const double _statCardMinHeight = 160;
+  
+  // 目標フィルタリング結果のキャッシュ（パフォーマンス最適化）
+  static List<Goal>? _cachedTodaysGoals;
+  static DateTime? _cacheTimestamp;
+  static const _cacheExpiry = Duration(minutes: 1);
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return AppScaffold(
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
@@ -25,12 +33,12 @@ class HomeScreenNew extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 統計表示セクション
-              _buildStatsSection(),
+              _buildStatsSection(ref),
 
               SizedBox(height: AppSpacing.md),
 
               // 今日の目標表示セクション
-              _buildTodaysGoalsSection(),
+              _buildTodaysGoalsSection(ref),
 
               SizedBox(height: AppSpacing.md),
 
@@ -52,7 +60,7 @@ class HomeScreenNew extends StatelessWidget {
 
 
   /// 統計表示セクション
-  Widget _buildStatsSection() {
+  Widget _buildStatsSection(WidgetRef ref) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Column(
@@ -62,9 +70,9 @@ class HomeScreenNew extends StatelessWidget {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: _buildTotalFocusedTimeCard()),
+                Expanded(child: _buildTotalFocusedTimeCard(ref)),
                 SizedBox(width: AppSpacing.md),
-                Expanded(child: _buildStreakDaysCard()),
+                Expanded(child: _buildStreakDaysCard(ref)),
               ],
             ),
           ),
@@ -73,7 +81,9 @@ class HomeScreenNew extends StatelessWidget {
     );
   }
 
-  Widget _buildTotalFocusedTimeCard() {
+  Widget _buildTotalFocusedTimeCard(WidgetRef ref) {
+    final totalData = ref.watch(totalDataProvider);
+    final totalMinutes = totalData.totalWorkTimeMinutes;
     const accentColor = AppColors.blue;
     return Container(
       padding: EdgeInsets.all(AppSpacing.lg),
@@ -113,7 +123,7 @@ class HomeScreenNew extends StatelessWidget {
           SizedBox(height: AppSpacing.sm),
           Center(
             child: Text(
-              '${dummyUser.totalFocusedHours.toInt()}',
+              '$totalMinutes',
               style: AppTextStyles.h1.copyWith(
                 fontSize: 48,
                 color: accentColor,
@@ -135,7 +145,8 @@ class HomeScreenNew extends StatelessWidget {
     );
   }
 
-  Widget _buildStreakDaysCard() {
+  Widget _buildStreakDaysCard(WidgetRef ref) {
+    final streakData = ref.watch(streakDataProvider);
     const accentColor = AppColors.orange;
     return Container(
       padding: EdgeInsets.all(AppSpacing.lg),
@@ -175,7 +186,7 @@ class HomeScreenNew extends StatelessWidget {
           SizedBox(height: AppSpacing.sm),
           Center(
             child: Text(
-              '${dummyUser.streakDays}',
+              '${streakData.currentStreak}',
               style: AppTextStyles.h1.copyWith(
                 fontSize: 48,
                 color: accentColor,
@@ -198,7 +209,36 @@ class HomeScreenNew extends StatelessWidget {
   }
 
   /// 今日の目標表示セクション
-  Widget _buildTodaysGoalsSection() {
+  Widget _buildTodaysGoalsSection(WidgetRef ref) {
+    final goals = ref.watch(goalsListProvider);
+    
+    // キャッシュから今日の目標を取得（パフォーマンス最適化）
+    final now = DateTime.now();
+    List<Goal> todaysGoals;
+    
+    if (_cachedTodaysGoals != null && 
+        _cacheTimestamp != null && 
+        now.difference(_cacheTimestamp!) < _cacheExpiry &&
+        _cachedTodaysGoals!.isNotEmpty) {
+      // キャッシュが有効な場合は使用
+      todaysGoals = _cachedTodaysGoals!;
+    } else {
+      // 今日の目標をフィルタリング（期間が今日を含む目標）
+      todaysGoals = goals.where((goal) {
+        final endDate = goal.startDate.add(Duration(days: goal.durationDays));
+        return now.isAfter(goal.startDate.subtract(const Duration(days: 1))) &&
+            now.isBefore(endDate.add(const Duration(days: 1)));
+      }).take(4).toList();
+      
+      // キャッシュを更新
+      _cachedTodaysGoals = todaysGoals;
+      _cacheTimestamp = now;
+    }
+    
+    if (todaysGoals.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
     return Container(
       margin: EdgeInsets.symmetric(horizontal: AppSpacing.md),
       padding: EdgeInsets.all(AppSpacing.md),
@@ -221,26 +261,70 @@ class HomeScreenNew extends StatelessWidget {
             ),
           ),
           SizedBox(height: AppSpacing.sm),
-          ...todaysGoals.map((goal) {
-            final color = _getGoalColor(goal.category);
-            return Padding(
-              padding: EdgeInsets.only(bottom: AppSpacing.sm),
-              child: GoalProgressCard(
-                goalName: goal.title,
-                percentage: goal.progress,
-                currentValue: '${goal.currentHours.toStringAsFixed(1)}h',
-                targetValue: '${goal.targetHours.toStringAsFixed(1)}h',
-                progressColor: color,
-                labelColor: color,
-                borderColor: color.withValues(alpha: 0.4),
-                backgroundColor: color.withValues(alpha: 0.1),
-                barBackgroundColor: AppColors.disabledGray.withValues(alpha: 0.2), // 透明度を追加
-              ),
-            );
-          }),
+          ...todaysGoals.map((goal) => _buildGoalCard(goal)),
         ],
       ),
     );
+  }
+  
+  /// 目標カードを構築（計算結果をキャッシュ）
+  Widget _buildGoalCard(Goal goal) {
+    final category = _getCategoryFromDetectionItem(goal.detectionItem);
+    final color = _getGoalColor(category);
+    
+    // 時間を分に変換して表示（メモ化）
+    final currentMinutes = (goal.achievedTime ?? 0) ~/ 60;
+    final targetMinutes = goal.targetTime ~/ 60;
+    
+    // 時間フォーマット（メモ化関数を使用）
+    final currentValue = _formatMinutes(currentMinutes);
+    final targetValue = _formatMinutes(targetMinutes);
+    
+    // 進捗率の計算
+    final percentage = targetMinutes > 0 
+        ? (currentMinutes / targetMinutes).clamp(0.0, 1.0)
+        : 0.0;
+    
+    return Padding(
+      padding: EdgeInsets.only(bottom: AppSpacing.sm),
+      child: GoalProgressCard(
+        goalName: goal.title,
+        percentage: percentage,
+        currentValue: currentValue,
+        targetValue: targetValue,
+        progressColor: color,
+        labelColor: color,
+        borderColor: color.withValues(alpha: 0.4),
+        backgroundColor: color.withValues(alpha: 0.1),
+        barBackgroundColor: AppColors.disabledGray.withValues(alpha: 0.2),
+      ),
+    );
+  }
+  
+  /// 分を時間フォーマットに変換（メモ化対応）
+  String _formatMinutes(int minutes) {
+    if (minutes < 60) {
+      return '${minutes}m';
+    } else {
+      final h = minutes ~/ 60;
+      final m = minutes % 60;
+      if (m == 0) {
+        return '${h}h';
+      } else {
+        return '${h}h ${m}m';
+      }
+    }
+  }
+  
+  String _getCategoryFromDetectionItem(DetectionItem item) {
+    switch (item) {
+      case DetectionItem.book:
+        return 'study';
+      case DetectionItem.pc:
+        return 'pc';
+      case DetectionItem.smartphone:
+        return 'smartphone';
+    }
   }
 
   /// 設定ボタン

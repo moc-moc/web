@@ -27,15 +27,11 @@ mixin FirestoreSyncMixin<T> {
     // Phase 1: 並行実行保護
     return await LockMk.withLock(_syncLock, () async {
       try {
-        await LogMk.logInfo('同期開始: $userId', tag: 'DataManager.sync');
-        
         // 1. 最終同期時刻を取得
         final lastSyncTime = await SharedMk.getLastSyncTimeFromSharedPrefs(storageKey);
-        await LogMk.logDebug('最終同期時刻: $lastSyncTime', tag: 'DataManager.sync');
         
         // 2. ローカルデータを事前取得
         final localDataList = await SharedMk.getAllFromSharedPrefs(storageKey);
-        await LogMk.logDebug('ローカルデータ取得: ${localDataList.length}件', tag: 'DataManager.sync');
         
         // 3. Firestoreから差分データを取得
         List<Map<String, dynamic>> remoteDataList;
@@ -45,11 +41,9 @@ mixin FirestoreSyncMixin<T> {
             collectionPathBuilder(userId),
             lastSyncTime,
           );
-          await LogMk.logDebug('Firestore差分データ取得: ${remoteDataList.length}件', tag: 'DataManager.sync');
         } else {
           // 初回同期またはローカルデータが空の場合は全データを取得
           remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
-          await LogMk.logDebug('Firestore全データ取得: ${remoteDataList.length}件', tag: 'DataManager.sync');
         }
         
         // 4. データをマージ（競合解決）
@@ -59,7 +53,6 @@ mixin FirestoreSyncMixin<T> {
           idField,
           lastModifiedField,
         );
-        await LogMk.logDebug('データマージ完了: ${mergedDataList.length}件', tag: 'DataManager.sync');
         
         // 5. マージ結果をJSON形式に変換（DataMk層の汎用関数を使用）
         final jsonDataList = SyncMk.convertToJsonFormat<T>(
@@ -68,7 +61,6 @@ mixin FirestoreSyncMixin<T> {
           toJson,
           fromJson,
         );
-        await LogMk.logDebug('JSON変換完了: ${jsonDataList.length}件', tag: 'DataManager.sync');
         
         // 6. JSON形式でローカルに保存
         await SharedMk.saveAllToSharedPrefs(storageKey, jsonDataList);
@@ -83,7 +75,6 @@ mixin FirestoreSyncMixin<T> {
         // 9. モデルに変換して返す
         final items = jsonDataList.map((json) => fromJson(json)).toList();
         
-        await LogMk.logInfo('同期完了: ${items.length}件', tag: 'DataManager.sync');
         return items;
       } catch (e, stackTrace) {
         final error = DataManagerError.handleError(

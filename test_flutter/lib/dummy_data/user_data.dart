@@ -5,7 +5,6 @@ class DummyUser {
   final String? avatarUrl;
   final int streakDays;
   final double totalFocusedHours;
-  final int totalLoginDays;
   final String bio;
 
   const DummyUser({
@@ -14,7 +13,6 @@ class DummyUser {
     this.avatarUrl,
     required this.streakDays,
     required this.totalFocusedHours,
-    required this.totalLoginDays,
     required this.bio,
   });
 }
@@ -26,7 +24,6 @@ const dummyUser = DummyUser(
   avatarUrl: null, // プレースホルダーとしてnull
   streakDays: 65,
   totalFocusedHours: 300.0,
-  totalLoginDays: 120,
   bio: 'Focused on productivity and continuous improvement. 🎯',
 );
 
@@ -39,7 +36,6 @@ const dummyUsers = [
     avatarUrl: null,
     streakDays: 42,
     totalFocusedHours: 180.0,
-    totalLoginDays: 85,
     bio: 'Medical student aiming for excellence. 📚',
   ),
   DummyUser(
@@ -48,7 +44,6 @@ const dummyUsers = [
     avatarUrl: null,
     streakDays: 28,
     totalFocusedHours: 120.0,
-    totalLoginDays: 60,
     bio: 'Software engineer learning new technologies. 💻',
   ),
 ];

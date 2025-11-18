@@ -1,6 +1,3 @@
-// Flutterライブラリ
-import 'package:flutter/material.dart';
-
 // 外部パッケージ
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -35,14 +32,9 @@ part 'total_functions.g.dart';
 class TotalDataNotifier extends _$TotalDataNotifier {
   @override
   TotalData build() {
-    debugPrint('🔍 [TotalDataNotifier.build] ★★★ Provider初期化実行（keepAlive: true）★★★');
-    debugPrint('🔍 [TotalDataNotifier.build] スタックトレース:');
-    debugPrint(StackTrace.current.toString().split('\n').take(5).join('\n'));
-    
     // 初期値を返す
     return TotalData(
       id: 'user_total',
-      totalLoginDays: 0,
       totalWorkTimeMinutes: 0,
       lastTrackedDate: DateTime.now(),
       lastModified: DateTime.now(),
@@ -51,16 +43,13 @@ class TotalDataNotifier extends _$TotalDataNotifier {
 
   /// 累計データを更新
   void updateTotal(TotalData newData) {
-    debugPrint('🔍 [TotalDataNotifier.updateTotal] 更新: ${newData.totalLoginDays}日、${newData.totalWorkTimeMinutes}分');
     state = newData;
   }
 
   /// データをリセット
   void reset() {
-    debugPrint('🔍 [TotalDataNotifier.reset] リセット実行');
     state = TotalData(
       id: 'user_total',
-      totalLoginDays: 0,
       totalWorkTimeMinutes: 0,
       lastTrackedDate: DateTime.now(),
       lastModified: DateTime.now(),

@@ -26,7 +26,6 @@ part 'goal_functions.g.dart';
 class GoalsList extends _$GoalsList {
   @override
   List<Goal> build() {
-    debugPrint('🔍 [GoalsList.build] Provider初期化');
     return [];
   }
 
@@ -82,75 +81,101 @@ Future<List<Goal>> loadGoalsHelper(dynamic ref) async {
 /// ローカルとFirestoreのデータを比較し、新しい方を採用します。
 /// 古いデータでの上書きを防ぎます。
 Future<List<Goal>> syncGoalsHelper(dynamic ref) async {
-  debugPrint('🔍 [syncGoalsHelper] 開始');
-  
   final manager = GoalDataManager();
 
   try {
     // 1. ローカルデータを取得
     final localGoals = await manager.getLocalGoals();
-    debugPrint('🔍 [syncGoalsHelper] ローカルデータ: ${localGoals.length}件');
 
     // 2. Firestoreデータを直接取得
     final firestoreGoals = await manager.getGoalsFromFirestoreWithAuth();
-    debugPrint('🔍 [syncGoalsHelper] Firestoreデータ: ${firestoreGoals.length}件');
 
-    // 3. マージ（lastModifiedで比較）
+    // 3. マージ（lastModifiedで比較）とフィルタリングを1回のループで実行
     final mergedGoals = <Goal>[];
-    final processedIds = <String>{};
+    final firestoreMap = <String, Goal>{};
+    
+    // FirestoreデータをMapに変換（O(1)アクセス用）
+    for (final firestoreGoal in firestoreGoals) {
+      firestoreMap[firestoreGoal.id] = firestoreGoal;
+    }
 
-    // ローカルとFirestoreを比較してマージ
+    // ローカルデータを処理（マージとフィルタリングを同時実行）
     for (final localGoal in localGoals) {
-      final firestoreGoal = firestoreGoals.firstWhere(
-        (g) => g.id == localGoal.id,
-        orElse: () => localGoal,
-      );
-
-      if (firestoreGoal.id == localGoal.id) {
+      final firestoreGoal = firestoreMap[localGoal.id];
+      
+      if (firestoreGoal != null) {
         // 両方に存在する場合、新しい方を採用
-        if (localGoal.lastModified.isAfter(firestoreGoal.lastModified)) {
-          mergedGoals.add(localGoal);
-          debugPrint('  ローカル採用: ${localGoal.title}');
-        } else {
-          mergedGoals.add(firestoreGoal);
-          debugPrint('  Firestore採用: ${firestoreGoal.title}');
+        final selectedGoal = localGoal.lastModified.isAfter(firestoreGoal.lastModified)
+            ? localGoal
+            : firestoreGoal;
+        
+        // アクティブな目標のみ追加（フィルタリングを同時実行）
+        if (!selectedGoal.isDeleted) {
+          mergedGoals.add(selectedGoal);
         }
       } else {
-        // ローカルのみ
-        mergedGoals.add(localGoal);
-        debugPrint('  ローカルのみ: ${localGoal.title}');
+        // ローカルのみ、アクティブな目標のみ追加
+        if (!localGoal.isDeleted) {
+          mergedGoals.add(localGoal);
+        }
+      }
+    }
+
+    // Firestoreのみに存在するデータを追加（フィルタリングを同時実行）
+    final localIds = localGoals.map((g) => g.id).toSet();
+    for (final firestoreGoal in firestoreGoals) {
+      if (!localIds.contains(firestoreGoal.id)) {
+        // アクティブな目標のみ追加
+        if (!firestoreGoal.isDeleted) {
+          mergedGoals.add(firestoreGoal);
+        }
+      }
+    }
+
+    // 4. ローカルに保存（全データを保存するため、マージ済みデータを再構築）
+    final allMergedGoals = <Goal>[];
+    final processedIds = <String>{};
+    
+    // ローカルとFirestoreの全データをマージ（削除済みも含む）
+    for (final localGoal in localGoals) {
+      final firestoreGoal = firestoreMap[localGoal.id];
+      if (firestoreGoal != null) {
+        allMergedGoals.add(
+          localGoal.lastModified.isAfter(firestoreGoal.lastModified)
+              ? localGoal
+              : firestoreGoal
+        );
+      } else {
+        allMergedGoals.add(localGoal);
       }
       processedIds.add(localGoal.id);
     }
-
+    
     // Firestoreのみに存在するデータを追加
     for (final firestoreGoal in firestoreGoals) {
       if (!processedIds.contains(firestoreGoal.id)) {
-        mergedGoals.add(firestoreGoal);
-        debugPrint('  Firestoreのみ: ${firestoreGoal.title}');
+        allMergedGoals.add(firestoreGoal);
       }
     }
+    
+    await manager.saveLocalGoals(allMergedGoals);
 
-    // 4. ローカルに保存
-    await manager.saveLocalGoals(mergedGoals);
-    debugPrint('✅ [syncGoalsHelper] ローカル保存完了: ${mergedGoals.length}件');
+    // 5. Providerを更新（既にフィルタリング済み）
+    ref.read(goalsListProvider.notifier).updateList(mergedGoals);
 
-    // 5. アクティブな目標のみをフィルタ
-    final activeGoals = mergedGoals.where((g) => !g.isDeleted).toList();
-    debugPrint('🔍 [syncGoalsHelper] アクティブな目標: ${activeGoals.length}件');
-
-    // 6. Providerを更新
-    ref.read(goalsListProvider.notifier).updateList(activeGoals);
-    debugPrint('🔍 [syncGoalsHelper] Provider更新完了');
-
-    return activeGoals;
+    return mergedGoals;
     
   } catch (e) {
     debugPrint('❌ [syncGoalsHelper] エラー: $e');
     
-    // エラー時はローカルデータを使用
+    // エラー時はローカルデータを使用（1回の走査でフィルタリング）
     final localGoals = await manager.getLocalGoals();
-    final activeGoals = localGoals.where((g) => !g.isDeleted).toList();
+    final activeGoals = <Goal>[];
+    for (final goal in localGoals) {
+      if (!goal.isDeleted) {
+        activeGoals.add(goal);
+      }
+    }
     ref.read(goalsListProvider.notifier).updateList(activeGoals);
     return activeGoals;
   }

@@ -19,13 +19,11 @@ part 'notification_settings_notifier.g.dart';
 class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
   @override
   NotificationSettings build() {
-    debugPrint('🔍 [NotificationSettingsNotifier.build] ★★★ Provider初期化実行（keepAlive: true）★★★');
     return NotificationSettings.defaultSettings();
   }
 
   /// 設定を更新
   void updateSettings(NotificationSettings settings) {
-    debugPrint('🔍 [NotificationSettingsNotifier.updateSettings] 設定を更新');
     state = settings;
   }
 }
@@ -40,29 +38,23 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
 /// **戻り値**: 同期された通知設定
 Future<NotificationSettings> syncNotificationSettingsHelper(dynamic ref) async {
   try {
-    debugPrint('🔍 [syncNotificationSettingsHelper] 開始');
-    
     final userId = AuthMk.getCurrentUserId();
     
     // データマネージャーで同期
     final settingsList = await notificationSettingsManager.sync(userId);
-    debugPrint('🔍 [syncNotificationSettingsHelper] 同期完了: ${settingsList.length}件');
     
     // IDが 'notification_settings' のものを探す
     NotificationSettings settings;
     try {
       settings = settingsList.firstWhere((s) => s.id == 'notification_settings');
-      debugPrint('🔍 [syncNotificationSettingsHelper] 通知設定を取得');
     } catch (e) {
       // データがない場合はデフォルト値を作成して保存
       settings = NotificationSettings.defaultSettings();
       await notificationSettingsManager.saveWithRetry(userId, settings);
-      debugPrint('🔍 [syncNotificationSettingsHelper] デフォルト設定を作成');
     }
     
     // Notifierを使用してProviderを更新
     ref.read(notificationSettingsProvider.notifier).updateSettings(settings);
-    debugPrint('✅ [syncNotificationSettingsHelper] Provider更新完了');
     
     return settings;
   } catch (e) {
@@ -86,8 +78,6 @@ Future<NotificationSettings> syncNotificationSettingsHelper(dynamic ref) async {
 /// **戻り値**: 保存に成功した場合true
 Future<bool> saveNotificationSettingsHelper(dynamic ref, NotificationSettings settings) async {
   try {
-    debugPrint('🔍 [saveNotificationSettingsHelper] 開始');
-    
     final userId = AuthMk.getCurrentUserId();
     
     // 最終更新日時を更新
@@ -99,9 +89,6 @@ Future<bool> saveNotificationSettingsHelper(dynamic ref, NotificationSettings se
     if (success) {
       // Notifierを使用してProviderを更新
       ref.read(notificationSettingsProvider.notifier).updateSettings(updatedSettings);
-      debugPrint('✅ [saveNotificationSettingsHelper] 保存成功');
-    } else {
-      debugPrint('❌ [saveNotificationSettingsHelper] 保存失敗');
     }
     
     return success;

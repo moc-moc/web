@@ -29,8 +29,8 @@ final accountSettingsManager = FirestoreDataManager<AccountSettings>(
   // モデルからJSONに変換（SharedPreferences用）
   toJson: (item) => item.toJson(),
   
-  // JSONからモデルに変換（SharedPreferences用）
-  fromJson: AccountSettings.fromJson,
+  // JSONからモデルに変換（SharedPreferences用、null安全版）
+  fromJson: AccountSettings.fromJsonSafe,
 );
 
 /// 通知設定データマネージャー
@@ -61,8 +61,8 @@ final notificationSettingsManager = FirestoreDataManager<NotificationSettings>(
   // モデルからJSONに変換（SharedPreferences用）
   toJson: (item) => item.toJson(),
   
-  // JSONからモデルに変換（SharedPreferences用）
-  fromJson: NotificationSettings.fromJson,
+  // JSONからモデルに変換（SharedPreferences用、null安全版）
+  fromJson: NotificationSettings.fromJsonSafe,
 );
 
 /// 表示設定データマネージャー
@@ -93,8 +93,8 @@ final displaySettingsManager = FirestoreDataManager<DisplaySettings>(
   // モデルからJSONに変換（SharedPreferences用）
   toJson: (item) => item.toJson(),
   
-  // JSONからモデルに変換（SharedPreferences用）
-  fromJson: DisplaySettings.fromJson,
+  // JSONからモデルに変換（SharedPreferences用、null安全版）
+  fromJson: DisplaySettings.fromJsonSafe,
 );
 
 /// 時間設定データマネージャー
@@ -125,7 +125,7 @@ final timeSettingsManager = FirestoreDataManager<TimeSettings>(
   // モデルからJSONに変換（SharedPreferences用）
   toJson: (item) => item.toJson(),
   
-  // JSONからモデルに変換（SharedPreferences用）
-  fromJson: TimeSettings.fromJson,
+  // JSONからモデルに変換（SharedPreferences用、null安全版）
+  fromJson: TimeSettings.fromJsonSafe,
 );
 

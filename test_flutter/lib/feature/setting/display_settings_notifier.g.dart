@@ -69,7 +69,7 @@ final class DisplaySettingsNotifierProvider
 }
 
 String _$displaySettingsNotifierHash() =>
-    r'a86b1ac5974eb6717f70eb83d923f5f0342b14e3';
+    r'cd5462eedf2abc2833856af58271de02233db057';
 
 /// 表示設定を管理するNotifier
 ///

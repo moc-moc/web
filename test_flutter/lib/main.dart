@@ -25,7 +25,7 @@ void main() async {
       // モバイル版: デフォルト設定を使用
       await Firebase.initializeApp();
     }
-    debugPrint('✅ [main] Firebase初期化完了');
+    debugPrint('✅ Firebase初期化');
 
     final container = ProviderContainer();
     AppInitUN.setGlobalContainer(container);

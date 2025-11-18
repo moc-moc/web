@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$TotalData {
 
- String get id; int get totalLoginDays; int get totalWorkTimeMinutes; DateTime get lastTrackedDate; DateTime get lastModified;
+ String get id; int get totalWorkTimeMinutes; DateTime get lastTrackedDate; DateTime get lastModified;
 /// Create a copy of TotalData
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $TotalDataCopyWith<TotalData> get copyWith => _$TotalDataCopyWithImpl<TotalData>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TotalData&&(identical(other.id, id) || other.id == id)&&(identical(other.totalLoginDays, totalLoginDays) || other.totalLoginDays == totalLoginDays)&&(identical(other.totalWorkTimeMinutes, totalWorkTimeMinutes) || other.totalWorkTimeMinutes == totalWorkTimeMinutes)&&(identical(other.lastTrackedDate, lastTrackedDate) || other.lastTrackedDate == lastTrackedDate)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TotalData&&(identical(other.id, id) || other.id == id)&&(identical(other.totalWorkTimeMinutes, totalWorkTimeMinutes) || other.totalWorkTimeMinutes == totalWorkTimeMinutes)&&(identical(other.lastTrackedDate, lastTrackedDate) || other.lastTrackedDate == lastTrackedDate)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,totalLoginDays,totalWorkTimeMinutes,lastTrackedDate,lastModified);
+int get hashCode => Object.hash(runtimeType,id,totalWorkTimeMinutes,lastTrackedDate,lastModified);
 
 @override
 String toString() {
-  return 'TotalData(id: $id, totalLoginDays: $totalLoginDays, totalWorkTimeMinutes: $totalWorkTimeMinutes, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified)';
+  return 'TotalData(id: $id, totalWorkTimeMinutes: $totalWorkTimeMinutes, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $TotalDataCopyWith<$Res>  {
   factory $TotalDataCopyWith(TotalData value, $Res Function(TotalData) _then) = _$TotalDataCopyWithImpl;
 @useResult
 $Res call({
- String id, int totalLoginDays, int totalWorkTimeMinutes, DateTime lastTrackedDate, DateTime lastModified
+ String id, int totalWorkTimeMinutes, DateTime lastTrackedDate, DateTime lastModified
 });
 
 
@@ -65,11 +65,10 @@ class _$TotalDataCopyWithImpl<$Res>
 
 /// Create a copy of TotalData
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? totalLoginDays = null,Object? totalWorkTimeMinutes = null,Object? lastTrackedDate = null,Object? lastModified = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? totalWorkTimeMinutes = null,Object? lastTrackedDate = null,Object? lastModified = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,totalLoginDays: null == totalLoginDays ? _self.totalLoginDays : totalLoginDays // ignore: cast_nullable_to_non_nullable
-as int,totalWorkTimeMinutes: null == totalWorkTimeMinutes ? _self.totalWorkTimeMinutes : totalWorkTimeMinutes // ignore: cast_nullable_to_non_nullable
+as String,totalWorkTimeMinutes: null == totalWorkTimeMinutes ? _self.totalWorkTimeMinutes : totalWorkTimeMinutes // ignore: cast_nullable_to_non_nullable
 as int,lastTrackedDate: null == lastTrackedDate ? _self.lastTrackedDate : lastTrackedDate // ignore: cast_nullable_to_non_nullable
 as DateTime,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
@@ -157,10 +156,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  int totalLoginDays,  int totalWorkTimeMinutes,  DateTime lastTrackedDate,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  int totalWorkTimeMinutes,  DateTime lastTrackedDate,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TotalData() when $default != null:
-return $default(_that.id,_that.totalLoginDays,_that.totalWorkTimeMinutes,_that.lastTrackedDate,_that.lastModified);case _:
+return $default(_that.id,_that.totalWorkTimeMinutes,_that.lastTrackedDate,_that.lastModified);case _:
   return orElse();
 
 }
@@ -178,10 +177,10 @@ return $default(_that.id,_that.totalLoginDays,_that.totalWorkTimeMinutes,_that.l
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  int totalLoginDays,  int totalWorkTimeMinutes,  DateTime lastTrackedDate,  DateTime lastModified)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  int totalWorkTimeMinutes,  DateTime lastTrackedDate,  DateTime lastModified)  $default,) {final _that = this;
 switch (_that) {
 case _TotalData():
-return $default(_that.id,_that.totalLoginDays,_that.totalWorkTimeMinutes,_that.lastTrackedDate,_that.lastModified);case _:
+return $default(_that.id,_that.totalWorkTimeMinutes,_that.lastTrackedDate,_that.lastModified);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -198,10 +197,10 @@ return $default(_that.id,_that.totalLoginDays,_that.totalWorkTimeMinutes,_that.l
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  int totalLoginDays,  int totalWorkTimeMinutes,  DateTime lastTrackedDate,  DateTime lastModified)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  int totalWorkTimeMinutes,  DateTime lastTrackedDate,  DateTime lastModified)?  $default,) {final _that = this;
 switch (_that) {
 case _TotalData() when $default != null:
-return $default(_that.id,_that.totalLoginDays,_that.totalWorkTimeMinutes,_that.lastTrackedDate,_that.lastModified);case _:
+return $default(_that.id,_that.totalWorkTimeMinutes,_that.lastTrackedDate,_that.lastModified);case _:
   return null;
 
 }
@@ -213,11 +212,10 @@ return $default(_that.id,_that.totalLoginDays,_that.totalWorkTimeMinutes,_that.l
 @JsonSerializable()
 
 class _TotalData implements TotalData {
-  const _TotalData({required this.id, required this.totalLoginDays, required this.totalWorkTimeMinutes, required this.lastTrackedDate, required this.lastModified});
+  const _TotalData({required this.id, required this.totalWorkTimeMinutes, required this.lastTrackedDate, required this.lastModified});
   factory _TotalData.fromJson(Map<String, dynamic> json) => _$TotalDataFromJson(json);
 
 @override final  String id;
-@override final  int totalLoginDays;
 @override final  int totalWorkTimeMinutes;
 @override final  DateTime lastTrackedDate;
 @override final  DateTime lastModified;
@@ -235,16 +233,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TotalData&&(identical(other.id, id) || other.id == id)&&(identical(other.totalLoginDays, totalLoginDays) || other.totalLoginDays == totalLoginDays)&&(identical(other.totalWorkTimeMinutes, totalWorkTimeMinutes) || other.totalWorkTimeMinutes == totalWorkTimeMinutes)&&(identical(other.lastTrackedDate, lastTrackedDate) || other.lastTrackedDate == lastTrackedDate)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TotalData&&(identical(other.id, id) || other.id == id)&&(identical(other.totalWorkTimeMinutes, totalWorkTimeMinutes) || other.totalWorkTimeMinutes == totalWorkTimeMinutes)&&(identical(other.lastTrackedDate, lastTrackedDate) || other.lastTrackedDate == lastTrackedDate)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,totalLoginDays,totalWorkTimeMinutes,lastTrackedDate,lastModified);
+int get hashCode => Object.hash(runtimeType,id,totalWorkTimeMinutes,lastTrackedDate,lastModified);
 
 @override
 String toString() {
-  return 'TotalData(id: $id, totalLoginDays: $totalLoginDays, totalWorkTimeMinutes: $totalWorkTimeMinutes, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified)';
+  return 'TotalData(id: $id, totalWorkTimeMinutes: $totalWorkTimeMinutes, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified)';
 }
 
 
@@ -255,7 +253,7 @@ abstract mixin class _$TotalDataCopyWith<$Res> implements $TotalDataCopyWith<$Re
   factory _$TotalDataCopyWith(_TotalData value, $Res Function(_TotalData) _then) = __$TotalDataCopyWithImpl;
 @override @useResult
 $Res call({
- String id, int totalLoginDays, int totalWorkTimeMinutes, DateTime lastTrackedDate, DateTime lastModified
+ String id, int totalWorkTimeMinutes, DateTime lastTrackedDate, DateTime lastModified
 });
 
 
@@ -272,11 +270,10 @@ class __$TotalDataCopyWithImpl<$Res>
 
 /// Create a copy of TotalData
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? totalLoginDays = null,Object? totalWorkTimeMinutes = null,Object? lastTrackedDate = null,Object? lastModified = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? totalWorkTimeMinutes = null,Object? lastTrackedDate = null,Object? lastModified = null,}) {
   return _then(_TotalData(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
-as String,totalLoginDays: null == totalLoginDays ? _self.totalLoginDays : totalLoginDays // ignore: cast_nullable_to_non_nullable
-as int,totalWorkTimeMinutes: null == totalWorkTimeMinutes ? _self.totalWorkTimeMinutes : totalWorkTimeMinutes // ignore: cast_nullable_to_non_nullable
+as String,totalWorkTimeMinutes: null == totalWorkTimeMinutes ? _self.totalWorkTimeMinutes : totalWorkTimeMinutes // ignore: cast_nullable_to_non_nullable
 as int,lastTrackedDate: null == lastTrackedDate ? _self.lastTrackedDate : lastTrackedDate // ignore: cast_nullable_to_non_nullable
 as DateTime,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,

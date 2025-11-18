@@ -19,13 +19,11 @@ part 'account_settings_notifier.g.dart';
 class AccountSettingsNotifier extends _$AccountSettingsNotifier {
   @override
   AccountSettings build() {
-    debugPrint('🔍 [AccountSettingsNotifier.build] ★★★ Provider初期化実行（keepAlive: true）★★★');
     return AccountSettings.defaultSettings();
   }
 
   /// 設定を更新
   void updateSettings(AccountSettings settings) {
-    debugPrint('🔍 [AccountSettingsNotifier.updateSettings] 設定を更新');
     state = settings;
   }
 }
@@ -40,30 +38,23 @@ class AccountSettingsNotifier extends _$AccountSettingsNotifier {
 /// **戻り値**: 同期されたアカウント設定
 Future<AccountSettings> syncAccountSettingsHelper(dynamic ref) async {
   try {
-    debugPrint('🔍 [syncAccountSettingsHelper] 開始');
-    
     final userId = AuthMk.getCurrentUserId();
-    debugPrint('🔍 [syncAccountSettingsHelper] userId: $userId');
     
     // データマネージャーで同期
     final settingsList = await accountSettingsManager.sync(userId);
-    debugPrint('🔍 [syncAccountSettingsHelper] 同期完了: ${settingsList.length}件');
     
     // IDが 'account_settings' のものを探す
     AccountSettings settings;
     try {
       settings = settingsList.firstWhere((s) => s.id == 'account_settings');
-      debugPrint('🔍 [syncAccountSettingsHelper] アカウント設定を取得');
     } catch (e) {
       // データがない場合はデフォルト値を作成して保存
       settings = AccountSettings.defaultSettings();
       await accountSettingsManager.saveWithRetry(userId, settings);
-      debugPrint('🔍 [syncAccountSettingsHelper] デフォルト設定を作成');
     }
     
     // Notifierを使用してProviderを更新
     ref.read(accountSettingsProvider.notifier).updateSettings(settings);
-    debugPrint('✅ [syncAccountSettingsHelper] Provider更新完了');
     
     return settings;
   } catch (e) {
@@ -87,8 +78,6 @@ Future<AccountSettings> syncAccountSettingsHelper(dynamic ref) async {
 /// **戻り値**: 保存に成功した場合true
 Future<bool> saveAccountSettingsHelper(dynamic ref, AccountSettings settings) async {
   try {
-    debugPrint('🔍 [saveAccountSettingsHelper] 開始');
-    
     final userId = AuthMk.getCurrentUserId();
     
     // 最終更新日時を更新
@@ -100,9 +89,6 @@ Future<bool> saveAccountSettingsHelper(dynamic ref, AccountSettings settings) as
     if (success) {
       // Notifierを使用してProviderを更新
       ref.read(accountSettingsProvider.notifier).updateSettings(updatedSettings);
-      debugPrint('✅ [saveAccountSettingsHelper] 保存成功');
-    } else {
-      debugPrint('❌ [saveAccountSettingsHelper] 保存失敗');
     }
     
     return success;

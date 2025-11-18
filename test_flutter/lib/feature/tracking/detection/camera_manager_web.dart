@@ -100,7 +100,7 @@ class CameraManagerWeb implements CameraManager {
       _imageHeight = _videoElement!.videoHeight;
       
       LogMk.logDebug(
-        '📷 [CameraManagerWeb] ビデオサイズ取得: ${_imageWidth}x${_imageHeight}',
+        '📷 [CameraManagerWeb] ビデオサイズ取得: ${_imageWidth}x$_imageHeight',
         tag: 'CameraManagerWeb.initialize',
       );
       
@@ -237,7 +237,7 @@ class CameraManagerWeb implements CameraManager {
           // Canvasが未作成の場合は作成
           if (canvas == null) {
             LogMk.logDebug(
-              '📷 [CameraManagerWeb] Canvas作成: ${_imageWidth}x${_imageHeight}',
+              '📷 [CameraManagerWeb] Canvas作成: ${_imageWidth}x$_imageHeight',
               tag: 'CameraManagerWeb._startImageCapture',
             );
             canvas = html.CanvasElement(
@@ -455,13 +455,13 @@ class CameraManagerWeb implements CameraManager {
           '📷 [CameraManagerWeb] ストリームトラック停止中 (トラック数: ${tracks.length})',
           tag: 'CameraManagerWeb.dispose',
         );
-        tracks.forEach((track) {
+        for (var track in tracks) {
           track.stop();
           LogMk.logDebug(
             '📷 [CameraManagerWeb] トラック停止: ${track.kind}',
             tag: 'CameraManagerWeb.dispose',
           );
-        });
+        }
         _stream = null;
       }
 

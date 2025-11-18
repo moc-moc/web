@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-
 /// リストデータを読み込む共通ヘルパー関数
 /// 
 /// Firestoreから最新のリストを取得し、Providerに設定します。
@@ -29,58 +27,82 @@ Future<List<T>> loadListDataHelper<T>({
   bool Function(T)? filter,
   String functionName = 'loadListDataHelper',
 }) async {
-  debugPrint('🔍 [$functionName] 開始');
-  
-  // デフォルトフィルタ: isDeleted=falseのもののみ（isDeletedプロパティがある場合）
-  final effectiveFilter = filter ?? ((item) {
-    try {
-      final dynamic itemDynamic = item;
+  // デフォルトフィルタ: isDeleted=falseのもののみ（型チェックを事前実行）
+  bool Function(T) effectiveFilter;
+  if (filter != null) {
+    effectiveFilter = filter;
+  } else {
+    // 型チェックを1回だけ実行してフィルタ関数を決定
+    final sampleItem = await getLocalAll().then((items) => items.isNotEmpty ? items.first : null);
+    if (sampleItem != null) {
+      // SyncableModelインターフェースを実装しているかチェック
+      final dynamic itemDynamic = sampleItem;
       if (itemDynamic is Map) {
-        return itemDynamic['isDeleted'] != true;
+        // Map型の場合
+        effectiveFilter = (item) {
+          final dynamic d = item;
+          return d is Map ? (d['isDeleted'] != true) : true;
+        };
+      } else {
+        // オブジェクト型の場合、isDeletedプロパティの存在を確認
+        try {
+          final hasIsDeleted = (itemDynamic as dynamic).isDeleted != null;
+          if (hasIsDeleted) {
+            effectiveFilter = (item) {
+              try {
+                return ((item as dynamic).isDeleted as bool?) != true;
+              } catch (e) {
+                return true;
+              }
+            };
+          } else {
+            effectiveFilter = (_) => true;
+          }
+        } catch (e) {
+          effectiveFilter = (_) => true;
+        }
       }
-      // isDeletedプロパティがない場合はすべて含める
-      return true;
-    } catch (e) {
-      return true;
+    } else {
+      effectiveFilter = (_) => true;
     }
-  });
+  }
 
   // Firestoreから取得を試みる（Firestore優先）
   try {
     final items = await getAllWithAuth();
-    debugPrint('🔍 [$functionName] Firestoreから取得: ${items.length}件');
     
     // ローカルにも保存
     await saveLocal(items);
-    debugPrint('✅ [$functionName] ローカルに保存完了');
     
-    // フィルタリング
-    final filteredItems = items.where(effectiveFilter).toList();
-    debugPrint('🔍 [$functionName] フィルタ後: ${filteredItems.length}件');
+    // フィルタリング（1回の走査で実行）
+    final filteredItems = <T>[];
+    for (final item in items) {
+      if (effectiveFilter(item)) {
+        filteredItems.add(item);
+      }
+    }
 
     // Providerを更新
     updateProvider(filteredItems);
-    debugPrint('🔍 [$functionName] Provider更新完了');
     
     return filteredItems;
   } catch (e) {
-    debugPrint('⚠️ [$functionName] Firestore取得失敗（オフライン？）: $e');
+    // Firestoreから取得できない場合はローカルを使用
+    final items = await getLocalAll();
+
+    // フィルタリング（1回の走査で実行）
+    final filteredItems = <T>[];
+    for (final item in items) {
+      if (effectiveFilter(item)) {
+        filteredItems.add(item);
+      }
+    }
+
+    // Providerを更新
+    updateProvider(filteredItems);
+
+    return filteredItems;
   }
-
-  // Firestoreから取得できない場合はローカルを使用
-  debugPrint('📱 [$functionName] ローカルデータを使用');
-  final items = await getLocalAll();
-  debugPrint('🔍 [$functionName] ローカルから取得: ${items.length}件');
-
-  // フィルタリング
-  final filteredItems = items.where(effectiveFilter).toList();
-  debugPrint('🔍 [$functionName] フィルタ後: ${filteredItems.length}件');
-
-  // Providerを更新
-  updateProvider(filteredItems);
-  debugPrint('🔍 [$functionName] Provider更新完了');
-
-  return filteredItems;
 }
 
 /// リストデータを同期する共通ヘルパー関数
@@ -107,32 +129,58 @@ Future<List<T>> syncListDataHelper<T>({
   bool Function(T)? filter,
   String functionName = 'syncListDataHelper',
 }) async {
-  debugPrint('🔍 [$functionName] 開始');
-  
-  // デフォルトフィルタ: isDeleted=falseのもののみ
-  final effectiveFilter = filter ?? ((item) {
-    try {
-      final dynamic itemDynamic = item;
-      if (itemDynamic is Map) {
-        return itemDynamic['isDeleted'] != true;
-      }
-      return true;
-    } catch (e) {
-      return true;
-    }
-  });
-
   // Firestoreと同期（認証自動取得版）
   final items = await syncWithAuth();
-  debugPrint('🔍 [$functionName] 同期で取得: ${items.length}件');
 
-  // フィルタリング
-  final filteredItems = items.where(effectiveFilter).toList();
-  debugPrint('🔍 [$functionName] フィルタ後: ${filteredItems.length}件');
+  // デフォルトフィルタ: isDeleted=falseのもののみ（型チェックを事前実行）
+  bool Function(T) effectiveFilter;
+  if (filter != null) {
+    effectiveFilter = filter;
+  } else {
+    // 型チェックを1回だけ実行してフィルタ関数を決定
+    if (items.isNotEmpty) {
+      final sampleItem = items.first;
+      final dynamic itemDynamic = sampleItem;
+      if (itemDynamic is Map) {
+        // Map型の場合
+        effectiveFilter = (item) {
+          final dynamic d = item;
+          return d is Map ? (d['isDeleted'] != true) : true;
+        };
+      } else {
+        // オブジェクト型の場合、isDeletedプロパティの存在を確認
+        try {
+          final hasIsDeleted = (itemDynamic as dynamic).isDeleted != null;
+          if (hasIsDeleted) {
+            effectiveFilter = (item) {
+              try {
+                return ((item as dynamic).isDeleted as bool?) != true;
+              } catch (e) {
+                return true;
+              }
+            };
+          } else {
+            effectiveFilter = (_) => true;
+          }
+        } catch (e) {
+          effectiveFilter = (_) => true;
+        }
+      }
+    } else {
+      effectiveFilter = (_) => true;
+    }
+  }
+
+  // フィルタリング（1回の走査で実行）
+  final filteredItems = <T>[];
+  for (final item in items) {
+    if (effectiveFilter(item)) {
+      filteredItems.add(item);
+    }
+  }
 
   // Providerを更新
   updateProvider(filteredItems);
-  debugPrint('🔍 [$functionName] Provider更新完了');
 
   return filteredItems;
 }
@@ -162,30 +210,22 @@ Future<T> loadSingleDataHelper<T>({
   required void Function(T) updateProvider,
   String functionName = 'loadSingleDataHelper',
 }) async {
-  debugPrint('🔍 [$functionName] 開始');
-  
   // Firestoreから取得を試みる（Firestore優先）
   final data = await getWithAuth();
   
   if (data != null) {
-    debugPrint('🔍 [$functionName] Firestoreから取得成功');
+    // Providerを更新
+    updateProvider(data);
+    return data;
   } else {
     // Firestoreから取得できない場合はデフォルト値
     final defaultData = await getDefault();
-    debugPrint('🔍 [$functionName] デフォルト値を使用');
     
     // Providerを更新
     updateProvider(defaultData);
-    debugPrint('🔍 [$functionName] Provider更新完了');
     
     return defaultData;
   }
-
-  // Providerを更新
-  updateProvider(data);
-  debugPrint('🔍 [$functionName] Provider更新完了');
-
-  return data;
 }
 
 /// 単一データを同期する共通ヘルパー関数
@@ -212,22 +252,16 @@ Future<T> syncSingleDataHelper<T>({
   required void Function(T) updateProvider,
   String functionName = 'syncSingleDataHelper',
 }) async {
-  debugPrint('🔍 [$functionName] 開始');
-  
   // Firestoreと同期（認証自動取得版）
   final syncedList = await syncWithAuth();
-  debugPrint('🔍 [$functionName] 同期で取得: ${syncedList.length}件');
 
   // 単一データは1つだけなので、リストから取得またはデフォルト値
   final data = syncedList.isNotEmpty 
       ? syncedList.first 
       : await getDefault();
-  
-  debugPrint('🔍 [$functionName] 最終データ取得完了');
 
   // Providerを更新
   updateProvider(data);
-  debugPrint('🔍 [$functionName] Provider更新完了');
 
   return data;
 }

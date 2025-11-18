@@ -31,7 +31,6 @@ mixin FirestoreLocalMixin<T> {
         }
       }
       
-      await LogMk.logInfo('✅ ローカルアイテム取得完了: ${items.length}件');
       return items;
     } catch (e) {
       await LogMk.logError(' ローカルアイテム取得エラー: $e');
@@ -58,7 +57,6 @@ mixin FirestoreLocalMixin<T> {
       // 2. モデルに変換
       final item = fromJson(data);
       
-      await LogMk.logInfo('✅ ローカルアイテム取得完了: $id');
       return item;
     } catch (e) {
       await LogMk.logError(' ローカルアイテム取得エラー: $e');
@@ -76,7 +74,6 @@ mixin FirestoreLocalMixin<T> {
       // 2. ローカルに保存
       await SharedMk.saveAllToSharedPrefs(storageKey, dataList);
       
-      await LogMk.logInfo('✅ ローカルアイテム保存完了: ${items.length}件');
     } catch (e) {
       await LogMk.logError(' ローカルアイテム保存エラー: $e');
     }

@@ -19,13 +19,11 @@ part 'time_settings_notifier.g.dart';
 class TimeSettingsNotifier extends _$TimeSettingsNotifier {
   @override
   TimeSettings build() {
-    debugPrint('🔍 [TimeSettingsNotifier.build] ★★★ Provider初期化実行（keepAlive: true）★★★');
     return TimeSettings.defaultSettings();
   }
 
   /// 設定を更新
   void updateSettings(TimeSettings settings) {
-    debugPrint('🔍 [TimeSettingsNotifier.updateSettings] 設定を更新');
     state = settings;
   }
 }
@@ -40,29 +38,23 @@ class TimeSettingsNotifier extends _$TimeSettingsNotifier {
 /// **戻り値**: 同期された時間設定
 Future<TimeSettings> syncTimeSettingsHelper(dynamic ref) async {
   try {
-    debugPrint('🔍 [syncTimeSettingsHelper] 開始');
-    
     final userId = AuthMk.getCurrentUserId();
     
     // データマネージャーで同期
     final settingsList = await timeSettingsManager.sync(userId);
-    debugPrint('🔍 [syncTimeSettingsHelper] 同期完了: ${settingsList.length}件');
     
     // IDが 'time_settings' のものを探す
     TimeSettings settings;
     try {
       settings = settingsList.firstWhere((s) => s.id == 'time_settings');
-      debugPrint('🔍 [syncTimeSettingsHelper] 時間設定を取得');
     } catch (e) {
       // データがない場合はデフォルト値を作成して保存
       settings = TimeSettings.defaultSettings();
       await timeSettingsManager.saveWithRetry(userId, settings);
-      debugPrint('🔍 [syncTimeSettingsHelper] デフォルト設定を作成');
     }
     
     // Notifierを使用してProviderを更新
     ref.read(timeSettingsProvider.notifier).updateSettings(settings);
-    debugPrint('✅ [syncTimeSettingsHelper] Provider更新完了');
     
     return settings;
   } catch (e) {
@@ -86,8 +78,6 @@ Future<TimeSettings> syncTimeSettingsHelper(dynamic ref) async {
 /// **戻り値**: 保存に成功した場合true
 Future<bool> saveTimeSettingsHelper(dynamic ref, TimeSettings settings) async {
   try {
-    debugPrint('🔍 [saveTimeSettingsHelper] 開始');
-    
     final userId = AuthMk.getCurrentUserId();
     
     // 最終更新日時を更新
@@ -99,9 +89,6 @@ Future<bool> saveTimeSettingsHelper(dynamic ref, TimeSettings settings) async {
     if (success) {
       // Notifierを使用してProviderを更新
       ref.read(timeSettingsProvider.notifier).updateSettings(updatedSettings);
-      debugPrint('✅ [saveTimeSettingsHelper] 保存成功');
-    } else {
-      debugPrint('❌ [saveTimeSettingsHelper] 保存失敗');
     }
     
     return success;

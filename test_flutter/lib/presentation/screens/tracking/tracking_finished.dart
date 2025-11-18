@@ -1,25 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
-import 'package:test_flutter/dummy_data/goal_data.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';
+import 'package:test_flutter/feature/goals/goal_functions.dart';
+import 'package:test_flutter/feature/goals/goal_model.dart';
+import 'package:test_flutter/feature/statistics/statistics_aggregation_service.dart';
+import 'package:test_flutter/feature/tracking/state_management.dart';
 
 /// トラッキング終了画面（新デザインシステム版）
-class TrackingFinishedScreenNew extends StatefulWidget {
+class TrackingFinishedScreenNew extends ConsumerStatefulWidget {
   const TrackingFinishedScreenNew({super.key});
 
   @override
-  State<TrackingFinishedScreenNew> createState() => _TrackingFinishedScreenNewState();
+  ConsumerState<TrackingFinishedScreenNew> createState() => _TrackingFinishedScreenNewState();
 }
 
-class _TrackingFinishedScreenNewState extends State<TrackingFinishedScreenNew> {
+class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScreenNew> {
   TrackingSession? _session;
   bool _isLoading = true;
   final TrackingSessionDataManager _sessionManager = TrackingSessionDataManager();
+  final StatisticsAggregationService _aggregationService = StatisticsAggregationService();
+  bool _isAggregating = false;
 
   @override
   void initState() {
@@ -35,11 +41,54 @@ class _TrackingFinishedScreenNewState extends State<TrackingFinishedScreenNew> {
           _session = session;
           _isLoading = false;
         });
+        
+        // 画面表示後に集計処理を開始（バックグラウンドで実行）
+        if (session != null) {
+          _aggregateSessionData(session);
+        }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// セッションデータの集計処理
+  /// 
+  /// 画面表示後にバックグラウンドで実行されます。
+  Future<void> _aggregateSessionData(TrackingSession session) async {
+    if (_isAggregating) return;
+    
+    setState(() {
+      _isAggregating = true;
+    });
+
+    try {
+      final success = await _aggregationService.aggregateSessionData(session);
+      
+      if (!success && mounted) {
+        // エラー時はユーザーに通知
+        showSnackBarMessage(
+          context,
+          '統計データの更新中にエラーが発生しました',
+          mounted: mounted,
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        showSnackBarMessage(
+          context,
+          '統計データの更新中にエラーが発生しました',
+          mounted: mounted,
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isAggregating = false;
         });
       }
     }
@@ -397,7 +446,9 @@ class _TrackingFinishedScreenNewState extends State<TrackingFinishedScreenNew> {
   }
 
   Widget _buildGoalUpdates(TrackingSession session) {
-    if (todaysGoals.isEmpty) {
+    final goals = ref.watch(goalsListProvider);
+    
+    if (goals.isEmpty) {
       return const SizedBox.shrink();
     }
 
@@ -434,22 +485,26 @@ class _TrackingFinishedScreenNewState extends State<TrackingFinishedScreenNew> {
             style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
           ),
           SizedBox(height: AppSpacing.md),
-          ...todaysGoals.asMap().entries.map((entry) {
+          ...goals.asMap().entries.map((entry) {
             final goal = entry.value;
-            final plusHours = plusHoursByCategory[goal.category] ?? 0.0;
-            final previousHours = goal.currentHours;
-            final previousPercent = _calculatePercent(previousHours, goal.targetHours);
-            final plusPercent = _calculatePercent(plusHours, goal.targetHours);
+            final category = _getCategoryFromDetectionItem(goal.detectionItem);
+            final plusHours = plusHoursByCategory[category] ?? 0.0;
+            final previousHours = (goal.achievedTime ?? 0) / 3600.0;
+            final targetHours = goal.targetTime / 3600.0;
+            final previousPercent = _calculatePercent(previousHours, targetHours);
+            final plusPercent = _calculatePercent(plusHours, targetHours);
 
-            final isLast = entry.key == todaysGoals.length - 1;
+            final isLast = entry.key == goals.length - 1;
             return Padding(
               padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.md),
               child: _buildGoalUpdateRow(
                 goal: goal,
+                category: category,
                 previousHours: previousHours,
                 previousPercent: previousPercent,
                 plusHours: plusHours,
                 plusPercent: plusPercent,
+                targetHours: targetHours,
               ),
             );
           }),
@@ -459,16 +514,18 @@ class _TrackingFinishedScreenNewState extends State<TrackingFinishedScreenNew> {
   }
 
   Widget _buildGoalUpdateRow({
-    required DummyGoal goal,
+    required Goal goal,
+    required String category,
     required double previousHours,
     required double previousPercent,
     required double plusHours,
     required double plusPercent,
+    required double targetHours,
   }) {
-    final color = _getGoalColor(goal.category);
+    final color = _getGoalColor(category);
     final afterHours = previousHours + plusHours;
-    final afterPercent = (afterHours / goal.targetHours * 100).clamp(0.0, 999.0);
-    final progress = (afterHours / goal.targetHours).clamp(0.0, 1.0);
+    final afterPercent = (afterHours / targetHours * 100).clamp(0.0, 999.0);
+    final progress = (afterHours / targetHours).clamp(0.0, 1.0);
     
     return Container(
       padding: EdgeInsets.all(AppSpacing.md),
@@ -494,7 +551,7 @@ class _TrackingFinishedScreenNewState extends State<TrackingFinishedScreenNew> {
                 ),
               ),
               Text(
-                '目標: ${goal.targetHours.toStringAsFixed(1)}h',
+                '目標: ${targetHours.toStringAsFixed(1)}h',
                 style: AppTextStyles.caption.copyWith(
                   color: AppColors.textSecondary,
                 ),
@@ -670,6 +727,17 @@ class _TrackingFinishedScreenNewState extends State<TrackingFinishedScreenNew> {
         ],
       ),
     );
+  }
+
+  String _getCategoryFromDetectionItem(DetectionItem item) {
+    switch (item) {
+      case DetectionItem.book:
+        return 'study';
+      case DetectionItem.pc:
+        return 'pc';
+      case DetectionItem.smartphone:
+        return 'smartphone';
+    }
   }
 
   Color _getGoalColor(String category) {

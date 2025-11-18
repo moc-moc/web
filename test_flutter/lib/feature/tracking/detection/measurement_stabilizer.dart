@@ -131,9 +131,7 @@ class MeasurementStabilizer {
       
       // フォールバック期間内であれば、前の状態を継続
       if (timeSinceLastConfirmed < fallbackDuration) {
-        if (_fallbackStartTime == null) {
-          _fallbackStartTime = now;
-        }
+        _fallbackStartTime ??= now;
         
         return StabilizedMeasurement(
           category: _lastConfirmedState,
@@ -190,7 +188,7 @@ class MeasurementStabilizer {
         confidence: result.confidence,
         isConfirmed: false,
         isCorrected: true,
-        correctionReason: '状態遷移の慣性: 連続検出不足（${_consecutiveCount}/${transitionThreshold}回）',
+        correctionReason: '状態遷移の慣性: 連続検出不足（$_consecutiveCount/$transitionThreshold回）',
       );
     }
     
@@ -236,7 +234,7 @@ class MeasurementStabilizer {
       result,
       now,
       isCorrected: true,
-      correctionReason: '状態遷移確定: 連続${_consecutiveCount}回検出',
+      correctionReason: '状態遷移確定: 連続$_consecutiveCount回検出',
     );
   }
 

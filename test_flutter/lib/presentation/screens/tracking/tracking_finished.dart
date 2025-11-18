@@ -4,17 +4,70 @@ import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
-import 'package:test_flutter/dummy_data/tracking_data.dart';
 import 'package:test_flutter/dummy_data/goal_data.dart';
+import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
+import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';
 
 /// トラッキング終了画面（新デザインシステム版）
-class TrackingFinishedScreenNew extends StatelessWidget {
+class TrackingFinishedScreenNew extends StatefulWidget {
   const TrackingFinishedScreenNew({super.key});
 
   @override
+  State<TrackingFinishedScreenNew> createState() => _TrackingFinishedScreenNewState();
+}
+
+class _TrackingFinishedScreenNewState extends State<TrackingFinishedScreenNew> {
+  TrackingSession? _session;
+  bool _isLoading = true;
+  final TrackingSessionDataManager _sessionManager = TrackingSessionDataManager();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLatestSession();
+  }
+
+  Future<void> _loadLatestSession() async {
+    try {
+      final session = await _sessionManager.getLatestSessionWithAuth();
+      if (mounted) {
+        setState(() {
+          _session = session;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final session = completedTrackingSession;
-    final workHours = (session.studyHours + session.pcHours).clamp(0.0, double.infinity);
+    if (_isLoading) {
+      return AppScaffold(
+        backgroundColor: AppColors.backgroundSecondary,
+        body: const Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
+    final session = _session;
+    if (session == null) {
+      return AppScaffold(
+        backgroundColor: AppColors.backgroundSecondary,
+        body: Center(
+          child: Text(
+            'セッションデータが見つかりません',
+            style: AppTextStyles.body1,
+          ),
+        ),
+      );
+    }
 
     return AppScaffold(
       backgroundColor: AppColors.backgroundSecondary,
@@ -26,7 +79,7 @@ class TrackingFinishedScreenNew extends StatelessWidget {
             children: [
               _buildCongratulations(),
               _buildTimeRange(session),
-              _buildSummaryCards(session, workHours),
+              _buildSummaryCards(session),
               _buildBreakdownCard(session),
               _buildGoalUpdates(session),
               SizedBox(height: AppSpacing.md),
@@ -76,7 +129,7 @@ class TrackingFinishedScreenNew extends StatelessWidget {
     );
   }
 
-  Widget _buildTimeRange(DummyTrackingSession session) {
+  Widget _buildTimeRange(TrackingSession session) {
     return Container(
       margin: EdgeInsets.symmetric(horizontal: AppSpacing.md),
       padding: EdgeInsets.all(AppSpacing.md),
@@ -117,7 +170,7 @@ class TrackingFinishedScreenNew extends StatelessWidget {
     );
   }
 
-  Widget _buildSummaryCards(DummyTrackingSession session, double workHours) {
+  Widget _buildSummaryCards(TrackingSession session) {
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: IntrinsicHeight(
@@ -129,7 +182,7 @@ class TrackingFinishedScreenNew extends StatelessWidget {
                 accentColor: AppColors.blue,
                 icon: Icons.timer_rounded,
                 title: 'Session Total',
-                value: '${session.totalHours.toStringAsFixed(1)}h',
+                value: '${session.duration.inSeconds}秒',
                 subtitle: '',
               ),
             ),
@@ -139,7 +192,7 @@ class TrackingFinishedScreenNew extends StatelessWidget {
                 accentColor: AppColors.orange,
                 icon: Icons.work_history_rounded,
                 title: 'Work Total',
-                value: '${workHours.toStringAsFixed(1)}h',
+                value: '${(session.categorySeconds['study'] ?? 0) + (session.categorySeconds['pc'] ?? 0)}秒',
                 subtitle: '',
               ),
             ),
@@ -223,31 +276,31 @@ class TrackingFinishedScreenNew extends StatelessWidget {
     );
   }
 
-  Widget _buildBreakdownCard(DummyTrackingSession session) {
+  Widget _buildBreakdownCard(TrackingSession session) {
     final categories = [
       _CategoryStat(
         label: 'Study',
         icon: Icons.menu_book,
         color: AppColors.green,
-        hours: session.studyHours,
+        hours: session.getStudyHours(),
       ),
       _CategoryStat(
         label: 'Computer',
         icon: Icons.computer,
         color: AppColors.blue,
-        hours: session.pcHours,
+        hours: session.getPcHours(),
       ),
       _CategoryStat(
         label: 'Smartphone',
         icon: Icons.smartphone,
         color: AppColors.orange,
-        hours: session.smartphoneHours,
+        hours: session.getSmartphoneHours(),
       ),
       _CategoryStat(
         label: 'People',
         icon: Icons.person,
         color: AppColors.gray,
-        hours: session.personOnlyHours,
+        hours: session.getPersonOnlyHours(),
       ),
     ];
 
@@ -331,7 +384,7 @@ class TrackingFinishedScreenNew extends StatelessWidget {
           ),
           SizedBox(height: AppSpacing.xs),
           Text(
-            '${data.hours.toStringAsFixed(1)}h',
+            '${(data.hours * 3600).round()}秒',
             style: AppTextStyles.body1.copyWith(
               fontWeight: FontWeight.bold,
               color: data.color,
@@ -343,16 +396,16 @@ class TrackingFinishedScreenNew extends StatelessWidget {
     );
   }
 
-  Widget _buildGoalUpdates(DummyTrackingSession session) {
+  Widget _buildGoalUpdates(TrackingSession session) {
     if (todaysGoals.isEmpty) {
       return const SizedBox.shrink();
     }
 
     final plusHoursByCategory = <String, double>{
-      'study': session.studyHours,
-      'pc': session.pcHours,
-      'smartphone': session.smartphoneHours,
-      'person': session.personOnlyHours,
+      'study': session.getStudyHours(),
+      'pc': session.getPcHours(),
+      'smartphone': session.getSmartphoneHours(),
+      'person': session.getPersonOnlyHours(),
     };
 
     return Container(
@@ -464,12 +517,12 @@ class TrackingFinishedScreenNew extends StatelessWidget {
               Row(
                 children: [
                   Text(
-                    '${previousHours.toStringAsFixed(1)}h → ${afterHours.toStringAsFixed(1)}h',
+                    '${(previousHours * 3600).round()}秒 → ${(afterHours * 3600).round()}秒',
                     style: AppTextStyles.body2,
                   ),
                   SizedBox(width: AppSpacing.sm),
                   Text(
-                    '+${plusHours.toStringAsFixed(1)}h',
+                    '+${(plusHours * 3600).round()}秒',
                     style: AppTextStyles.body2.copyWith(
                       color: color.withValues(alpha: 1.0),
                       fontWeight: FontWeight.bold,
@@ -632,7 +685,7 @@ class TrackingFinishedScreenNew extends StatelessWidget {
     }
   }
 
-  String _formatTimeRange(DummyTrackingSession session) {
+  String _formatTimeRange(TrackingSession session) {
     final start = _formatTime(session.startTime);
     final end = _formatTime(session.endTime);
     return '$start - $end';

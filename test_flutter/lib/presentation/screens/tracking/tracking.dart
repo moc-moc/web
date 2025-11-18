@@ -8,9 +8,12 @@ import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.d
 import 'package:test_flutter/presentation/widgets/camera_preview_widget.dart';
 import 'package:test_flutter/dummy_data/goal_data.dart';
 import 'package:test_flutter/feature/tracking/tracking_functions.dart';
-import 'package:test_flutter/feature/tracking/detection/detection_result.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_controller.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
+import 'package:test_flutter/feature/tracking/detection/detection_result.dart';
+import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
+import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';
+import 'package:test_flutter/data/services/log_service.dart';
 
 /// トラッキング中画面（新デザインシステム版）
 class TrackingScreenNew extends StatefulWidget {
@@ -29,21 +32,30 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
   // カメラ関連
   DetectionController? _detectionController;
   CameraManager? _cameraManager;
+  StreamSubscription<DetectionResult>? _detectionSubscription;
   bool _isCameraInitializing = false;
   String? _cameraError;
 
   // 現在検出されているカテゴリ（'study', 'pc', 'smartphone', 'personOnly', null）
   String? _currentDetection;
 
-  // 計測時間（分単位）
-  double _studyMinutes = 0;
-  double _pcMinutes = 0;
-  double _smartphoneMinutes = 0;
-  double _personOnlyMinutes = 0;
+  // 計測時間（秒単位）
+  int _studySeconds = 0;
+  int _pcSeconds = 0;
+  int _smartphoneSeconds = 0;
+  int _personOnlySeconds = 0;
   
   // 各カテゴリの開始時刻
   DateTime? _categoryStartTime;
   String? _lastCategory;
+  
+  // セッション管理
+  DateTime? _sessionStartTime;
+  final List<DetectionPeriod> _detectionPeriods = [];
+  final TrackingSessionDataManager _sessionManager = TrackingSessionDataManager();
+  
+  // 最後の検出結果の信頼度（セッション終了時に使用）
+  double? _lastDetectionConfidence;
 
   // カテゴリのテーマカラー
   static const Color _studyColor = AppColors.green; // 緑
@@ -54,6 +66,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
   @override
   void initState() {
     super.initState();
+    _sessionStartTime = DateTime.now();
     _initializeCamera();
     _startTimer();
   }
@@ -63,6 +76,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
     _timer?.cancel();
     // カメラリソースはStop Trackingボタンで解放するため、ここでは解放しない
     // ただし、画面が閉じられる場合（例：戻るボタン）は検出コントローラーのみ解放
+    _detectionSubscription?.cancel();
     _detectionController?.dispose();
     super.dispose();
   }
@@ -97,8 +111,8 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
       // 検出を開始
       await controller.start(powerSavingMode: _isPowerSavingMode);
 
-      // 検出結果を監視
-      controller.resultStream.listen((result) {
+      // 検出結果を直接処理
+      _detectionSubscription = controller.resultStream.listen((result) {
         _handleDetectionResult(result);
       });
     } catch (e) {
@@ -110,41 +124,137 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
   }
 
   /// 検出結果の処理
+  /// 
+  /// 同じカテゴリが連続する場合は1つの期間にまとめ、空白期間を防ぐ
   void _handleDetectionResult(DetectionResult result) {
     if (!mounted) return;
 
-    final now = DateTime.now();
-    final categoryString = result.categoryString;
+    final now = DateTime.now(); // 現在時刻を使用（タイミング問題の解決）
+    final categoryString = result.categoryString ?? 'nothingDetected';
+    
+    // 最後の検出結果の信頼度を保存
+    _lastDetectionConfidence = result.confidence;
 
-    // カテゴリが変わった場合、前のカテゴリの時間を加算
-    if (_lastCategory != null && _lastCategory != categoryString && _categoryStartTime != null) {
-      final duration = now.difference(_categoryStartTime!);
-      final minutes = duration.inSeconds / 60.0;
+    // 最初の検出結果が来るまでの時間を記録
+    if (_lastCategory == null && _sessionStartTime != null) {
+      final initialDuration = now.difference(_sessionStartTime!);
+      if (initialDuration.inSeconds > 0) {
+        _detectionPeriods.add(DetectionPeriod(
+          startTime: _sessionStartTime!,
+          endTime: now,
+          category: 'nothingDetected',
+          confidence: 0.0,
+        ));
+        _categoryStartTime = now;
+        _lastCategory = 'nothingDetected';
+      }
+    }
 
+    // カテゴリが変わった場合
+    if (_lastCategory != null && _lastCategory != categoryString) {
+      // 前のカテゴリの期間を確定して時間を加算
+      _finalizeCurrentPeriod(now);
+      
+      // 新しいカテゴリの開始
+      _categoryStartTime = now;
+      _lastCategory = categoryString;
+    } else if (_lastCategory == null) {
+      // 最初のカテゴリの開始
+      _categoryStartTime = now;
+      _lastCategory = categoryString;
+    }
+    
+    // 現在の期間の終了時刻を更新（検出結果が来るたびに）
+    _updateCurrentPeriodEndTime(now, categoryString, result.confidence);
+
+    // UI更新
+    setState(() {
+      _currentDetection = categoryString;
+    });
+  }
+
+  /// 現在の期間を確定して時間を加算
+  void _finalizeCurrentPeriod(DateTime endTime) {
+    if (_categoryStartTime == null || _lastCategory == null) return;
+  
+    final duration = endTime.difference(_categoryStartTime!);
+    final seconds = duration.inSeconds;
+  
+    if (seconds <= 0) return;
+  
+    // 最後の期間を更新または追加
+    if (_detectionPeriods.isNotEmpty && 
+        _detectionPeriods.last.category == _lastCategory &&
+        _detectionPeriods.last.startTime == _categoryStartTime) {
+      // 既存の期間の終了時刻を更新
+      final lastIndex = _detectionPeriods.length - 1;
+      final lastPeriod = _detectionPeriods[lastIndex];
+      _detectionPeriods[lastIndex] = DetectionPeriod(
+        startTime: lastPeriod.startTime,
+        endTime: endTime,
+        category: lastPeriod.category,
+        confidence: lastPeriod.confidence,
+      );
+    } else {
+      // 新しい期間を追加
+      _detectionPeriods.add(DetectionPeriod(
+        startTime: _categoryStartTime!,
+        endTime: endTime,
+        category: _lastCategory!,
+        confidence: _lastDetectionConfidence ?? 0.0,
+      ));
+    }
+  
+    // カテゴリ別の時間を加算（nothingDetectedは除外）
+    if (_lastCategory != 'nothingDetected') {
       setState(() {
         switch (_lastCategory) {
           case 'study':
-            _studyMinutes += minutes;
+            _studySeconds += seconds;
             break;
           case 'pc':
-            _pcMinutes += minutes;
+            _pcSeconds += seconds;
             break;
           case 'smartphone':
-            _smartphoneMinutes += minutes;
+            _smartphoneSeconds += seconds;
             break;
           case 'personOnly':
-            _personOnlyMinutes += minutes;
+            _personOnlySeconds += seconds;
             break;
         }
       });
     }
+  }
 
-    // 新しいカテゴリの開始
-    setState(() {
-      _currentDetection = categoryString;
-      _lastCategory = categoryString;
-      _categoryStartTime = now;
-    });
+  /// 現在の期間の終了時刻を更新
+  void _updateCurrentPeriodEndTime(DateTime endTime, String category, double confidence) {
+    if (_categoryStartTime == null) return;
+  
+    if (_detectionPeriods.isNotEmpty) {
+      final lastPeriod = _detectionPeriods.last;
+      if (lastPeriod.category == category && 
+          lastPeriod.startTime == _categoryStartTime) {
+        // 期間の終了時刻を更新（同じカテゴリが続く場合）
+        final lastIndex = _detectionPeriods.length - 1;
+        _detectionPeriods[lastIndex] = DetectionPeriod(
+          startTime: lastPeriod.startTime,
+          endTime: endTime,
+          category: lastPeriod.category,
+          confidence: confidence,
+        );
+        return;
+      }
+    }
+  
+    // 新しい期間を追加（最初の有効なカテゴリの場合）
+    if (category != 'nothingDetected') {
+      _detectionPeriods.add(DetectionPeriod(
+        startTime: _categoryStartTime!,
+        endTime: endTime,
+        category: category,
+        confidence: confidence,
+      ));
+    }
   }
 
   void _startTimer() {
@@ -167,11 +277,10 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
     return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${secs.toString().padLeft(2, '0')}';
   }
 
-  String _formatTimeWithSeconds(double minutes) {
-    final totalSeconds = (minutes * 60).round();
-    final hours = totalSeconds ~/ 3600;
-    final mins = (totalSeconds % 3600) ~/ 60;
-    final secs = totalSeconds % 60;
+  String _formatTimeWithSeconds(int seconds) {
+    final hours = seconds ~/ 3600;
+    final mins = (seconds % 3600) ~/ 60;
+    final secs = seconds % 60;
     
     if (hours > 0) {
       return '${hours}h ${mins}m ${secs}s';
@@ -181,34 +290,111 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
       return '${secs}s';
     }
   }
+  
+  /// 現在のカテゴリの経過時間を含めた秒数を取得
+  int _getCurrentCategorySeconds(int baseSeconds) {
+    if (_currentDetection != null && _categoryStartTime != null) {
+      final now = DateTime.now();
+      final duration = now.difference(_categoryStartTime!);
+      return baseSeconds + duration.inSeconds;
+    }
+    return baseSeconds;
+  }
 
   void _handleStop() async {
     _timer?.cancel();
     
-    // 最後のカテゴリの時間を加算
-    if (_categoryStartTime != null && _lastCategory != null) {
-      final now = DateTime.now();
-      final duration = now.difference(_categoryStartTime!);
-      final minutes = duration.inSeconds / 60.0;
+    final sessionEndTime = DateTime.now();
+    
+    // 最後のカテゴリの期間を確定して時間を加算
+    _finalizeCurrentPeriod(sessionEndTime);
 
-      switch (_lastCategory) {
-        case 'study':
-          _studyMinutes += minutes;
-          break;
-        case 'pc':
-          _pcMinutes += minutes;
-          break;
-        case 'smartphone':
-          _smartphoneMinutes += minutes;
-          break;
-        case 'personOnly':
-          _personOnlyMinutes += minutes;
-          break;
+    // セッションデータを作成
+    if (_sessionStartTime != null) {
+      // デバッグ: カテゴリ別時間をログに出力
+      LogMk.logDebug(
+        '📊 カテゴリ別時間（セッション作成前）',
+        tag: 'TrackingScreen._handleStop',
+      );
+      LogMk.logDebug(
+        '  study: $_studySeconds秒',
+        tag: 'TrackingScreen._handleStop',
+      );
+      LogMk.logDebug(
+        '  pc: $_pcSeconds秒',
+        tag: 'TrackingScreen._handleStop',
+      );
+      LogMk.logDebug(
+        '  smartphone: $_smartphoneSeconds秒',
+        tag: 'TrackingScreen._handleStop',
+      );
+      LogMk.logDebug(
+        '  personOnly: $_personOnlySeconds秒',
+        tag: 'TrackingScreen._handleStop',
+      );
+      
+      // 次のセッションIDを取得
+      final nextSessionId = await _sessionManager.getNextSessionId();
+      
+      var session = TrackingSession(
+        id: nextSessionId,
+        startTime: _sessionStartTime!,
+        endTime: sessionEndTime,
+        categorySeconds: {
+          'study': _studySeconds,
+          'pc': _pcSeconds,
+          'smartphone': _smartphoneSeconds,
+          'personOnly': _personOnlySeconds,
+        },
+        detectionPeriods: _detectionPeriods,
+        lastModified: DateTime.now(),
+      );
+
+      // データ整合性チェックと自動修正
+      final validation = session.validateData();
+      if (!validation.$1) {
+        LogMk.logWarning(
+          '⚠️ データ整合性の問題を検出しました:',
+          tag: 'TrackingScreen._handleStop',
+        );
+        for (final issue in validation.$2) {
+          LogMk.logWarning('  - $issue', tag: 'TrackingScreen._handleStop');
+        }
+        
+        // detectionPeriodsからcategorySecondsを再計算して修正
+        final recalculated = session.recalculateCategorySeconds();
+        session = session.copyWith(categorySeconds: recalculated);
+        LogMk.logDebug(
+          '✅ categorySecondsを再計算して修正しました',
+          tag: 'TrackingScreen._handleStop',
+        );
+      }
+
+      // ログに出力
+      _logSessionData(session);
+
+      // データベースに保存
+      try {
+        await _sessionManager.addSessionWithAuth(session);
+        LogMk.logDebug(
+          '✅ トラッキングセッションを保存しました: ${session.id}',
+          tag: 'TrackingScreen._handleStop',
+        );
+      } catch (e, stackTrace) {
+        LogMk.logError(
+          '❌ トラッキングセッションの保存に失敗しました: $e',
+          tag: 'TrackingScreen._handleStop',
+          stackTrace: stackTrace,
+        );
       }
     }
 
     // 検出を停止
     await _detectionController?.stop();
+    
+    // ストリーム購読を停止
+    await _detectionSubscription?.cancel();
+    _detectionSubscription = null;
     
     // カメラリソースを解放
     await _detectionController?.dispose();
@@ -224,6 +410,144 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
     if (mounted) {
       NavigationHelper.push(context, AppRoutes.trackingFinishedNew);
     }
+  }
+
+  /// セッションデータをログに出力
+  void _logSessionData(TrackingSession session) {
+    LogMk.logDebug(
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '📊 トラッキングセッション完了',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      'セッションID: ${session.id}',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '開始時刻: ${_formatDateTime(session.startTime)}',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '終了時刻: ${_formatDateTime(session.endTime)}',
+      tag: 'TrackingSession',
+    );
+    final totalSeconds = session.duration.inSeconds;
+    LogMk.logDebug(
+      '合計時間: $totalSeconds秒',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '📈 カテゴリ別時間',
+      tag: 'TrackingSession',
+    );
+    final studySeconds = session.categorySeconds['study'] ?? 0;
+    final pcSeconds = session.categorySeconds['pc'] ?? 0;
+    final smartphoneSeconds = session.categorySeconds['smartphone'] ?? 0;
+    final personOnlySeconds = session.categorySeconds['personOnly'] ?? 0;
+    
+    LogMk.logDebug(
+      '  Study: $studySeconds秒',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '  PC: $pcSeconds秒',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '  Smartphone: $smartphoneSeconds秒',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '  PersonOnly: $personOnlySeconds秒',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '⏱️ 検出期間リスト（時系列・連続）',
+      tag: 'TrackingSession',
+    );
+    if (session.detectionPeriods.isEmpty) {
+      LogMk.logDebug(
+        '  検出期間なし',
+        tag: 'TrackingSession',
+      );
+    } else {
+      // 時系列を確認して、空白がないことを検証
+      DateTime? lastEndTime;
+      for (var i = 0; i < session.detectionPeriods.length; i++) {
+        final period = session.detectionPeriods[i];
+        
+        // 空白期間のチェック
+        if (lastEndTime != null && period.startTime != lastEndTime) {
+          final gapSeconds = period.startTime.difference(lastEndTime).inSeconds;
+          LogMk.logWarning(
+            '  ⚠️ 空白期間検出: ${lastEndTime.toString()} → ${period.startTime.toString()} ($gapSeconds秒)',
+            tag: 'TrackingSession',
+          );
+        }
+        
+        final durationSeconds = period.endTime.difference(period.startTime).inSeconds;
+        LogMk.logDebug(
+          '  [${i + 1}] ${period.category}',
+          tag: 'TrackingSession',
+        );
+        LogMk.logDebug(
+          '      開始: ${_formatDateTime(period.startTime)}',
+          tag: 'TrackingSession',
+        );
+        LogMk.logDebug(
+          '      終了: ${_formatDateTime(period.endTime)}',
+          tag: 'TrackingSession',
+        );
+        LogMk.logDebug(
+          '      継続時間: $durationSeconds秒',
+          tag: 'TrackingSession',
+        );
+        LogMk.logDebug(
+          '      信頼度: ${period.confidence.toStringAsFixed(2)}',
+          tag: 'TrackingSession',
+        );
+        
+        lastEndTime = period.endTime;
+      }
+      
+      // セッション終了時刻との整合性チェック
+      if (lastEndTime != null && lastEndTime != session.endTime) {
+        final gapSeconds = session.endTime.difference(lastEndTime).inSeconds;
+        LogMk.logWarning(
+          '  ⚠️ 最後の検出期間とセッション終了時刻に差があります: $gapSeconds秒',
+          tag: 'TrackingSession',
+        );
+      }
+    }
+    LogMk.logDebug(
+      '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━',
+      tag: 'TrackingSession',
+    );
+  }
+
+  String _formatDateTime(DateTime dateTime) {
+    final year = dateTime.year;
+    final month = dateTime.month.toString().padLeft(2, '0');
+    final day = dateTime.day.toString().padLeft(2, '0');
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    final second = dateTime.second.toString().padLeft(2, '0');
+    return '$year-$month-$day $hour:$minute:$second';
   }
 
   @override
@@ -443,7 +767,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
                 icon: Icons.menu_book,
                 label: 'Study',
                 color: _studyColor,
-                minutes: _studyMinutes,
+                seconds: _studySeconds,
               ),
             ),
             SizedBox(width: AppSpacing.md),
@@ -453,7 +777,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
                 icon: Icons.computer,
                 label: 'PC',
                 color: _pcColor,
-                minutes: _pcMinutes,
+                seconds: _pcSeconds,
               ),
             ),
             SizedBox(width: AppSpacing.md),
@@ -463,7 +787,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
                 icon: Icons.smartphone,
                 label: 'Phone',
                 color: _smartphoneColor,
-                minutes: _smartphoneMinutes,
+                seconds: _smartphoneSeconds,
               ),
             ),
             SizedBox(width: AppSpacing.md),
@@ -473,7 +797,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
                 icon: Icons.person,
                 label: 'Person',
                 color: _personColor,
-                minutes: _personOnlyMinutes,
+                seconds: _personOnlySeconds,
               ),
             ),
           ],
@@ -487,17 +811,12 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
     required IconData icon,
     required String label,
     required Color color,
-    required double minutes,
+    required int seconds,
   }) {
     final isDetected = _currentDetection == category;
     
     // 現在のカテゴリの場合は、追加で経過時間を加算
-    double displayMinutes = minutes;
-    if (isDetected && _categoryStartTime != null) {
-      final now = DateTime.now();
-      final duration = now.difference(_categoryStartTime!);
-      displayMinutes += duration.inSeconds / 60.0;
-    }
+    final displaySeconds = _getCurrentCategorySeconds(seconds);
 
     return Container(
       decoration: BoxDecoration(
@@ -553,7 +872,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
             ),
             SizedBox(height: AppSpacing.xs),
             Text(
-              _formatTimeWithSeconds(displayMinutes),
+              _formatTimeWithSeconds(displaySeconds),
               style: AppTextStyles.caption.copyWith(
                 color: isDetected 
                     ? color.withValues(alpha: 1.0)
@@ -653,7 +972,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
                       children: [
                         Flexible(
                           child: Text(
-                            '${_formatTimeWithSeconds(currentHours * 60)} / ${goal.targetHours.toStringAsFixed(1)}h',
+                            '${_formatTimeWithSeconds((currentHours * 3600).round())} / ${goal.targetHours.toStringAsFixed(1)}h',
                             style: AppTextStyles.body2,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -693,16 +1012,21 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
   }
 
   double _getCurrentHours(String category) {
+    int seconds;
     switch (category) {
       case 'study':
-        return _studyMinutes / 60;
+        seconds = _getCurrentCategorySeconds(_studySeconds);
+        break;
       case 'pc':
-        return _pcMinutes / 60;
+        seconds = _getCurrentCategorySeconds(_pcSeconds);
+        break;
       case 'smartphone':
-        return _smartphoneMinutes / 60;
+        seconds = _getCurrentCategorySeconds(_smartphoneSeconds);
+        break;
       default:
         return 0.0;
     }
+    return seconds / 3600.0;
   }
 
   Widget _buildStopButton() {

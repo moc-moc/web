@@ -13,6 +13,9 @@ class DetectionProcessor {
   
   /// 信頼度の閾値（0.7以上で有効）
   static const double _confidenceThreshold = 0.7;
+  
+  /// person以外のオブジェクトの信頼度閾値（低めに設定して重要視）
+  static const double _nonPersonConfidenceThreshold = 0.5;
 
   /// 検出サービスを取得（モデル切り替え用）
   DetectionService get detectionService => _detectionService;
@@ -39,7 +42,14 @@ class DetectionProcessor {
     // PCカテゴリのラベル
     const pcLabels = ['laptop', 'desktop', 'keyboard', 'mouse', 'computer'];
     // スマホカテゴリのラベル
-    const smartphoneLabels = ['smartphone', 'phone', 'mobile'];
+    const smartphoneLabels = [
+      'smartphone',
+      'phone',
+      'mobile',
+      'cell phone',
+      'cellphone',
+      'mobile phone',
+    ];
     // 人のラベル
     const personLabels = ['person', 'human'];
 
@@ -63,6 +73,126 @@ class DetectionProcessor {
     return DetectionCategory.nothingDetected;
   }
 
+  /// 複数の検出結果から最適なカテゴリを決定
+  /// 
+  /// person以外のオブジェクトが検出された場合、それを優先的に選択する
+  /// personとcell phoneが両方検出された場合、smartphoneを優先する
+  /// 
+  /// **パラメータ**:
+  /// - `results`: 検出結果のリスト
+  /// 
+  /// **戻り値**: 最適な検出結果
+  DetectionResult? _selectBestCategory(List<DetectionResult> results) {
+    if (results.isEmpty) {
+      return null;
+    }
+
+    // 信頼度でソート（元のリストを変更しないようにコピーを作成）
+    final sortedResults = List<DetectionResult>.from(results);
+    sortedResults.sort((a, b) => b.confidence.compareTo(a.confidence));
+
+    // person以外のオブジェクトのラベル定義
+    const studyLabels = ['book', 'pen', 'notebook', 'paper'];
+    const pcLabels = ['laptop', 'desktop', 'keyboard', 'mouse', 'computer'];
+    const smartphoneLabels = [
+      'smartphone',
+      'phone',
+      'mobile',
+      'cell phone',
+      'cellphone',
+      'mobile phone',
+    ];
+    const personLabels = ['person', 'human'];
+
+    // 信頼度閾値を超えた結果を収集
+    final validResults = sortedResults.where((r) => 
+      r.confidence >= _confidenceThreshold
+    ).toList();
+
+    // person以外のオブジェクトで、信頼度閾値を下げた結果も収集
+    final nonPersonResults = sortedResults.where((r) {
+      if (r.confidence < _nonPersonConfidenceThreshold) {
+        return false;
+      }
+      final lowerLabels = r.detectedLabels.map((l) => l.toLowerCase()).toList();
+      return lowerLabels.any((label) => 
+        studyLabels.contains(label) ||
+        pcLabels.contains(label) ||
+        smartphoneLabels.contains(label)
+      );
+    }).toList();
+
+    // personとcell phoneが両方検出されているかチェック
+    bool hasPerson = false;
+    bool hasCellPhone = false;
+    DetectionResult? cellPhoneResult;
+    List<String> combinedLabels = [];
+
+    for (final result in sortedResults) {
+      if (result.confidence < _nonPersonConfidenceThreshold) {
+        continue;
+      }
+      final lowerLabels = result.detectedLabels.map((l) => l.toLowerCase()).toList();
+      
+      if (lowerLabels.any((label) => personLabels.contains(label))) {
+        hasPerson = true;
+        combinedLabels.addAll(result.detectedLabels);
+      }
+      if (lowerLabels.any((label) => smartphoneLabels.contains(label))) {
+        hasCellPhone = true;
+        cellPhoneResult = result;
+        combinedLabels.addAll(result.detectedLabels);
+      }
+    }
+
+    // personとcell phoneが両方検出された場合、smartphoneを優先
+    if (hasPerson && hasCellPhone && cellPhoneResult != null) {
+      // 重複を除去してラベルを結合
+      final uniqueLabels = combinedLabels.toSet().toList();
+      return DetectionResult(
+        category: DetectionCategory.smartphone,
+        confidence: cellPhoneResult.confidence,
+        timestamp: cellPhoneResult.timestamp,
+        detectedLabels: uniqueLabels,
+      );
+    }
+
+    // person以外のオブジェクトが検出された場合、それを優先
+    if (nonPersonResults.isNotEmpty) {
+      // 信頼度が最も高いperson以外のオブジェクトを選択
+      nonPersonResults.sort((a, b) => b.confidence.compareTo(a.confidence));
+      final bestNonPerson = nonPersonResults.first;
+      final category = _mapToCategory(bestNonPerson.detectedLabels);
+      return DetectionResult(
+        category: category,
+        confidence: bestNonPerson.confidence,
+        timestamp: bestNonPerson.timestamp,
+        detectedLabels: bestNonPerson.detectedLabels,
+      );
+    }
+
+    // 通常の信頼度閾値を超えた結果がある場合
+    if (validResults.isNotEmpty) {
+      final bestResult = validResults.first;
+      final category = _mapToCategory(bestResult.detectedLabels);
+      return DetectionResult(
+        category: category,
+        confidence: bestResult.confidence,
+        timestamp: bestResult.timestamp,
+        detectedLabels: bestResult.detectedLabels,
+      );
+    }
+
+    // すべての結果が閾値を下回る場合
+    final bestResult = sortedResults.first;
+    return DetectionResult(
+      category: DetectionCategory.nothingDetected,
+      confidence: bestResult.confidence,
+      timestamp: bestResult.timestamp,
+      detectedLabels: bestResult.detectedLabels,
+    );
+  }
+
   /// 画像から検出を実行
   /// 
   /// **パラメータ**:
@@ -78,8 +208,20 @@ class DetectionProcessor {
       final results = await _detectionService.detect(imageBytes);
       
       if (results.isEmpty) {
+        return DetectionResult(
+          category: DetectionCategory.nothingDetected,
+          confidence: 0.0,
+          timestamp: DateTime.now(),
+          detectedLabels: [],
+        );
+      }
+
+      // 複数の検出結果から最適なカテゴリを決定
+      final bestResult = _selectBestCategory(results);
+      
+      if (bestResult == null) {
         LogMk.logDebug(
-          '🔍 [DetectionProcessor] 検出結果なし',
+          '✅ [最終判定] nothingDetected (検出なし)',
           tag: 'DetectionProcessor.processImage',
         );
         return DetectionResult(
@@ -90,49 +232,14 @@ class DetectionProcessor {
         );
       }
 
-      // 信頼度が最も高い結果を取得
-      results.sort((a, b) => b.confidence.compareTo(a.confidence));
-      final bestResult = results.first;
-
-      // 検出結果の詳細をログ出力
+      // 最終判定のログを出力
+      final allLabels = results.expand((r) => r.detectedLabels).toSet().toList();
       LogMk.logDebug(
-        '🔍 [DetectionProcessor] 検出結果: ${bestResult.categoryString} '
-        '(信頼度: ${bestResult.confidence.toStringAsFixed(3)}, '
-        '検出ラベル: ${bestResult.detectedLabels.join(", ")})',
+        '✅ [最終判定] ${bestResult.categoryString ?? 'nothingDetected'} (検出ラベル: ${allLabels.join(', ')})',
         tag: 'DetectionProcessor.processImage',
       );
 
-      // 信頼度フィルタリング
-      if (bestResult.confidence < _confidenceThreshold) {
-        LogMk.logDebug(
-          '⚠️ [DetectionProcessor] 信頼度が閾値未満のため無効化 '
-          '(信頼度: ${bestResult.confidence.toStringAsFixed(3)} < $_confidenceThreshold)',
-          tag: 'DetectionProcessor.processImage',
-        );
-        return DetectionResult(
-          category: DetectionCategory.nothingDetected,
-          confidence: bestResult.confidence,
-          timestamp: DateTime.now(),
-          detectedLabels: bestResult.detectedLabels,
-        );
-      }
-
-      // カテゴリマッピング
-      final category = _mapToCategory(bestResult.detectedLabels);
-
-      LogMk.logDebug(
-        '✅ [DetectionProcessor] 最終結果: $category '
-        '(信頼度: ${bestResult.confidence.toStringAsFixed(3)}, '
-        '検出ラベル: ${bestResult.detectedLabels.join(", ")})',
-        tag: 'DetectionProcessor.processImage',
-      );
-
-      return DetectionResult(
-        category: category,
-        confidence: bestResult.confidence,
-        timestamp: DateTime.now(),
-        detectedLabels: bestResult.detectedLabels,
-      );
+      return bestResult;
     } catch (e, stackTrace) {
       LogMk.logError(
         '画像処理エラー: $e',

@@ -18,9 +18,6 @@ class DetectionController {
   Timer? _detectionTimer;
   bool _isPowerSavingMode = false;
   bool _isRunning = false;
-  static const Duration _realtimeDetectionInterval = Duration(seconds: 3);
-  DateTime? _lastRealtimeDetectionTime;
-  bool _isRealtimeDetectionProcessing = false;
   
   final StreamController<DetectionResult> _resultController =
       StreamController<DetectionResult>.broadcast();
@@ -70,10 +67,6 @@ class DetectionController {
     }
     final imageStream = rawStream;
 
-    LogMk.logDebug(
-      '📷 カメラ状態: initialized=${_cameraManager.isInitialized}, streamActive=true, モード=${_isPowerSavingMode ? "省電力(yolo11l)" : "通常(yolo11m, 3秒間隔)"}',
-      tag: 'DetectionController.start',
-    );
 
     try {
       final switched = await _processor.detectionService.switchModel(
@@ -95,80 +88,30 @@ class DetectionController {
 
     if (_isPowerSavingMode) {
       // 省電力モード: 10秒間隔で検出
-      _startPeriodicDetection(imageStream);
+      _startPeriodicDetection(imageStream, const Duration(seconds: 10));
     } else {
-      // 通常モード: 2秒間隔の検出
-      _startRealtimeDetection(imageStream);
+      // 通常モード: 3秒間隔で検出
+      _startPeriodicDetection(imageStream, const Duration(seconds: 3));
     }
 
-    LogMk.logDebug(
-      '検出開始（省電力モード: $_isPowerSavingMode）',
-      tag: 'DetectionController.start',
-    );
   }
 
-  /// リアルタイム検出を開始（通常モード：3秒間隔）
-  void _startRealtimeDetection(Stream<CameraImageData> imageStream) {
-    LogMk.logDebug(
-      '⏱️ 通常モード検出を開始（${_realtimeDetectionInterval.inSeconds}秒間隔、モデル: yolo11m、閾値: 0.6）',
-      tag: 'DetectionController._startRealtimeDetection',
-    );
-    _imageSubscription = imageStream.listen(
-      (image) async {
-        if (!_isRunning) return;
-
-        final now = DateTime.now();
-        if (_isRealtimeDetectionProcessing) {
-          return;
-        }
-
-        if (_lastRealtimeDetectionTime != null &&
-            now.difference(_lastRealtimeDetectionTime!) < _realtimeDetectionInterval) {
-          return;
-        }
-
-        _isRealtimeDetectionProcessing = true;
-        _lastRealtimeDetectionTime = now;
-
-        try {
-          final result = await _processor.processImage(image);
-          if (result != null && !_resultController.isClosed) {
-            _resultController.add(result);
-          }
-        } finally {
-          _isRealtimeDetectionProcessing = false;
-        }
-      },
-      onError: (error, stackTrace) {
-        LogMk.logError(
-          '画像ストリームエラー: $error',
-          tag: 'DetectionController._startRealtimeDetection',
-          stackTrace: stackTrace,
-        );
-      },
-    );
-  }
-
-  /// 定期検出を開始（省電力モード）
+  /// 定期検出を開始（通常モード・省電力モード共通）
   /// 
-  /// カメラストリームから10秒ごとに1フレームだけ取得して検出処理を実行
-  void _startPeriodicDetection(Stream<CameraImageData> imageStream) {
-    int _detectionExecuteCount = 0; // 検出実行カウント
-    DateTime? _lastDetectionTime; // 最後の検出実行時刻
+  /// カメラストリームから指定間隔ごとに1フレームだけ取得して検出処理を実行
+  /// 
+  /// **パラメータ**:
+  /// - `imageStream`: カメラ画像ストリーム
+  /// - `interval`: 検出間隔（通常モード: 3秒、省電力モード: 10秒）
+  void _startPeriodicDetection(Stream<CameraImageData> imageStream, Duration interval) {
     bool _isProcessingDetection = false; // 検出処理中フラグ
 
-    LogMk.logDebug(
-      '省電力モード開始: 10秒間隔でカメラ画像を取得して検出を実行します',
-      tag: 'DetectionController._startPeriodicDetection',
-    );
-
-    // ストリームを購読するが、10秒ごとに1フレームだけ処理
+    // ストリームを購読するが、指定間隔ごとに1フレームだけ処理
     // それ以外のフレームは破棄（省電力のため）
     _imageSubscription = imageStream.listen(
       (image) {
-        // 検出処理中でない場合のみ画像を保持
-        // ただし、10秒間隔のタイマーで処理するため、ここでは何もしない
         // ストリームは動作させる必要があるが、フレームは破棄
+        // タイマーで処理するため、ここでは何もしない
       },
       onError: (error, stackTrace) {
         LogMk.logError(
@@ -179,9 +122,9 @@ class DetectionController {
       },
     );
 
-    // 10秒間隔で検出
+    // 指定間隔で検出
     _detectionTimer = Timer.periodic(
-      const Duration(seconds: 10),
+      interval,
       (timer) async {
         if (!_isRunning) {
           timer.cancel();
@@ -189,89 +132,21 @@ class DetectionController {
         }
 
         if (_isProcessingDetection) {
-          LogMk.logDebug(
-            '⏭️ 前回の検出処理がまだ実行中のためスキップ',
-            tag: 'DetectionController._startPeriodicDetection',
-          );
           return;
         }
 
         _isProcessingDetection = true;
-        _detectionExecuteCount++;
-        final now = DateTime.now();
-        final timeSinceLastDetection = _lastDetectionTime != null
-            ? now.difference(_lastDetectionTime!).inSeconds
-            : 0;
-        _lastDetectionTime = now;
-
-        LogMk.logDebug(
-          '⏰ 10秒間隔タイマー実行 #$_detectionExecuteCount '
-          '(${timeSinceLastDetection > 0 ? "${timeSinceLastDetection}秒前から" : "初回"})',
-          tag: 'DetectionController._startPeriodicDetection',
-        );
-
-        LogMk.logDebug(
-          '🔍 [省電力モード] 検出処理開始（モデル: yolo11l）',
-          tag: 'DetectionController._startPeriodicDetection',
-        );
 
         try {
           // カメラから1フレームだけ取得
-          LogMk.logDebug(
-            '📷 カメラ画像取得開始',
-            tag: 'DetectionController._startPeriodicDetection',
-          );
-          
-          final captureStartTime = DateTime.now();
           final image = await _cameraManager.captureImage();
-          final captureDuration = DateTime.now().difference(captureStartTime).inMilliseconds;
 
           if (image != null) {
-            LogMk.logDebug(
-              '📷 カメラ画像取得完了 (取得時間: ${captureDuration}ms)',
-              tag: 'DetectionController._startPeriodicDetection',
-            );
-            
-            LogMk.logDebug(
-              '🔍 検出処理開始（画像あり）',
-              tag: 'DetectionController._startPeriodicDetection',
-            );
-            
-            final detectionStartTime = DateTime.now();
             final result = await _processor.processImage(image);
-            final detectionDuration = DateTime.now().difference(detectionStartTime).inMilliseconds;
             
             if (result != null && !_resultController.isClosed) {
-              LogMk.logDebug(
-                '✅ 検出完了: ${result.categoryString} '
-                '(信頼度: ${result.confidence.toStringAsFixed(2)}, '
-                '検出ラベル: ${result.detectedLabels.join(", ")}, '
-                '検出処理時間: ${detectionDuration}ms, '
-                '合計時間: ${captureDuration + detectionDuration}ms)',
-                tag: 'DetectionController._startPeriodicDetection',
-              );
               _resultController.add(result);
-            } else {
-              LogMk.logDebug(
-                '⚠️ 検出結果なしまたはストリーム閉鎖 '
-                '(検出処理時間: ${detectionDuration}ms)',
-                tag: 'DetectionController._startPeriodicDetection',
-              );
             }
-            
-            LogMk.logDebug(
-              '✅ [省電力モード] 検出処理完了（モデル: yolo11l, 合計時間: ${captureDuration + detectionDuration}ms）',
-              tag: 'DetectionController._startPeriodicDetection',
-            );
-          } else {
-            LogMk.logDebug(
-              '❌ カメラ画像取得失敗 (取得時間: ${captureDuration}ms)',
-              tag: 'DetectionController._startPeriodicDetection',
-            );
-            LogMk.logDebug(
-              '⚠️ [省電力モード] 検出処理失敗（モデル: yolo11l）',
-              tag: 'DetectionController._startPeriodicDetection',
-            );
           }
         } finally {
           _isProcessingDetection = false;
@@ -321,10 +196,6 @@ class DetectionController {
       await start(powerSavingMode: enabled);
     }
 
-    LogMk.logDebug(
-      '省電力モード切り替え: $enabled',
-      tag: 'DetectionController.setPowerSavingMode',
-    );
   }
 
   /// 検出を停止
@@ -339,7 +210,6 @@ class DetectionController {
     _detectionTimer?.cancel();
     _detectionTimer = null;
 
-    LogMk.logDebug('検出停止', tag: 'DetectionController.stop');
   }
 
   /// リソースを解放

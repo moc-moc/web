@@ -383,11 +383,6 @@ class CameraManagerWeb implements CameraManager {
 
   @override
   Future<CameraImageData?> captureImage() async {
-    LogMk.logDebug(
-      '📷 [CameraManagerWeb] captureImage呼び出し',
-      tag: 'CameraManagerWeb.captureImage',
-    );
-    
     if (!isInitialized || _videoElement == null) {
       LogMk.logError(
         '❌ [CameraManagerWeb] カメラが初期化されていません (isInitialized: $isInitialized, videoElement: ${_videoElement != null})',
@@ -397,23 +392,12 @@ class CameraManagerWeb implements CameraManager {
     }
 
     try {
-      LogMk.logDebug(
-        '📷 [CameraManagerWeb] 画像ストリームから画像取得開始',
-        tag: 'CameraManagerWeb.captureImage',
-      );
-      
       // ストリームから最新の画像を取得するため、1フレーム待機
       final completer = Completer<CameraImageData?>();
       late StreamSubscription subscription;
-      final captureStartTime = DateTime.now();
 
       subscription = imageStream!.listen((image) {
         if (!completer.isCompleted) {
-          final duration = DateTime.now().difference(captureStartTime).inMilliseconds;
-          LogMk.logDebug(
-            '✅ [CameraManagerWeb] 画像取得成功 (所要時間: ${duration}ms, サイズ: ${image.width}x${image.height})',
-            tag: 'CameraManagerWeb.captureImage',
-          );
           completer.complete(image);
           subscription.cancel();
         }

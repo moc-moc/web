@@ -9,6 +9,7 @@ import 'package:test_flutter/presentation/widgets/dialogs.dart';
 import 'package:test_flutter/presentation/widgets/auth/auth_form_helper.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/data/repositories/auth_repository.dart';
+import 'package:test_flutter/data/repositories/initialization_repository.dart';
 
 /// サインアップ/ログイン画面
 class SignupLoginScreen extends StatefulWidget {
@@ -73,6 +74,16 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
         final result = await AuthServiceUN.signInWithGoogle();
 
         if (result.success && mounted) {
+          // 認証成功後にデータ読み込みを実行
+          try {
+            debugPrint('🔄 [認証成功] Firestoreからデータを読み込み開始');
+            await AppInitUN.loadAllData();
+            debugPrint('✅ [認証成功] データ読み込み完了');
+          } catch (e) {
+            debugPrint('⚠️ [認証成功] データ読み込みエラー: $e');
+            // エラーが発生してもホーム画面に遷移
+          }
+
           NavigationHelper.pushReplacement(context, AppRoutes.home);
         } else if (mounted) {
           showErrorSnackBar(context, result.message);
@@ -230,10 +241,7 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
         decoration: BoxDecoration(
           color: AppColors.blue.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(AppRadius.large),
-          border: Border.all(
-            color: AppColors.blue,
-            width: 1.5,
-          ),
+          border: Border.all(color: AppColors.blue, width: 1.5),
         ),
         child: Material(
           color: Colors.transparent,
@@ -273,12 +281,9 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
           _isSignUp
               ? 'Already have an account? Log In'
               : 'Don\'t have an account? Sign Up',
-          style: AppTextStyles.body2.copyWith(
-            color: AppColors.gray,
-          ),
+          style: AppTextStyles.body2.copyWith(color: AppColors.gray),
         ),
       ),
     );
   }
 }
-

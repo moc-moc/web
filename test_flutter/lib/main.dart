@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'core/route.dart';
+import 'package:test_flutter/data/repositories/initialization_repository.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   try {
     if (kIsWeb) {
       // Web版: FirebaseOptionsを明示的に指定
@@ -24,13 +26,21 @@ void main() async {
       await Firebase.initializeApp();
     }
     debugPrint('✅ [main] Firebase初期化完了');
+
+    final container = ProviderContainer();
+    AppInitUN.setGlobalContainer(container);
+
+    await AppInitUN.initializeWithAuth();
+
+    runApp(
+      UncontrolledProviderScope(container: container, child: const MyApp()),
+    );
   } catch (e, stackTrace) {
     debugPrint('💥 [main] Firebase初期化エラー: $e');
     debugPrint('   - スタックトレース: $stackTrace');
     // エラーが発生してもアプリは起動する（認証機能以外は動作する可能性があるため）
+    runApp(const ProviderScope(child: MyApp()));
   }
-  
-  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {

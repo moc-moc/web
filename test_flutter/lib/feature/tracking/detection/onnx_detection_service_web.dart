@@ -17,7 +17,6 @@ class ONNXDetectionService implements DetectionService {
   bool _isInferencing = false; // 推論実行中フラグ（並行実行防止）
   bool _powerSavingMode = false; // 現在の省電力モード状態
   String? _currentModelName; // 現在使用中のモデル名
-  bool _hasLoggedCameraBinding = false;
 
   /// モデルの入力サイズ
   static const int _inputSize = 640; // YOLO標準サイズ
@@ -27,12 +26,6 @@ class ONNXDetectionService implements DetectionService {
 
   /// IoU閾値（重複検出の除去用）
   static const double _iouThreshold = 0.5;
-
-  /// 検出候補のログ出力制御用（最初の検出時のみ）
-  static int _parseCallCount = 0;
-
-  /// 1フレーム内でperson候補をログに出す最大件数
-  static const int _maxPersonLogsPerFrame = 5;
 
   /// NMSに渡す前に許容する最大検出候補数
   static const int _maxDetectionsBeforeNms = 2000;
@@ -132,7 +125,6 @@ class ONNXDetectionService implements DetectionService {
         ?.split('/')
         .last
         .replaceAll('.onnx', '');
-    _hasLoggedCameraBinding = false;
 
     LogMk.logDebug(
       '✅ [ONNXDetectionService] モデル準備完了（${_currentModelName ?? "unknown"} / $modeLabel, 閾値=${_activeConfidenceThreshold.toStringAsFixed(2)}）',
@@ -559,26 +551,13 @@ class ONNXDetectionService implements DetectionService {
 
     // 並行実行チェック：既に推論実行中の場合はスキップ
     if (_isInferencing) {
-      LogMk.logDebug(
-        '⏭️ [ONNXDetectionService] 前回の推論がまだ実行中のためスキップ',
-        tag: 'ONNXDetectionService.detect',
-      );
       return [];
     }
 
     // 推論実行中フラグをセット
     _isInferencing = true;
-    if (!_hasLoggedCameraBinding) {
-      LogMk.logDebug(
-        '🎯 [ONNXDetectionService] カメラフレーム受信: bytes=${imageBytes.length}, モデル=${_currentModelName ?? "unknown"}, モード=${_describeMode(_powerSavingMode)}',
-        tag: 'ONNXDetectionService.detect',
-      );
-      _hasLoggedCameraBinding = true;
-    }
 
     try {
-      final detectStartTime = DateTime.now();
-
       // 画像をHTMLImageElementに変換
       final imageElement = await _createImageElement(imageBytes);
 
@@ -601,21 +580,24 @@ class ONNXDetectionService implements DetectionService {
       // 検出されたラベルをカテゴリにマッピング
       final results = _mapToDetectionResults(detections);
 
-      final totalDuration = DateTime.now()
-          .difference(detectStartTime)
-          .inMilliseconds;
-
-      if (results.isNotEmpty) {
-        final result = results.first;
+      // 検出ログを出力（複数物体対応）
+      if (detections.isEmpty) {
         LogMk.logDebug(
-          '✅ [ONNXDetectionService] 検出完了: ${result.categoryString} (信頼度: ${result.confidence.toStringAsFixed(2)}, 推論: ${inferenceDuration}ms, 合計: ${totalDuration}ms)',
+          '🔍 [検出結果] 検出なし → 最終判定: nothingDetected (${inferenceDuration}ms)',
           tag: 'ONNXDetectionService.detect',
         );
       } else {
+        // 各検出物体の情報をログに出力
+        final detectionDetails = detections.map((d) => 
+          '${d.label} (信頼度: ${d.confidence.toStringAsFixed(2)})'
+        ).join(', ');
+        
         LogMk.logDebug(
-          '✅ [ONNXDetectionService] 検出完了: 検出なし (推論: ${inferenceDuration}ms, 合計: ${totalDuration}ms)',
+          '🔍 [検出物体] $detectionDetails (${inferenceDuration}ms)',
           tag: 'ONNXDetectionService.detect',
         );
+        
+        // 検出されたラベルのみをログに出力（最終判定はDetectionProcessorで行う）
       }
 
       return results;
@@ -635,11 +617,6 @@ class ONNXDetectionService implements DetectionService {
   /// 画像バイトからHTMLImageElementを作成
   Future<html.ImageElement> _createImageElement(Uint8List imageBytes) async {
     try {
-      LogMk.logDebug(
-        '📷 [ONNXDetectionService] 画像要素作成開始: バイト数=${imageBytes.length}, 最初の20バイト=${imageBytes.take(20).toList()}',
-        tag: 'ONNXDetectionService._createImageElement',
-      );
-
       final blob = html.Blob([imageBytes]);
       final url = html.Url.createObjectUrlFromBlob(blob);
 
@@ -648,11 +625,6 @@ class ONNXDetectionService implements DetectionService {
 
       // 画像の読み込みを待つ
       await img.onLoad.first;
-
-      LogMk.logDebug(
-        '✅ [ONNXDetectionService] 画像要素作成完了: サイズ=${img.width}x${img.height}',
-        tag: 'ONNXDetectionService._createImageElement',
-      );
 
       html.Url.revokeObjectUrl(url);
 
@@ -670,11 +642,6 @@ class ONNXDetectionService implements DetectionService {
   /// 画像を前処理（リサイズ＋正規化）
   Future<dynamic> _preprocessImage(html.ImageElement image) async {
     try {
-      LogMk.logDebug(
-        '📷 [ONNXDetectionService] 画像前処理開始: 元画像サイズ=${image.width}x${image.height}',
-        tag: 'ONNXDetectionService._preprocessImage',
-      );
-
       // Canvasを使用して画像をリサイズ＋正規化
       final canvas = html.CanvasElement(width: _inputSize, height: _inputSize);
       final ctx = canvas.context2D;
@@ -695,12 +662,6 @@ class ONNXDetectionService implements DetectionService {
       // ピクセルデータを取得
       final imageData = ctx.getImageData(0, 0, _inputSize, _inputSize);
       final data = imageData.data;
-
-      // デバッグ: 最初の10ピクセルのRGBA値を確認
-      LogMk.logDebug(
-        '📷 [ONNXDetectionService] 画像データ確認: 最初の10ピクセルのRGBA値=${data.take(40).toList()}',
-        tag: 'ONNXDetectionService._preprocessImage',
-      );
 
       // Float32Arrayに変換（NCHW形式: [1, 3, 640, 640]）
       final float32Data = Float32List(_inputSize * _inputSize * 3);
@@ -724,12 +685,6 @@ class ONNXDetectionService implements DetectionService {
         }
       }
 
-      // デバッグ: 正規化後のデータを確認（最初の30要素）
-      LogMk.logDebug(
-        '📷 [ONNXDetectionService] 正規化後のデータ（最初の30要素）: ${float32Data.take(30).toList()}',
-        tag: 'ONNXDetectionService._preprocessImage',
-      );
-
       // ONNX Runtime Web用のTensorを作成
       final ort = js.context['ort'];
       if (ort == null) {
@@ -749,11 +704,6 @@ class ONNXDetectionService implements DetectionService {
         tensorData,
         js.JsArray.from([1, 3, _inputSize, _inputSize]),
       ]);
-
-      LogMk.logDebug(
-        '✅ [ONNXDetectionService] テンソル作成完了: 形状=[1, 3, $_inputSize, $_inputSize]',
-        tag: 'ONNXDetectionService._preprocessImage',
-      );
 
       return tensor;
     } catch (e, stackTrace) {
@@ -780,21 +730,11 @@ class ONNXDetectionService implements DetectionService {
         // デフォルトの 'images' を使用
       }
 
-      LogMk.logDebug(
-        '🤖 [ONNXDetectionService] 推論実行開始: 入力名=$inputName',
-        tag: 'ONNXDetectionService._runInference',
-      );
-
       final feeds = js.JsObject.jsify({inputName: inputTensor});
 
       // 推論実行
       final runPromise = _session.callMethod('run', [feeds]);
       final results = await _promiseToFuture(runPromise);
-
-      LogMk.logDebug(
-        '✅ [ONNXDetectionService] 推論実行完了',
-        tag: 'ONNXDetectionService._runInference',
-      );
 
       return results;
     } catch (e, stackTrace) {
@@ -810,10 +750,6 @@ class ONNXDetectionService implements DetectionService {
   /// 検出結果を解析
   List<Detection> _parseOutputs(dynamic outputs) {
     try {
-      LogMk.logDebug(
-        '🔍 [ONNXDetectionService] _parseOutputs開始',
-        tag: 'ONNXDetectionService._parseOutputs',
-      );
 
       int? asInt(dynamic value) {
         if (value is int) {
@@ -892,40 +828,15 @@ class ONNXDetectionService implements DetectionService {
 
       final dataList = outputData;
 
-      // デバッグ: 出力データの構造を確認
-      LogMk.logDebug(
-        '🔍 [ONNXDetectionService] 出力データ構造確認: 長さ=${dataList.length}, 最初の10要素=${dataList.take(10).toList()}',
-        tag: 'ONNXDetectionService._parseOutputs',
-      );
-
       List<int>? tensorDims;
       // テンソルの形状を確認（可能な場合）
       try {
         final dims = outputTensor['dims'];
-        if (dims != null) {
-          LogMk.logDebug(
-            '🔍 [ONNXDetectionService] テンソル形状: $dims',
-            tag: 'ONNXDetectionService._parseOutputs',
-          );
-          if (dims is List) {
-            tensorDims = dims.map(asInt).whereType<int>().toList();
-            if (tensorDims.length >= 3) {
-              final second = tensorDims[1];
-              final third = tensorDims[2];
-              if (!{second, third}.contains(expectedFeatureCount)) {
-                LogMk.logWarning(
-                  '⚠️ [ONNXDetectionService] テンソル形状内に期待される特徴数($expectedFeatureCount)が見つかりません: $tensorDims',
-                  tag: 'ONNXDetectionService._parseOutputs',
-                );
-              }
-            }
-          }
+        if (dims != null && dims is List) {
+          tensorDims = dims.map(asInt).whereType<int>().toList();
         }
       } catch (e) {
-        LogMk.logWarning(
-          '⚠️ [ONNXDetectionService] テンソル形状の取得に失敗: $e',
-          tag: 'ONNXDetectionService._parseOutputs',
-        );
+        // 無視
       }
 
       if (_targetClassIndices == null || _targetClassIndices!.isEmpty) {
@@ -956,9 +867,6 @@ class ONNXDetectionService implements DetectionService {
 
       int validDetections = 0;
       int debugCount = 0;
-      int personLogsThisFrame = 0;
-      int suppressedPersonLogs = 0;
-      bool detectionLimitReached = false;
 
       // Sigmoid関数（ロジット値を確率に変換）
       double sigmoid(double x) {
@@ -1063,31 +971,7 @@ class ONNXDetectionService implements DetectionService {
 
           validDetections++;
 
-          // デバッグ用: 最初の検出時のみ、サンプルとして3個の検出候補をログ出力
-          _parseCallCount++;
-          if (_parseCallCount == 1 && debugCount < 3) {
-            LogMk.logDebug(
-              '🔍 [ONNXDetectionService] 検出候補サンプル #$i: ${_labels![bestClassIdx]} '
-              '(信頼度: ${bestScore.toStringAsFixed(4)}), '
-              'bbox(raw)=[$rawX, $rawY, $rawW, $rawH], bbox(norm)=[${x.toStringAsFixed(4)}, '
-              '${y.toStringAsFixed(4)}, ${w.toStringAsFixed(4)}, ${h.toStringAsFixed(4)}]',
-              tag: 'ONNXDetectionService._parseOutputs',
-            );
-            debugCount++;
-          }
-
           final label = _labels![bestClassIdx];
-          if (label == 'person') {
-            if (personLogsThisFrame < _maxPersonLogsPerFrame) {
-              personLogsThisFrame++;
-              LogMk.logDebug(
-                '👤 [ONNXDetectionService] person検出！候補#$i: 信頼度=${bestScore.toStringAsFixed(4)}, bbox=[$x, $y, $w, $h]',
-                tag: 'ONNXDetectionService._parseOutputs',
-              );
-            } else {
-              suppressedPersonLogs++;
-            }
-          }
 
           detections.add(
             Detection(
@@ -1098,7 +982,6 @@ class ONNXDetectionService implements DetectionService {
           );
 
           if (validDetections >= _maxDetectionsBeforeNms) {
-            detectionLimitReached = true;
             break;
           }
         } catch (e) {
@@ -1117,82 +1000,6 @@ class ONNXDetectionService implements DetectionService {
       // NMS（Non-Maximum Suppression）で重複を除去
       // 注意: 同じクラス内での重複除去のみ（異なるクラスは重複しても除去しない）
       final filteredDetections = _applyNMS(detections);
-
-      if (suppressedPersonLogs > 0) {
-        LogMk.logDebug(
-          '👤 [ONNXDetectionService] person候補ログを$suppressedPersonLogs件抑制しました（1フレームあたり最大$_maxPersonLogsPerFrame件）',
-          tag: 'ONNXDetectionService._parseOutputs',
-        );
-      }
-
-      if (detectionLimitReached) {
-        LogMk.logWarning(
-          '⚠️ [ONNXDetectionService] 検出候補が$_maxDetectionsBeforeNms件を超えたため、残りの候補をスキップしました',
-          tag: 'ONNXDetectionService._parseOutputs',
-        );
-      }
-
-      // 検出結果のサマリーをログ出力
-      final classCounts = <String, int>{};
-      for (final det in filteredDetections) {
-        classCounts[det.label] = (classCounts[det.label] ?? 0) + 1;
-      }
-
-      LogMk.logDebug(
-        '✅ [ONNXDetectionService] 検出完了: 候補${validDetections}個 → NMS後${filteredDetections.length}個',
-        tag: 'ONNXDetectionService._parseOutputs',
-      );
-
-      LogMk.logDebug(
-        '📊 [ONNXDetectionService] クラス別検出数: ${classCounts.entries.map((e) => '${e.key}=${e.value}').join(", ")}',
-        tag: 'ONNXDetectionService._parseOutputs',
-      );
-
-      // 検出結果が0個の場合もログ出力
-      if (filteredDetections.isEmpty) {
-        LogMk.logDebug(
-          '⚠️ [ONNXDetectionService] 検出結果が0個です。閾値(${confidenceThreshold.toStringAsFixed(2)})を下げるか、画像を確認してください。',
-          tag: 'ONNXDetectionService._parseOutputs',
-        );
-      }
-
-      // NMS後の各検出結果をログ出力（デバッグ用）
-      if (filteredDetections.isNotEmpty) {
-        LogMk.logDebug(
-          '🔍 [ONNXDetectionService] NMS後の検出結果一覧:',
-          tag: 'ONNXDetectionService._parseOutputs',
-        );
-        for (int i = 0; i < filteredDetections.length; i++) {
-          final det = filteredDetections[i];
-          LogMk.logDebug(
-            '  #${i + 1}: ${det.label} (信頼度: ${det.confidence.toStringAsFixed(3)}, bbox=[${det.boundingBox[0].toStringAsFixed(4)}, ${det.boundingBox[1].toStringAsFixed(4)}, ${det.boundingBox[2].toStringAsFixed(4)}, ${det.boundingBox[3].toStringAsFixed(4)}])',
-            tag: 'ONNXDetectionService._parseOutputs',
-          );
-        }
-      }
-
-      // personがNMS後に残っているか確認
-      final personDetections = filteredDetections
-          .where((d) => d.label == 'person')
-          .toList();
-      if (personDetections.isNotEmpty) {
-        LogMk.logDebug(
-          '👤 [ONNXDetectionService] NMS後のperson検出: ${personDetections.length}個',
-          tag: 'ONNXDetectionService._parseOutputs',
-        );
-        for (int i = 0; i < personDetections.length; i++) {
-          final det = personDetections[i];
-          LogMk.logDebug(
-            '  person #${i + 1}: 信頼度=${det.confidence.toStringAsFixed(3)}, bbox=[${det.boundingBox[0].toStringAsFixed(4)}, ${det.boundingBox[1].toStringAsFixed(4)}, ${det.boundingBox[2].toStringAsFixed(4)}, ${det.boundingBox[3].toStringAsFixed(4)}]',
-            tag: 'ONNXDetectionService._parseOutputs',
-          );
-        }
-      } else {
-        LogMk.logDebug(
-          '⚠️ [ONNXDetectionService] NMS後にperson検出がありません（NMS前: ${detections.where((d) => d.label == 'person').length}個）',
-          tag: 'ONNXDetectionService._parseOutputs',
-        );
-      }
 
       return filteredDetections;
     } catch (e, stackTrace) {
@@ -1274,24 +1081,6 @@ class ONNXDetectionService implements DetectionService {
   List<Detection> _applyNMS(List<Detection> detections) {
     if (detections.isEmpty) return [];
 
-    // person検出を特別にログ出力
-    final personDetectionsBeforeNMS = detections
-        .where((d) => d.label == 'person')
-        .toList();
-    if (personDetectionsBeforeNMS.isNotEmpty) {
-      LogMk.logDebug(
-        '👤 [ONNXDetectionService] NMS前のperson検出: ${personDetectionsBeforeNMS.length}個',
-        tag: 'ONNXDetectionService._applyNMS',
-      );
-      for (int i = 0; i < personDetectionsBeforeNMS.length; i++) {
-        final det = personDetectionsBeforeNMS[i];
-        LogMk.logDebug(
-          '  person #${i + 1}: 信頼度=${det.confidence.toStringAsFixed(3)}, bbox=[${det.boundingBox[0].toStringAsFixed(4)}, ${det.boundingBox[1].toStringAsFixed(4)}, ${det.boundingBox[2].toStringAsFixed(4)}, ${det.boundingBox[3].toStringAsFixed(4)}]',
-          tag: 'ONNXDetectionService._applyNMS',
-        );
-      }
-    }
-
     // 信頼度でソート（降順）
     detections.sort((a, b) => b.confidence.compareTo(a.confidence));
 
@@ -1307,14 +1096,6 @@ class ONNXDetectionService implements DetectionService {
 
       selected.add(detections[i]);
 
-      // personが選択された場合は特別にログ出力
-      if (detections[i].label == 'person') {
-        LogMk.logDebug(
-          '👤 [ONNXDetectionService] NMSでperson検出を選択: 信頼度=${detections[i].confidence.toStringAsFixed(3)}, bbox=[${detections[i].boundingBox[0].toStringAsFixed(4)}, ${detections[i].boundingBox[1].toStringAsFixed(4)}, ${detections[i].boundingBox[2].toStringAsFixed(4)}, ${detections[i].boundingBox[3].toStringAsFixed(4)}]',
-          tag: 'ONNXDetectionService._applyNMS',
-        );
-      }
-
       for (int j = i + 1; j < detections.length; j++) {
         if (suppressed[j]) continue;
 
@@ -1327,14 +1108,6 @@ class ONNXDetectionService implements DetectionService {
 
           if (iou > _iouThreshold) {
             suppressed[j] = true;
-
-            // personが除去された場合は特別にログ出力
-            if (detections[j].label == 'person') {
-              LogMk.logDebug(
-                '⚠️ [ONNXDetectionService] NMSでperson検出を除去: 信頼度=${detections[j].confidence.toStringAsFixed(3)}, IoU=${iou.toStringAsFixed(3)}, 基準検出=${detections[i].label} (信頼度=${detections[i].confidence.toStringAsFixed(3)})',
-                tag: 'ONNXDetectionService._applyNMS',
-              );
-            }
           }
         }
         // 異なるクラスの場合は重複していても除去しない
@@ -1394,51 +1167,13 @@ class ONNXDetectionService implements DetectionService {
     // 検出されたラベルを集約
     final detectedLabels = detections.map((d) => d.label).toList();
 
-    // すべての検出結果をログに出力（優先順位解除）
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] ===== 検出結果詳細 =====',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
-    );
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] 検出数: ${detections.length}個 (NMS後)',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
-    );
-
-    // すべての検出結果を信頼度順にログ出力
-    for (int i = 0; i < detections.length; i++) {
-      final detection = detections[i];
-      LogMk.logDebug(
-        '🔍 [ONNXDetectionService] #${i + 1}: ${detection.label} (信頼度: ${detection.confidence.toStringAsFixed(3)}, バウンディングボックス: [${detection.boundingBox[0].toStringAsFixed(4)}, ${detection.boundingBox[1].toStringAsFixed(4)}, ${detection.boundingBox[2].toStringAsFixed(4)}, ${detection.boundingBox[3].toStringAsFixed(4)}])',
-        tag: 'ONNXDetectionService._mapToDetectionResults',
-      );
-    }
-
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] 検出ラベル一覧: ${detectedLabels.join(", ")}',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
-    );
-
-    // 最も信頼度の高い検出結果を返す（優先順位解除：最初の検出結果をそのまま使用）
+    // 最も信頼度の高い検出結果を返す
     final bestDetection = detections.first;
 
     // 優先順位を解除：検出されたラベルをそのままカテゴリにマッピング
-    // 最高信頼度の検出ラベルを直接使用
     final inferredCategory = _inferCategoryWithoutPriority(
       detectedLabels,
       bestDetection.label,
-    );
-
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] 選択された検出: ${bestDetection.label} (信頼度: ${bestDetection.confidence.toStringAsFixed(3)})',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
-    );
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] カテゴリマッピング結果: $inferredCategory',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
-    );
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] ========================',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
     );
 
     return [
@@ -1562,7 +1297,6 @@ class ONNXDetectionService implements DetectionService {
       }
 
       _isInitialized = true;
-      _hasLoggedCameraBinding = false;
 
       LogMk.logDebug(
         '✅ [ONNXDetectionService] モデル切り替え完了 (モード: ${powerSavingMode ? "省電力" : "通常"}, モデル: ${_currentModelName ?? "unknown"})',
@@ -1620,7 +1354,6 @@ class ONNXDetectionService implements DetectionService {
     _targetClassIndices = null;
     _currentModelName = null;
     _powerSavingMode = false;
-    _hasLoggedCameraBinding = false;
 
     LogMk.logDebug(
       '✅ [ONNXDetectionService] ONNX Runtime Web リソース解放完了',

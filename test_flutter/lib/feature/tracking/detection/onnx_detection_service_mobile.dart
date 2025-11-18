@@ -190,6 +190,34 @@ class ONNXDetectionService implements DetectionService {
       // 検出されたラベルをカテゴリにマッピング
       final results = _mapToDetectionResults(detections);
       
+      // 検出ログを出力（複数物体対応）
+      if (detections.isEmpty) {
+        LogMk.logDebug(
+          '🔍 [検出結果] 検出なし → 最終判定: nothingDetected',
+          tag: 'ONNXDetectionService.detect',
+        );
+      } else {
+        // 各検出物体の情報をログに出力
+        final detectionDetails = detections.map((d) => 
+          '${d.label} (信頼度: ${d.confidence.toStringAsFixed(2)})'
+        ).join(', ');
+        
+        LogMk.logDebug(
+          '🔍 [検出物体] $detectionDetails',
+          tag: 'ONNXDetectionService.detect',
+        );
+        
+        // 最終的なカテゴリ判定をログに出力
+        if (results.isNotEmpty) {
+          final result = results.first;
+          final finalCategory = result.categoryString ?? 'nothingDetected';
+          LogMk.logDebug(
+            '✅ [最終判定] $finalCategory (検出ラベル: ${result.detectedLabels.join(', ')})',
+            tag: 'ONNXDetectionService.detect',
+          );
+        }
+      }
+      
       return results;
     } catch (e, stackTrace) {
       LogMk.logError(
@@ -306,27 +334,6 @@ class ONNXDetectionService implements DetectionService {
     // NMS（Non-Maximum Suppression）で重複を除去
     final filteredDetections = _applyNMS(detections);
     
-    // 検出結果のサマリーをログ出力
-    LogMk.logDebug(
-      '✅ [ONNXDetectionService] 検出完了: 候補数 → NMS後${filteredDetections.length}個',
-      tag: 'ONNXDetectionService._parseOutputs',
-    );
-    
-    // NMS後の各検出結果をログ出力（デバッグ用）
-    if (filteredDetections.isNotEmpty) {
-      LogMk.logDebug(
-        '🔍 [ONNXDetectionService] NMS後の検出結果一覧:',
-        tag: 'ONNXDetectionService._parseOutputs',
-      );
-      for (int i = 0; i < filteredDetections.length; i++) {
-        final det = filteredDetections[i];
-        LogMk.logDebug(
-          '  #${i + 1}: ${det.label} (信頼度: ${det.confidence.toStringAsFixed(3)})',
-          tag: 'ONNXDetectionService._parseOutputs',
-        );
-      }
-    }
-    
     return filteredDetections;
   }
   
@@ -410,41 +417,8 @@ class ONNXDetectionService implements DetectionService {
     // 検出されたラベルを集約
     final detectedLabels = detections.map((d) => d.label).toList();
     
-    // すべての検出結果をログに出力（省電力モード用）
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] ===== 検出結果詳細 =====',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
-    );
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] 検出数: ${detections.length}個 (NMS後)',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
-    );
-    
-    // すべての検出結果を信頼度順にログ出力
-    for (int i = 0; i < detections.length; i++) {
-      final detection = detections[i];
-      LogMk.logDebug(
-        '🔍 [ONNXDetectionService] #${i + 1}: ${detection.label} (信頼度: ${detection.confidence.toStringAsFixed(3)}, バウンディングボックス: [${detection.boundingBox[0].toStringAsFixed(1)}, ${detection.boundingBox[1].toStringAsFixed(1)}, ${detection.boundingBox[2].toStringAsFixed(1)}, ${detection.boundingBox[3].toStringAsFixed(1)}])',
-        tag: 'ONNXDetectionService._mapToDetectionResults',
-      );
-    }
-    
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] 検出ラベル一覧: ${detectedLabels.join(", ")}',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
-    );
-    
     // 最も信頼度の高い検出結果を返す
     final bestDetection = detections.first;
-    
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] 選択された検出: ${bestDetection.label} (信頼度: ${bestDetection.confidence.toStringAsFixed(3)})',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
-    );
-    LogMk.logDebug(
-      '🔍 [ONNXDetectionService] ========================',
-      tag: 'ONNXDetectionService._mapToDetectionResults',
-    );
     
     return [
       DetectionResult(
@@ -485,11 +459,6 @@ class ONNXDetectionService implements DetectionService {
   @override
   Future<bool> switchModel({required bool powerSavingMode}) async {
     try {
-      LogMk.logDebug(
-        '🔄 [ONNXDetectionService] モデル切り替え開始 (省電力モード: $powerSavingMode)',
-        tag: 'ONNXDetectionService.switchModel',
-      );
-      
       // 現在のセッションを解放
       _session?.release();
       _session = null;
@@ -509,35 +478,16 @@ class ONNXDetectionService implements DetectionService {
       
       late File modelFile;
       bool modelLoaded = false;
-      String? loadedModelPath;
       
       for (final modelPath in modelPaths) {
         try {
-          LogMk.logDebug(
-            'モデル読み込み試行: $modelPath',
-            tag: 'ONNXDetectionService.switchModel',
-          );
-          
-          final loadStartTime = DateTime.now();
           modelFile = await _loadModelFromAsset(modelPath);
           final sessionOptions = OrtSessionOptions();
           _session = OrtSession.fromFile(modelFile, sessionOptions);
-          final loadDuration = DateTime.now().difference(loadStartTime).inMilliseconds;
           
-          loadedModelPath = modelPath;
           modelLoaded = true;
-          
-          final modelName = modelPath.split('/').last.replaceAll('.onnx', '');
-          LogMk.logDebug(
-            '✅ モデル切り替え成功: $modelName (所要時間: ${loadDuration}ms, 省電力モード: $powerSavingMode)',
-            tag: 'ONNXDetectionService.switchModel',
-          );
           break;
         } catch (e) {
-          LogMk.logDebug(
-            'モデル読み込み失敗、次を試行: $modelPath - $e',
-            tag: 'ONNXDetectionService.switchModel',
-          );
           continue;
         }
       }

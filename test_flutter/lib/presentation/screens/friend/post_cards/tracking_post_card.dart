@@ -185,7 +185,7 @@ class _TrackingPostCardState extends State<TrackingPostCard> {
           // プログレスバー（複数セグメント）
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
-            child: Container(
+            child: SizedBox(
               height: 12,
               child: Row(
                 children: [

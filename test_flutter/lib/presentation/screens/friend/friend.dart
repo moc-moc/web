@@ -210,11 +210,7 @@ class _FriendScreenNewState extends State<FriendScreenNew> {
                 ),
                 child: Center(
                   child: Text(
-<<<<<<< HEAD
-                    dummyUser.name[0],
-=======
                     'A',
->>>>>>> dataedit_branch
                     style: TextStyle(
                       color: AppColors.blue,
                       fontSize: 20,

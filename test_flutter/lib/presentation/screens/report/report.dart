@@ -356,7 +356,7 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
   }) {
     final prefix = value > 0 ? '+' : '';
     final formatted = isPercentage
-        ? '${value.toStringAsFixed(0)}%'
+        ? value.toStringAsFixed(0) + '%'
         : value.toStringAsFixed(0);
     return '$prefix$formatted$unit';
   }

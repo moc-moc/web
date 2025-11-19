@@ -14,7 +14,10 @@ class CountdownSetEventScreen extends StatelessWidget {
     final remainingDays = event.data?['remainingDays'] ?? 15;
 
     return EventScreenBase(
-      gradientColors: const [Color(0xFF06B6D4), Color(0xFF0891B2)], // Cyan
+      gradientColors: [
+        AppColors.blue.withValues(alpha: 0.8),
+        Color.fromRGBO(25, 120, 240, 0.8), // 明るいblue（透明度を上げた）
+      ],
       content: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

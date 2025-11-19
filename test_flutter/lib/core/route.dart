@@ -10,6 +10,7 @@ import 'package:test_flutter/presentation/screens/tracking/tracking_finished.dar
 import 'package:test_flutter/presentation/screens/goal/goal.dart';
 import 'package:test_flutter/presentation/screens/report/report.dart';
 import 'package:test_flutter/presentation/screens/friend/friend.dart';
+import 'package:test_flutter/presentation/screens/friend/friend_list.dart';
 import 'package:test_flutter/presentation/screens/setting/settings_screen.dart';
 import 'package:test_flutter/presentation/screens/setting/account_settings.dart';
 import 'package:test_flutter/presentation/screens/setting/notification_settings.dart';

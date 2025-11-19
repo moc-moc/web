@@ -95,7 +95,7 @@ final class TotalDataNotifierProvider
   }
 }
 
-String _$totalDataNotifierHash() => r'd9607ab3aa9e8f6f374182c695c9cc99c2d584f0';
+String _$totalDataNotifierHash() => r'22432f11d531061c46725fbcefe3b0c14a1f42be';
 
 /// 累計データ機能用の関数群
 ///

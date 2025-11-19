@@ -7,18 +7,19 @@ import 'package:test_flutter/feature/countdown/countdown_functions.dart';
 import 'package:test_flutter/feature/streak/streak_functions.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/setting/settings_functions.dart';
-import 'package:test_flutter/Feature/Total/total_functions.dart';
+import 'package:test_flutter/feature/total/total_functions.dart';
+import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
+import 'package:test_flutter/feature/statistics/statistics_functions.dart';
 
 /// アプリ全体で1回だけ呼び出すグローバル初期化関数
 class AppInitUN {
   static ProviderContainer? _globalContainer;
-  
+
   /// グローバルなProviderContainerを設定
   static void setGlobalContainer(ProviderContainer container) {
     _globalContainer = container;
-    debugPrint('✅ グローバルProviderContainerを設定しました');
   }
-  
+
   /// グローバルなProviderContainerを取得
   static ProviderContainer? getGlobalContainer() {
     return _globalContainer;
@@ -27,20 +28,20 @@ class AppInitUN {
   /// アプリ起動時の包括的な初期化
   static Future<AppContext?> initializeWithAuth() async {
     try {
+      // 認証復元
       final userInfo = await AuthServiceUN.initializeAuth();
-      
       if (userInfo == null) {
+        debugPrint('❌ 認証復元');
         return null;
       }
-      
+      debugPrint('✅ 認証復元');
+      debugPrint('✅ ${userInfo.email}');
+
       final appContext = await initialize();
-      
-      await _loadCountdownData();
-      await _loadStreakData();
-      await _loadGoalData();
-      await _loadTotalData();
-      await _loadSettingsData();
-      
+
+      // データ読み込みを実行（カテゴリーごとに結果を表示）
+      await loadAllData();
+
       return appContext;
     } catch (e) {
       debugPrint('❌ アプリ包括的初期化エラー: $e');
@@ -48,119 +49,193 @@ class AppInitUN {
     }
   }
 
-  static Future<void> _loadCountdownData() async {
+  /// すべてのデータをFirestoreから読み込む
+  ///
+  /// 認証成功後に呼び出して、Firestoreからデータを取得します。
+  /// アプリ起動時と認証成功時の両方で使用されます。
+  static Future<void> loadAllData() async {
     try {
-      debugPrint('🔍 [_loadCountdownData] 開始');
-      
-      final container = getGlobalContainer();
-      
-      if (container == null) {
-        debugPrint('⚠️ [_loadCountdownData] ProviderContainerが設定されていません');
-        return;
+      // 各カテゴリーの読み込み結果を追跡
+      bool countdownSuccess = false;
+      bool streakSuccess = false;
+      bool goalSuccess = false;
+      bool totalSuccess = false;
+      bool trackingSuccess = false;
+
+      // カウントダウン
+      try {
+        await _loadCountdownData();
+        countdownSuccess = true;
+      } catch (e) {
+        debugPrint('⚠️ データカウントダウン');
       }
-      debugPrint('🔍 [_loadCountdownData] ProviderContainer取得成功');
-      
-      debugPrint('🔄 [_loadCountdownData] カウントダウンデータを同期中...');
-      final countdowns = await syncCountdownsHelper(container);
-      debugPrint('✅ [_loadCountdownData] カウントダウンデータ読み込み完了: ${countdowns.length}件');
-      
+
+      // ストリーク
+      try {
+        await _loadStreakData();
+        streakSuccess = true;
+      } catch (e) {
+        debugPrint('⚠️ データストリーク');
+      }
+
+      // ゴール
+      try {
+        await _loadGoalData();
+        goalSuccess = true;
+      } catch (e) {
+        debugPrint('⚠️ データゴール');
+      }
+
+      // トータル
+      try {
+        await _loadTotalData();
+        totalSuccess = true;
+      } catch (e) {
+        debugPrint('⚠️ データトータル');
+      }
+
+      // トラッキング
+      try {
+        await _loadTrackingData();
+        trackingSuccess = true;
+      } catch (e) {
+        debugPrint('⚠️ データトラッキング');
+      }
+
+      // 統計データ（個別に追跡）
+      bool dailyStatisticsSuccess = false;
+      bool weeklyStatisticsSuccess = false;
+      bool monthlyStatisticsSuccess = false;
+      bool yearlyStatisticsSuccess = false;
+
+      try {
+        final results = await _loadStatisticsData();
+        dailyStatisticsSuccess = results['daily'] ?? false;
+        weeklyStatisticsSuccess = results['weekly'] ?? false;
+        monthlyStatisticsSuccess = results['monthly'] ?? false;
+        yearlyStatisticsSuccess = results['yearly'] ?? false;
+      } catch (e) {
+        debugPrint('⚠️ データ統計');
+      }
+
+      // 設定（個別に追跡）
+      bool accountSettingsSuccess = false;
+      bool notificationSettingsSuccess = false;
+      bool displaySettingsSuccess = false;
+      bool timeSettingsSuccess = false;
+
+      try {
+        final container = getGlobalContainer();
+        if (container != null) {
+          try {
+            await loadAccountSettingsWithBackgroundRefreshHelper(container);
+            accountSettingsSuccess = true;
+          } catch (e) {}
+
+          try {
+            await loadNotificationSettingsWithBackgroundRefreshHelper(container);
+            notificationSettingsSuccess = true;
+          } catch (e) {}
+
+          try {
+            await loadDisplaySettingsWithBackgroundRefreshHelper(container);
+            displaySettingsSuccess = true;
+          } catch (e) {}
+
+          try {
+            await loadTimeSettingsWithBackgroundRefreshHelper(container);
+            timeSettingsSuccess = true;
+          } catch (e) {}
+        }
+      } catch (e) {
+        debugPrint('⚠️ 設定');
+      }
+
+      // 結果を表示
+      debugPrint(countdownSuccess ? '✅ データカウントダウン' : '❌ データカウントダウン');
+      debugPrint(streakSuccess ? '✅ データストリーク' : '❌ データストリーク');
+      debugPrint(goalSuccess ? '✅ データゴール' : '❌ データゴール');
+      debugPrint(totalSuccess ? '✅ データトータル' : '❌ データトータル');
+      debugPrint(trackingSuccess ? '✅ データトラッキング' : '❌ データトラッキング');
+      debugPrint(dailyStatisticsSuccess ? '✅ データ統計日次' : '❌ データ統計日次');
+      debugPrint(weeklyStatisticsSuccess ? '✅ データ統計週次' : '❌ データ統計週次');
+      debugPrint(monthlyStatisticsSuccess ? '✅ データ統計月次' : '❌ データ統計月次');
+      debugPrint(yearlyStatisticsSuccess ? '✅ データ統計年次' : '❌ データ統計年次');
+      debugPrint(accountSettingsSuccess ? '✅ 設定アカウント' : '❌ 設定アカウント');
+      debugPrint(notificationSettingsSuccess ? '✅ 設定通知' : '❌ 設定通知');
+      debugPrint(displaySettingsSuccess ? '✅ 設定表示' : '❌ 設定表示');
+      debugPrint(timeSettingsSuccess ? '✅ 設定時間' : '❌ 設定時間');
     } catch (e) {
-      debugPrint('❌ [_loadCountdownData] カウントダウンデータ読み込みエラー: $e');
+      debugPrint('❌ [loadAllData] データ読み込みエラー: $e');
     }
+  }
+
+  static Future<void> _loadCountdownData() async {
+    final container = getGlobalContainer();
+    if (container == null) throw Exception('Container is null');
+    await loadCountdownsWithBackgroundRefreshHelper(container);
   }
 
   static Future<void> _loadStreakData() async {
-    try {
-      debugPrint('🔍 [_loadStreakData] 開始');
-      
-      final container = getGlobalContainer();
-      
-      if (container == null) {
-        debugPrint('⚠️ [_loadStreakData] ProviderContainerが設定されていません');
-        return;
-      }
-      debugPrint('🔍 [_loadStreakData] ProviderContainer取得成功');
-      
-      debugPrint('🔄 [_loadStreakData] Streakデータを同期中...');
-      final streakData = await syncStreakDataHelper(container);
-      debugPrint('✅ [_loadStreakData] Streakデータ読み込み完了: ${streakData.currentStreak}日連続');
-      
-    } catch (e) {
-      debugPrint('❌ [_loadStreakData] Streakデータ読み込みエラー: $e');
-    }
+    final container = getGlobalContainer();
+    if (container == null) throw Exception('Container is null');
+    await loadStreakDataWithBackgroundRefreshHelper(container);
   }
 
   static Future<void> _loadGoalData() async {
-    try {
-      debugPrint('🔍 [_loadGoalData] 開始');
-      
-      final container = getGlobalContainer();
-      
-      if (container == null) {
-        debugPrint('⚠️ [_loadGoalData] ProviderContainerが設定されていません');
-        return;
-      }
-      debugPrint('🔍 [_loadGoalData] ProviderContainer取得成功');
-      
-      debugPrint('🔄 [_loadGoalData] Goalデータを同期中...');
-      final goals = await syncGoalsHelper(container);
-      debugPrint('✅ [_loadGoalData] Goalデータ読み込み完了: ${goals.length}件');
-      
-    } catch (e) {
-      debugPrint('❌ [_loadGoalData] Goalデータ読み込みエラー: $e');
-    }
+    final container = getGlobalContainer();
+    if (container == null) throw Exception('Container is null');
+    await loadGoalsWithBackgroundRefreshHelper(container);
   }
 
   static Future<void> _loadTotalData() async {
-    try {
-      debugPrint('🔍 [_loadTotalData] 開始');
-      
-      final container = getGlobalContainer();
-      
-      if (container == null) {
-        debugPrint('⚠️ [_loadTotalData] ProviderContainerが設定されていません');
-        return;
-      }
-      debugPrint('🔍 [_loadTotalData] ProviderContainer取得成功');
-      
-      debugPrint('🔄 [_loadTotalData] Totalデータを同期中...');
-      final totalData = await syncTotalDataHelper(container);
-      debugPrint('✅ [_loadTotalData] Totalデータ読み込み完了: ${totalData.totalLoginDays}日、${totalData.totalWorkTimeMinutes}分');
-      
-    } catch (e) {
-      debugPrint('❌ [_loadTotalData] Totalデータ読み込みエラー: $e');
-    }
+    final container = getGlobalContainer();
+    if (container == null) throw Exception('Container is null');
+    await loadTotalDataWithBackgroundRefreshHelper(container);
   }
 
-  static Future<void> _loadSettingsData() async {
+  static Future<void> _loadTrackingData() async {
+    final container = getGlobalContainer();
+    if (container == null) throw Exception('Container is null');
+    await loadTrackingSessionsWithBackgroundRefreshHelper(container);
+  }
+
+  static Future<Map<String, bool>> _loadStatisticsData() async {
+    final results = <String, bool>{};
+    
     try {
-      debugPrint('🔍 [_loadSettingsData] 開始');
-      
-      final container = getGlobalContainer();
-      
-      if (container == null) {
-        debugPrint('⚠️ [_loadSettingsData] ProviderContainerが設定されていません');
-        return;
-      }
-      debugPrint('🔍 [_loadSettingsData] ProviderContainer取得成功');
-      
-      debugPrint('🔄 [_loadSettingsData] アカウント設定を同期中...');
-      await syncAccountSettingsHelper(container);
-      
-      debugPrint('🔄 [_loadSettingsData] 通知設定を同期中...');
-      await syncNotificationSettingsHelper(container);
-      
-      debugPrint('🔄 [_loadSettingsData] 表示設定を同期中...');
-      await syncDisplaySettingsHelper(container);
-      
-      debugPrint('🔄 [_loadSettingsData] 時間設定を同期中...');
-      await syncTimeSettingsHelper(container);
-      
-      debugPrint('✅ [_loadSettingsData] 設定データ読み込み完了');
-      
+      await loadDailyStatisticsWithBackgroundRefreshHelper();
+      results['daily'] = true;
     } catch (e) {
-      debugPrint('❌ [_loadSettingsData] 設定データ読み込みエラー: $e');
+      debugPrint('❌ 日次統計の読み込みに失敗: $e');
+      results['daily'] = false;
     }
+    
+    try {
+      await loadWeeklyStatisticsWithBackgroundRefreshHelper();
+      results['weekly'] = true;
+    } catch (e) {
+      debugPrint('❌ 週次統計の読み込みに失敗: $e');
+      results['weekly'] = false;
+    }
+    
+    try {
+      await loadMonthlyStatisticsWithBackgroundRefreshHelper();
+      results['monthly'] = true;
+    } catch (e) {
+      debugPrint('❌ 月次統計の読み込みに失敗: $e');
+      results['monthly'] = false;
+    }
+    
+    try {
+      await loadYearlyStatisticsWithBackgroundRefreshHelper();
+      results['yearly'] = true;
+    } catch (e) {
+      debugPrint('❌ 年次統計の読み込みに失敗: $e');
+      results['yearly'] = false;
+    }
+    
+    return results;
   }
 
   /// アプリの初期化処理を実行
@@ -173,7 +248,7 @@ class AppInitUN {
 
       final userInfo = AuthMk.getCurrentUserInfo();
       final userId = userInfo['uid'];
-      
+
       if (userId == null || userId.isEmpty) {
         throw Exception('ユーザーIDが取得できませんでした。');
       }
@@ -182,16 +257,13 @@ class AppInitUN {
       try {
         token = await AuthMk.getUserIdToken();
       } catch (e) {
-        debugPrint('⚠️ トークン取得に失敗しました。SecureStorageから取得を試みます: $e');
+        // トークン取得失敗時はSecureStorageから取得を試みる
       }
 
       final storedInfo = await SecureStorageMk.getUserInfoFromStorage();
-      
+
       if (token == null || token.isEmpty) {
         token = storedInfo['token'];
-        if (token == null || token.isEmpty) {
-          debugPrint('⚠️ トークンが取得できませんでした。一部機能が制限される可能性があります。');
-        }
       }
 
       return AppContext(

@@ -1156,4 +1156,299 @@ as DateTime,
 
 }
 
+
+/// @nodoc
+mixin _$TrackingSettings {
+
+/// 固定ID（'tracking_settings'）
+ String get id;/// カメラのオン/オフ状態
+ bool get isCameraOn;/// 省電力モードのオン/オフ状態
+ bool get isPowerSavingMode;/// 選択されたStudy目標のID
+ String? get selectedStudyGoalId;/// 選択されたPC目標のID
+ String? get selectedPcGoalId;/// 選択されたSmartphone目標のID
+ String? get selectedSmartphoneGoalId;/// 最終更新日時
+ DateTime get lastModified;
+/// Create a copy of TrackingSettings
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$TrackingSettingsCopyWith<TrackingSettings> get copyWith => _$TrackingSettingsCopyWithImpl<TrackingSettings>(this as TrackingSettings, _$identity);
+
+  /// Serializes this TrackingSettings to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TrackingSettings&&(identical(other.id, id) || other.id == id)&&(identical(other.isCameraOn, isCameraOn) || other.isCameraOn == isCameraOn)&&(identical(other.isPowerSavingMode, isPowerSavingMode) || other.isPowerSavingMode == isPowerSavingMode)&&(identical(other.selectedStudyGoalId, selectedStudyGoalId) || other.selectedStudyGoalId == selectedStudyGoalId)&&(identical(other.selectedPcGoalId, selectedPcGoalId) || other.selectedPcGoalId == selectedPcGoalId)&&(identical(other.selectedSmartphoneGoalId, selectedSmartphoneGoalId) || other.selectedSmartphoneGoalId == selectedSmartphoneGoalId)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,isCameraOn,isPowerSavingMode,selectedStudyGoalId,selectedPcGoalId,selectedSmartphoneGoalId,lastModified);
+
+@override
+String toString() {
+  return 'TrackingSettings(id: $id, isCameraOn: $isCameraOn, isPowerSavingMode: $isPowerSavingMode, selectedStudyGoalId: $selectedStudyGoalId, selectedPcGoalId: $selectedPcGoalId, selectedSmartphoneGoalId: $selectedSmartphoneGoalId, lastModified: $lastModified)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $TrackingSettingsCopyWith<$Res>  {
+  factory $TrackingSettingsCopyWith(TrackingSettings value, $Res Function(TrackingSettings) _then) = _$TrackingSettingsCopyWithImpl;
+@useResult
+$Res call({
+ String id, bool isCameraOn, bool isPowerSavingMode, String? selectedStudyGoalId, String? selectedPcGoalId, String? selectedSmartphoneGoalId, DateTime lastModified
+});
+
+
+
+
+}
+/// @nodoc
+class _$TrackingSettingsCopyWithImpl<$Res>
+    implements $TrackingSettingsCopyWith<$Res> {
+  _$TrackingSettingsCopyWithImpl(this._self, this._then);
+
+  final TrackingSettings _self;
+  final $Res Function(TrackingSettings) _then;
+
+/// Create a copy of TrackingSettings
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? isCameraOn = null,Object? isPowerSavingMode = null,Object? selectedStudyGoalId = freezed,Object? selectedPcGoalId = freezed,Object? selectedSmartphoneGoalId = freezed,Object? lastModified = null,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,isCameraOn: null == isCameraOn ? _self.isCameraOn : isCameraOn // ignore: cast_nullable_to_non_nullable
+as bool,isPowerSavingMode: null == isPowerSavingMode ? _self.isPowerSavingMode : isPowerSavingMode // ignore: cast_nullable_to_non_nullable
+as bool,selectedStudyGoalId: freezed == selectedStudyGoalId ? _self.selectedStudyGoalId : selectedStudyGoalId // ignore: cast_nullable_to_non_nullable
+as String?,selectedPcGoalId: freezed == selectedPcGoalId ? _self.selectedPcGoalId : selectedPcGoalId // ignore: cast_nullable_to_non_nullable
+as String?,selectedSmartphoneGoalId: freezed == selectedSmartphoneGoalId ? _self.selectedSmartphoneGoalId : selectedSmartphoneGoalId // ignore: cast_nullable_to_non_nullable
+as String?,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as DateTime,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [TrackingSettings].
+extension TrackingSettingsPatterns on TrackingSettings {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _TrackingSettings value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _TrackingSettings() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _TrackingSettings value)  $default,){
+final _that = this;
+switch (_that) {
+case _TrackingSettings():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _TrackingSettings value)?  $default,){
+final _that = this;
+switch (_that) {
+case _TrackingSettings() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  bool isCameraOn,  bool isPowerSavingMode,  String? selectedStudyGoalId,  String? selectedPcGoalId,  String? selectedSmartphoneGoalId,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _TrackingSettings() when $default != null:
+return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.selectedStudyGoalId,_that.selectedPcGoalId,_that.selectedSmartphoneGoalId,_that.lastModified);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  bool isCameraOn,  bool isPowerSavingMode,  String? selectedStudyGoalId,  String? selectedPcGoalId,  String? selectedSmartphoneGoalId,  DateTime lastModified)  $default,) {final _that = this;
+switch (_that) {
+case _TrackingSettings():
+return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.selectedStudyGoalId,_that.selectedPcGoalId,_that.selectedSmartphoneGoalId,_that.lastModified);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  bool isCameraOn,  bool isPowerSavingMode,  String? selectedStudyGoalId,  String? selectedPcGoalId,  String? selectedSmartphoneGoalId,  DateTime lastModified)?  $default,) {final _that = this;
+switch (_that) {
+case _TrackingSettings() when $default != null:
+return $default(_that.id,_that.isCameraOn,_that.isPowerSavingMode,_that.selectedStudyGoalId,_that.selectedPcGoalId,_that.selectedSmartphoneGoalId,_that.lastModified);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _TrackingSettings extends TrackingSettings {
+  const _TrackingSettings({required this.id, required this.isCameraOn, required this.isPowerSavingMode, this.selectedStudyGoalId, this.selectedPcGoalId, this.selectedSmartphoneGoalId, required this.lastModified}): super._();
+  factory _TrackingSettings.fromJson(Map<String, dynamic> json) => _$TrackingSettingsFromJson(json);
+
+/// 固定ID（'tracking_settings'）
+@override final  String id;
+/// カメラのオン/オフ状態
+@override final  bool isCameraOn;
+/// 省電力モードのオン/オフ状態
+@override final  bool isPowerSavingMode;
+/// 選択されたStudy目標のID
+@override final  String? selectedStudyGoalId;
+/// 選択されたPC目標のID
+@override final  String? selectedPcGoalId;
+/// 選択されたSmartphone目標のID
+@override final  String? selectedSmartphoneGoalId;
+/// 最終更新日時
+@override final  DateTime lastModified;
+
+/// Create a copy of TrackingSettings
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$TrackingSettingsCopyWith<_TrackingSettings> get copyWith => __$TrackingSettingsCopyWithImpl<_TrackingSettings>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$TrackingSettingsToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TrackingSettings&&(identical(other.id, id) || other.id == id)&&(identical(other.isCameraOn, isCameraOn) || other.isCameraOn == isCameraOn)&&(identical(other.isPowerSavingMode, isPowerSavingMode) || other.isPowerSavingMode == isPowerSavingMode)&&(identical(other.selectedStudyGoalId, selectedStudyGoalId) || other.selectedStudyGoalId == selectedStudyGoalId)&&(identical(other.selectedPcGoalId, selectedPcGoalId) || other.selectedPcGoalId == selectedPcGoalId)&&(identical(other.selectedSmartphoneGoalId, selectedSmartphoneGoalId) || other.selectedSmartphoneGoalId == selectedSmartphoneGoalId)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,isCameraOn,isPowerSavingMode,selectedStudyGoalId,selectedPcGoalId,selectedSmartphoneGoalId,lastModified);
+
+@override
+String toString() {
+  return 'TrackingSettings(id: $id, isCameraOn: $isCameraOn, isPowerSavingMode: $isPowerSavingMode, selectedStudyGoalId: $selectedStudyGoalId, selectedPcGoalId: $selectedPcGoalId, selectedSmartphoneGoalId: $selectedSmartphoneGoalId, lastModified: $lastModified)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$TrackingSettingsCopyWith<$Res> implements $TrackingSettingsCopyWith<$Res> {
+  factory _$TrackingSettingsCopyWith(_TrackingSettings value, $Res Function(_TrackingSettings) _then) = __$TrackingSettingsCopyWithImpl;
+@override @useResult
+$Res call({
+ String id, bool isCameraOn, bool isPowerSavingMode, String? selectedStudyGoalId, String? selectedPcGoalId, String? selectedSmartphoneGoalId, DateTime lastModified
+});
+
+
+
+
+}
+/// @nodoc
+class __$TrackingSettingsCopyWithImpl<$Res>
+    implements _$TrackingSettingsCopyWith<$Res> {
+  __$TrackingSettingsCopyWithImpl(this._self, this._then);
+
+  final _TrackingSettings _self;
+  final $Res Function(_TrackingSettings) _then;
+
+/// Create a copy of TrackingSettings
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? isCameraOn = null,Object? isPowerSavingMode = null,Object? selectedStudyGoalId = freezed,Object? selectedPcGoalId = freezed,Object? selectedSmartphoneGoalId = freezed,Object? lastModified = null,}) {
+  return _then(_TrackingSettings(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,isCameraOn: null == isCameraOn ? _self.isCameraOn : isCameraOn // ignore: cast_nullable_to_non_nullable
+as bool,isPowerSavingMode: null == isPowerSavingMode ? _self.isPowerSavingMode : isPowerSavingMode // ignore: cast_nullable_to_non_nullable
+as bool,selectedStudyGoalId: freezed == selectedStudyGoalId ? _self.selectedStudyGoalId : selectedStudyGoalId // ignore: cast_nullable_to_non_nullable
+as String?,selectedPcGoalId: freezed == selectedPcGoalId ? _self.selectedPcGoalId : selectedPcGoalId // ignore: cast_nullable_to_non_nullable
+as String?,selectedSmartphoneGoalId: freezed == selectedSmartphoneGoalId ? _self.selectedSmartphoneGoalId : selectedSmartphoneGoalId // ignore: cast_nullable_to_non_nullable
+as String?,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as DateTime,
+  ));
+}
+
+
+}
+
 // dart format on

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 
 /// イベント画面の共通ベース
 class EventScreenBase extends StatelessWidget {
@@ -99,10 +100,9 @@ class EventScreenBase extends StatelessWidget {
                       onTap:
                           onOkPressed ??
                           () {
-                            Navigator.pushNamedAndRemoveUntil(
+                            NavigationHelper.pushAndRemoveUntil(
                               context,
                               AppRoutes.home,
-                              (route) => false,
                             );
                           },
                       borderRadius: BorderRadius.circular(30.0),

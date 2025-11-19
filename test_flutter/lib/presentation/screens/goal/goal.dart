@@ -1,17 +1,49 @@
 import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/dialogs.dart';
 import 'package:test_flutter/presentation/widgets/stats_display.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/presentation/widgets/goal_progress_card.dart';
-import 'package:test_flutter/dummy_data/goal_data.dart';
-import 'package:test_flutter/dummy_data/countdown_data.dart';
+import 'package:test_flutter/feature/goals/goal_functions.dart';
+import 'package:test_flutter/feature/goals/goal_model.dart';
+import 'package:test_flutter/feature/countdown/countdown_functions.dart';
 
 /// 目標画面（新デザインシステム版）
-class GoalScreenNew extends StatelessWidget {
+class GoalScreenNew extends ConsumerStatefulWidget {
   const GoalScreenNew({super.key});
+
+  @override
+  ConsumerState<GoalScreenNew> createState() => _GoalScreenNewState();
+}
+
+class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
+  @override
+  void initState() {
+    super.initState();
+    // 画面が開かれた時にデータをバックグラウンド更新で読み込む
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeData();
+    });
+  }
+
+  Future<void> _initializeData() async {
+    try {
+      // カウントダウンとゴールのデータをバックグラウンド更新で読み込む
+      await Future.wait([
+        loadCountdownsWithBackgroundRefreshHelper(ref),
+        loadGoalsWithBackgroundRefreshHelper(ref),
+      ]);
+      
+      // 期限切れカウントダウンを削除
+      await deleteExpiredCountdownsHelper(ref);
+    } catch (e) {
+      debugPrint('❌ [GoalScreenNew] データ初期化エラー: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,12 +63,12 @@ class GoalScreenNew extends StatelessWidget {
                   SizedBox(height: AppSpacing.md),
 
                   // カウントダウン表示
-                  _buildCountdownSection(context),
+                  _buildCountdownSection(context, ref),
 
                   SizedBox(height: AppSpacing.md),
 
                   // 目標一覧
-                  _buildGoalsList(context),
+                  _buildGoalsList(context, ref),
 
                   SizedBox(height: AppSpacing.xxl * 2), // FABのスペース確保
                 ],
@@ -60,7 +92,7 @@ class GoalScreenNew extends StatelessWidget {
                   shape: const CircleBorder(),
                   elevation: 8,
                   onPressed: () {
-                    _showAddEditDialog(context);
+                    _showAddEditDialog(context, ref);
                   },
                   child: const Icon(Icons.add, color: AppColors.white),
                 ),
@@ -129,25 +161,29 @@ class GoalScreenNew extends StatelessWidget {
             ),
             SizedBox(height: AppSpacing.sm),
             Expanded(
-              child: ShaderMask(
-                shaderCallback: (bounds) => const LinearGradient(
-                  colors: [
-                    Color(0xFFB8C1EC),
-                    Color(0xFFFDE68A),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ).createShader(bounds),
-                blendMode: BlendMode.srcIn,
-              child: Text(
-                  quoteData['quote'] as String,
-                  style: AppTextStyles.h2.copyWith(
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.8,
-                    height: 1.2,
+              child: Center(
+                child: ShaderMask(
+                  shaderCallback: (bounds) => const LinearGradient(
+                    colors: [
+                      Color(0xFFB8C1EC),
+                      Color(0xFFFDE68A),
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ).createShader(bounds),
+                  blendMode: BlendMode.srcIn,
+                  child: Text(
+                    quoteData['quote'] as String,
+                    textAlign: TextAlign.center,
+                    style: AppTextStyles.h2.copyWith(
+                      fontSize: 28.8, // 24.0 * 1.2
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.8,
+                      height: 1.2,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ),
@@ -165,16 +201,28 @@ class GoalScreenNew extends StatelessWidget {
     );
   }
 
-  Widget _buildCountdownSection(BuildContext context) {
-    final countdown = activeCountdown;
+  Widget _buildCountdownSection(BuildContext context, WidgetRef ref) {
+    final countdowns = ref.watch(countdownsListProvider);
+    if (countdowns.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    // 最初のカウントダウンを使用（または最も近い未来のカウントダウン）
+    final now = DateTime.now();
+    final activeCountdowns = countdowns.where((c) => c.targetDate.isAfter(now)).toList();
+    if (activeCountdowns.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    
+    // 最も近い未来のカウントダウンを選択
+    activeCountdowns.sort((a, b) => a.targetDate.compareTo(b.targetDate));
+    final countdown = activeCountdowns.first;
+    
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: CountdownDisplay(
-        eventName: countdown.eventName,
-        days: _nonNegative(countdown.remainingDays),
-        hours: _nonNegative(countdown.remainingHours),
-        minutes: _nonNegative(countdown.remainingMinutes),
-        seconds: _nonNegative(countdown.remainingSeconds),
+      child: RealtimeCountdownDisplay(
+        eventName: countdown.title,
+        targetDate: countdown.targetDate,
         accentColor: AppColors.blue,
         borderColor: AppColors.blue.withValues(alpha: 0.45),
         backgroundColor: AppColors.black,
@@ -186,11 +234,32 @@ class GoalScreenNew extends StatelessWidget {
     );
   }
 
-  int _nonNegative(int value) => value < 0 ? 0 : value;
-
-  Widget _buildGoalsList(BuildContext context) {
+  Widget _buildGoalsList(BuildContext context, WidgetRef ref) {
+    final goals = ref.watch(goalsListProvider);
     // 写真のデザインに合わせて、最初の4つの目標を表示
-    final displayGoals = dummyGoals.take(4).toList();
+    final displayGoals = goals.take(4).toList();
+
+    if (displayGoals.isEmpty) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: Container(
+          padding: EdgeInsets.all(AppSpacing.lg),
+          decoration: BoxDecoration(
+            color: AppColors.blackgray,
+            borderRadius: BorderRadius.circular(AppRadius.large),
+            border: Border.all(color: AppColors.gray.withValues(alpha: 0.3)),
+          ),
+          child: Center(
+            child: Text(
+              '目標がありません',
+              style: AppTextStyles.body1.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
 
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -208,79 +277,91 @@ class GoalScreenNew extends StatelessWidget {
     );
   }
 
-  Widget _buildGoalCard(BuildContext context, DummyGoal goal) {
-    final color = _getGoalColor(goal.category);
-    final icon = _getGoalIcon(goal.category);
+  Widget _buildGoalCard(BuildContext context, Goal goal) {
+    final category = _getCategoryFromDetectionItem(goal.detectionItem);
+    final color = _getGoalColor(category);
+    final icon = _getGoalIcon(category);
     
     // ラベルの決定（表示しない）
     List<String> labels = [];
 
     // Goalテキストの生成（Goal:を削除）
-    String goalText;
-    if (goal.comparisonType == 'below') {
-      goalText = '< ${goal.targetHours.toStringAsFixed(0)} hour${goal.targetHours == 1 ? '' : 's'}';
-    } else {
-      goalText = '${goal.targetHours.toStringAsFixed(0)} hour${goal.targetHours == 1 ? '' : 's'}';
+    // 秒単位で計算し、表示時に変換
+    final targetSeconds = goal.targetTime;
+    String goalText = _formatSecondsToDisplay(targetSeconds);
+    if (goal.comparisonType == ComparisonType.below) {
+      goalText = '< $goalText';
     }
 
-    // 時間数値を「2h/5h」形式で生成
-    String progressText;
-    final currentHours = goal.currentHours.toInt();
-    final targetHours = goal.targetHours.toInt();
-    progressText = '${currentHours}h/${targetHours}h';
+    // 時間数値を「120m/300m」または「2h/5h」形式で生成
+    // 秒単位で計算し、表示時に変換
+    final currentSeconds = goal.achievedTime ?? 0;
+    final currentDisplay = _formatSecondsToDisplay(currentSeconds);
+    final targetDisplay = _formatSecondsToDisplay(targetSeconds);
+    final progressText = '$currentDisplay/$targetDisplay';
 
     // 期間ラベル
-    String periodLabel = _getPeriodLabel(goal.period);
+    String periodLabel = _getPeriodLabelFromDurationDays(goal.durationDays);
 
     // 日数テキスト
+    final endDate = goal.startDate.add(Duration(days: goal.durationDays));
+    final remainingDuration = endDate.difference(DateTime.now());
+    final remainingDays = remainingDuration.inDays;
+    final remainingHours = remainingDuration.inHours % 24;
     String daysText;
-    if (goal.remainingDays >= 30) {
-      final months = (goal.remainingDays / 30).floor();
+    if (remainingDays >= 30) {
+      final months = (remainingDays / 30).floor();
       daysText = months == 1 ? '1 month' : '$months months';
-    } else if (goal.remainingDays >= 7) {
-      final weeks = (goal.remainingDays / 7).floor();
+    } else if (remainingDays >= 7) {
+      final weeks = (remainingDays / 7).floor();
       daysText = weeks == 1 ? '1 week' : '$weeks weeks';
     } else {
-      daysText = goal.remainingDays == 1 ? '1 day' : '${goal.remainingDays} days';
+      // 日数表示の場合、時間も追加
+      if (remainingDays == 1) {
+        daysText = remainingHours > 0 ? '1day${remainingHours}h' : '1 day';
+      } else if (remainingDays > 0) {
+        daysText = remainingHours > 0 ? '${remainingDays}days${remainingHours}h' : '$remainingDays days';
+      } else {
+        // 日数が0の場合、時間のみ表示
+        daysText = remainingHours > 0 ? '${remainingHours}h' : '0 days';
+      }
     }
 
-    // ストリーク番号（写真のデザインに合わせて設定）
-    int streakNumber;
-    switch (goal.category) {
-      case 'study':
-        streakNumber = 3;
-        break;
-      case 'pc':
-        streakNumber = 5;
-        break;
-      case 'smartphone':
-        streakNumber = 1;
-        break;
-      case 'work':
-        streakNumber = 2;
-        break;
-      default:
-        streakNumber = goal.consecutiveAchievements;
+    // ストリーク番号
+    final streakNumber = goal.consecutiveAchievements;
+
+    // 進捗率の計算（秒単位で計算）
+    final currentSecondsForCalc = goal.achievedTime ?? 0;
+    final targetSecondsForCalc = goal.targetTime;
+    double percentage;
+    if (goal.comparisonType == ComparisonType.below) {
+      // 以下タイプの場合、目標時間を超えないようにする
+      percentage = targetSecondsForCalc > 0
+          ? (currentSecondsForCalc / targetSecondsForCalc).clamp(0.0, 1.0)
+          : 0.0;
+    } else {
+      // 以上タイプの場合、目標時間に対する達成率
+      percentage = targetSecondsForCalc > 0
+          ? (currentSecondsForCalc / targetSecondsForCalc).clamp(0.0, 1.0)
+          : 0.0;
     }
 
     return GestureDetector(
       onTap: () {
+        // GoalSettingDialogには時間単位で渡す必要がある
+        final targetHours = goal.targetTime / 3600.0;
         showDialog(
           context: context,
           builder: (context) => GoalSettingDialog(
             isEdit: true,
+            goalId: goal.id,
             initialTitle: goal.title,
-            initialCategory: goal.category,
-            initialPeriod: goal.period,
-            initialTargetHours: goal.targetHours,
-            initialIsFocusedOnly: goal.isFocusedOnly,
+            initialCategory: category,
+            initialPeriod: periodLabel.toLowerCase(),
+            initialTargetHours: targetHours,
+            initialIsFocusedOnly: true, // GoalモデルにはisFocusedOnlyがないため、デフォルト値を使用
             onDelete: () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Goal deleted successfully!'),
-                  backgroundColor: AppColors.success,
-                ),
-              );
+              // 削除処理はGoalSettingDialog内で実行される
             },
           ),
         );
@@ -294,11 +375,35 @@ class GoalScreenNew extends StatelessWidget {
         goalText: goalText,
         progressText: progressText,
         periodLabel: periodLabel,
-        percentage: goal.progress.clamp(0.0, 1.0),
+        percentage: percentage,
         progressColor: color,
         daysText: daysText,
+        comparisonType: goal.comparisonType,
       ),
     );
+  }
+
+  String _getCategoryFromDetectionItem(DetectionItem item) {
+    switch (item) {
+      case DetectionItem.book:
+        return 'study';
+      case DetectionItem.pc:
+        return 'pc';
+      case DetectionItem.smartphone:
+        return 'smartphone';
+    }
+  }
+
+  String _getPeriodLabelFromDurationDays(int durationDays) {
+    if (durationDays == 1) {
+      return 'Daily';
+    } else if (durationDays == 7) {
+      return 'Weekly';
+    } else if (durationDays == 30) {
+      return 'Monthly';
+    } else {
+      return '$durationDays days';
+    }
   }
 
   IconData _getGoalIcon(String category) {
@@ -331,16 +436,19 @@ class GoalScreenNew extends StatelessWidget {
     }
   }
 
-  String _getPeriodLabel(String period) {
-    switch (period) {
-      case 'daily':
-        return 'Daily';
-      case 'weekly':
-        return 'Weekly';
-      case 'monthly':
-        return 'Monthly';
-      default:
-        return period;
+  /// 秒単位の値を表示用の文字列に変換（分/時間単位）
+  String _formatSecondsToDisplay(int seconds) {
+    final minutes = seconds ~/ 60;
+    if (minutes < 60) {
+      return '${minutes}m';
+    } else {
+      final h = minutes ~/ 60;
+      final m = minutes % 60;
+      if (m == 0) {
+        return '${h}h';
+      } else {
+        return '${h}h ${m}m';
+      }
     }
   }
 
@@ -356,74 +464,84 @@ class GoalScreenNew extends StatelessWidget {
     if (index == 1) return;
     switch (index) {
       case 0:
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        NavigationHelper.pushReplacement(context, AppRoutes.home);
         break;
       case 2:
-        Navigator.pushReplacementNamed(context, AppRoutes.report);
+        NavigationHelper.pushReplacement(context, AppRoutes.report);
         break;
       case 3:
-        Navigator.pushReplacementNamed(context, AppRoutes.settings);
+        NavigationHelper.pushReplacement(context, AppRoutes.settings);
         break;
     }
   }
 
-  void _showAddEditDialog(BuildContext context) {
+  void _showAddEditDialog(BuildContext context, WidgetRef ref) async {
     showDialog(
       context: context,
       builder: (context) => _AddEditSelectionDialog(
         onCountdownAdd: () {
-          Navigator.of(context).pop();
+          NavigationHelper.pop(context);
           showDialog(
             context: context,
             builder: (context) => const CountdownSettingDialog(),
           );
         },
         onCountdownEdit: () {
-          Navigator.of(context).pop();
+          NavigationHelper.pop(context);
           showDialog(
             context: context,
-            builder: (context) => CountdownSettingDialog(
-              isEdit: true,
-              initialEventName: activeCountdown.eventName,
-              onDelete: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Countdown deleted successfully!'),
-                    backgroundColor: AppColors.success,
-                  ),
+              builder: (context) {
+                final countdowns = ref.read(countdownsListProvider);
+                if (countdowns.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                final now = DateTime.now();
+                final activeCountdowns = countdowns.where((c) => c.targetDate.isAfter(now)).toList();
+                if (activeCountdowns.isEmpty) {
+                  return const SizedBox.shrink();
+                }
+                activeCountdowns.sort((a, b) => a.targetDate.compareTo(b.targetDate));
+                final countdown = activeCountdowns.first;
+                return CountdownSettingDialog(
+                  isEdit: true,
+                  countdownId: countdown.id,
+                  initialEventName: countdown.title,
+                  initialDate: countdown.targetDate,
+                  onDelete: () {
+                    // 削除処理はCountdownSettingDialog内で実行される
+                  },
                 );
               },
-            ),
           );
         },
         onGoalAdd: () {
-          Navigator.of(context).pop();
+          NavigationHelper.pop(context);
           showDialog(
             context: context,
             builder: (context) => const GoalSettingDialog(),
           );
         },
         onGoalEdit: () {
-          Navigator.of(context).pop();
+          NavigationHelper.pop(context);
           // 最初のゴールを編集する（実際の実装では選択ダイアログを表示する）
-          if (dummyGoals.isNotEmpty) {
-            final goal = dummyGoals.first;
+          final goals = ref.read(goalsListProvider);
+          if (goals.isNotEmpty) {
+            final goal = goals.first;
+            final category = _getCategoryFromDetectionItem(goal.detectionItem);
+            final targetHours = goal.targetTime / 3600.0;
+            final periodLabel = _getPeriodLabelFromDurationDays(goal.durationDays);
             showDialog(
               context: context,
               builder: (context) => GoalSettingDialog(
                 isEdit: true,
+                goalId: goal.id,
                 initialTitle: goal.title,
-                initialCategory: goal.category,
-                initialPeriod: goal.period,
-                initialTargetHours: goal.targetHours,
-                initialIsFocusedOnly: goal.isFocusedOnly,
+                initialCategory: category,
+                initialPeriod: periodLabel.toLowerCase(),
+                initialTargetHours: targetHours,
+                initialIsFocusedOnly: true,
                 onDelete: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Goal deleted successfully!'),
-                      backgroundColor: AppColors.success,
-                    ),
-                  );
+                  // 削除処理はGoalSettingDialog内で実行される
                 },
               ),
             );
@@ -510,7 +628,7 @@ class _AddEditSelectionDialog extends StatelessWidget {
                 color: AppColors.error.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(30),
                 child: InkWell(
-                  onTap: () => Navigator.of(context).pop(),
+                  onTap: () => NavigationHelper.pop(context),
                   borderRadius: BorderRadius.circular(30),
                   child: Container(
                     padding: EdgeInsets.symmetric(

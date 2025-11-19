@@ -1,20 +1,24 @@
 import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/app_bars.dart';
 import 'package:test_flutter/presentation/widgets/toggles_chips.dart';
-import 'package:test_flutter/dummy_data/goal_data.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
+import 'package:test_flutter/feature/goals/goal_functions.dart';
+import 'package:test_flutter/feature/goals/goal_model.dart';
+import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
 
 /// トラッキング設定画面（新デザインシステム版）
-class TrackingSettingScreenNew extends StatefulWidget {
+class TrackingSettingScreenNew extends ConsumerStatefulWidget {
   const TrackingSettingScreenNew({super.key});
 
   @override
-  State<TrackingSettingScreenNew> createState() => _TrackingSettingScreenNewState();
+  ConsumerState<TrackingSettingScreenNew> createState() => _TrackingSettingScreenNewState();
 }
 
-class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
+class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreenNew> {
   // 各カテゴリーに対応する目標の選択
   String? selectedStudyGoal;
   String? selectedPcGoal;
@@ -27,18 +31,123 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
   @override
   void initState() {
     super.initState();
-    // デフォルトで最初の目標を選択
-    final studyGoals = dummyGoals.where((g) => g.category == 'study').toList();
-    final pcGoals = dummyGoals.where((g) => g.category == 'pc').toList();
-    final smartphoneGoals = dummyGoals.where((g) => g.category == 'smartphone').toList();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadSettings();
+  }
+
+  /// 設定を読み込む
+  Future<void> _loadSettings() async {
+    // トラッキング設定を読み込む
+    await loadTrackingSettingsWithBackgroundRefreshHelper(ref);
     
-    if (studyGoals.isNotEmpty) selectedStudyGoal = studyGoals[0].id;
-    if (pcGoals.isNotEmpty) selectedPcGoal = pcGoals[0].id;
-    if (smartphoneGoals.isNotEmpty) selectedSmartphoneGoal = smartphoneGoals[0].id;
+    final settings = ref.read(trackingSettingsProvider);
+    final goals = ref.read(goalsListProvider);
+    
+    // 各カテゴリーの目標を取得
+    final studyGoals = goals.where((g) => g.detectionItem == DetectionItem.book).toList();
+    final pcGoals = goals.where((g) => g.detectionItem == DetectionItem.pc).toList();
+    final smartphoneGoals = goals.where((g) => g.detectionItem == DetectionItem.smartphone).toList();
+    
+    String? newSelectedStudyGoal;
+    String? newSelectedPcGoal;
+    String? newSelectedSmartphoneGoal;
+    bool needsUpdate = false;
+    
+    // Study目標の選択を確認・更新
+    if (settings.selectedStudyGoalId != null) {
+      final exists = studyGoals.any((g) => g.id == settings.selectedStudyGoalId);
+      if (exists) {
+        newSelectedStudyGoal = settings.selectedStudyGoalId;
+      } else if (studyGoals.isNotEmpty) {
+        // 選択された目標が存在しない場合、最初の目標を自動選択
+        newSelectedStudyGoal = studyGoals[0].id;
+        needsUpdate = true;
+      } else {
+        newSelectedStudyGoal = null;
+        needsUpdate = true;
+      }
+    } else if (studyGoals.isNotEmpty) {
+      // 設定がなく、目標が存在する場合は最初の目標を自動選択
+      newSelectedStudyGoal = studyGoals[0].id;
+      needsUpdate = true;
+    }
+    
+    // PC目標の選択を確認・更新
+    if (settings.selectedPcGoalId != null) {
+      final exists = pcGoals.any((g) => g.id == settings.selectedPcGoalId);
+      if (exists) {
+        newSelectedPcGoal = settings.selectedPcGoalId;
+      } else if (pcGoals.isNotEmpty) {
+        // 選択された目標が存在しない場合、最初の目標を自動選択
+        newSelectedPcGoal = pcGoals[0].id;
+        needsUpdate = true;
+      } else {
+        newSelectedPcGoal = null;
+        needsUpdate = true;
+      }
+    } else if (pcGoals.isNotEmpty) {
+      // 設定がなく、目標が存在する場合は最初の目標を自動選択
+      newSelectedPcGoal = pcGoals[0].id;
+      needsUpdate = true;
+    }
+    
+    // Smartphone目標の選択を確認・更新
+    if (settings.selectedSmartphoneGoalId != null) {
+      final exists = smartphoneGoals.any((g) => g.id == settings.selectedSmartphoneGoalId);
+      if (exists) {
+        newSelectedSmartphoneGoal = settings.selectedSmartphoneGoalId;
+      } else if (smartphoneGoals.isNotEmpty) {
+        // 選択された目標が存在しない場合、最初の目標を自動選択
+        newSelectedSmartphoneGoal = smartphoneGoals[0].id;
+        needsUpdate = true;
+      } else {
+        newSelectedSmartphoneGoal = null;
+        needsUpdate = true;
+      }
+    } else if (smartphoneGoals.isNotEmpty) {
+      // 設定がなく、目標が存在する場合は最初の目標を自動選択
+      newSelectedSmartphoneGoal = smartphoneGoals[0].id;
+      needsUpdate = true;
+    }
+    
+    setState(() {
+      selectedStudyGoal = newSelectedStudyGoal;
+      selectedPcGoal = newSelectedPcGoal;
+      selectedSmartphoneGoal = newSelectedSmartphoneGoal;
+      
+      // 設定の状態を読み込む
+      isPowerSavingMode = settings.isPowerSavingMode;
+      isCameraVisible = settings.isCameraOn;
+    });
+    
+    // 自動選択された場合は保存
+    if (needsUpdate) {
+      await _saveSettings();
+    }
+  }
+
+  /// 設定を保存する
+  Future<void> _saveSettings() async {
+    final currentSettings = ref.read(trackingSettingsProvider);
+    final updatedSettings = currentSettings.copyWith(
+      selectedStudyGoalId: selectedStudyGoal,
+      selectedPcGoalId: selectedPcGoal,
+      selectedSmartphoneGoalId: selectedSmartphoneGoal,
+      isPowerSavingMode: isPowerSavingMode,
+      isCameraOn: isCameraVisible,
+    );
+    
+    await saveTrackingSettingsHelper(ref, updatedSettings);
   }
 
   @override
   Widget build(BuildContext context) {
+    final goals = ref.watch(goalsListProvider);
+    
     return AppScaffold(
       backgroundColor: AppColors.black,
       appBar: AppBarWithBack(title: 'Tracking Settings'),
@@ -49,7 +158,7 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 目標選択セクション
-              _buildGoalSelectionSection(),
+              _buildGoalSelectionSection(goals),
 
               SizedBox(height: AppSpacing.md),
 
@@ -68,7 +177,7 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
   }
 
   /// 目標選択セクション
-  Widget _buildGoalSelectionSection() {
+  Widget _buildGoalSelectionSection(List<Goal> goals) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -91,11 +200,12 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
           icon: Icons.menu_book,
           color: AppColors.green,
           selectedGoalId: selectedStudyGoal,
-          goals: dummyGoals.where((g) => g.category == 'study').toList(),
-          onGoalSelected: (goalId) {
+          goals: goals.where((g) => g.detectionItem == DetectionItem.book).toList(),
+          onGoalSelected: (goalId) async {
             setState(() {
               selectedStudyGoal = goalId;
             });
+            await _saveSettings();
           },
         ),
 
@@ -107,11 +217,12 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
           icon: Icons.computer,
           color: AppColors.blue,
           selectedGoalId: selectedPcGoal,
-          goals: dummyGoals.where((g) => g.category == 'pc').toList(),
-          onGoalSelected: (goalId) {
+          goals: goals.where((g) => g.detectionItem == DetectionItem.pc).toList(),
+          onGoalSelected: (goalId) async {
             setState(() {
               selectedPcGoal = goalId;
             });
+            await _saveSettings();
           },
         ),
 
@@ -123,11 +234,12 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
           icon: Icons.smartphone,
           color: AppColors.orange,
           selectedGoalId: selectedSmartphoneGoal,
-          goals: dummyGoals.where((g) => g.category == 'smartphone').toList(),
-          onGoalSelected: (goalId) {
+          goals: goals.where((g) => g.detectionItem == DetectionItem.smartphone).toList(),
+          onGoalSelected: (goalId) async {
             setState(() {
               selectedSmartphoneGoal = goalId;
             });
+            await _saveSettings();
           },
         ),
       ],
@@ -140,7 +252,7 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
     required IconData icon,
     required Color color,
     required String? selectedGoalId,
-    required List<DummyGoal> goals,
+    required List<Goal> goals,
     required ValueChanged<String?> onGoalSelected,
   }) {
     if (goals.isEmpty) {
@@ -263,7 +375,7 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
                                 ),
                               ),
                               Text(
-                                '${goal.targetHours}h / ${goal.period}',
+                                '${(goal.targetTime / 60).toStringAsFixed(1)}h / ${goal.durationDays} days',
                                 style: AppTextStyles.caption.copyWith(
                                   color: AppColors.textSecondary,
                                 ),
@@ -301,10 +413,11 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
           icon: Icons.battery_saver,
           iconColor: AppColors.green,
           value: isPowerSavingMode,
-          onChanged: (value) {
+          onChanged: (value) async {
             setState(() {
               isPowerSavingMode = value;
             });
+            await _saveSettings();
           },
         ),
 
@@ -317,10 +430,11 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
           icon: Icons.videocam,
           iconColor: AppColors.blue,
           value: isCameraVisible,
-          onChanged: (value) {
+          onChanged: (value) async {
             setState(() {
               isCameraVisible = value;
             });
+            await _saveSettings();
           },
         ),
       ],
@@ -402,7 +516,7 @@ class _TrackingSettingScreenNewState extends State<TrackingSettingScreenNew> {
       child: InkWell(
         borderRadius: borderRadius,
         onTap: () {
-          Navigator.pushNamed(context, AppRoutes.trackingNew);
+          NavigationHelper.push(context, AppRoutes.trackingNew);
         },
         child: Container(
           padding: EdgeInsets.symmetric(

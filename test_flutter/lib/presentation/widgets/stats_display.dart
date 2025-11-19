@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -49,6 +50,90 @@ class StatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(mainAxisAlignment: mainAxisAlignment, children: stats);
+  }
+}
+
+/// カウントダウン表示（リアルタイム更新版）
+class RealtimeCountdownDisplay extends StatefulWidget {
+  final String eventName;
+  final DateTime targetDate;
+  final Color? accentColor;
+  final Color? borderColor;
+  final Color? backgroundColor;
+  final Color? titleColor;
+  final Color? labelColor;
+  final Color? valueTextColor;
+  final Color? valueBackgroundColor;
+  final VoidCallback? onTap;
+  final VoidCallback? onEdit;
+
+  const RealtimeCountdownDisplay({
+    super.key,
+    required this.eventName,
+    required this.targetDate,
+    this.accentColor,
+    this.borderColor,
+    this.backgroundColor,
+    this.titleColor,
+    this.labelColor,
+    this.valueTextColor,
+    this.valueBackgroundColor,
+    this.onTap,
+    this.onEdit,
+  });
+
+  @override
+  State<RealtimeCountdownDisplay> createState() => _RealtimeCountdownDisplayState();
+}
+
+class _RealtimeCountdownDisplayState extends State<RealtimeCountdownDisplay> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // 1秒ごとに更新
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  int _nonNegative(int value) => value < 0 ? 0 : value;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final duration = widget.targetDate.difference(now);
+    
+    final days = _nonNegative(duration.inDays);
+    final hours = _nonNegative(duration.inHours % 24);
+    final minutes = _nonNegative(duration.inMinutes % 60);
+    final seconds = _nonNegative(duration.inSeconds % 60);
+
+    return CountdownDisplay(
+      eventName: widget.eventName,
+      days: days,
+      hours: hours,
+      minutes: minutes,
+      seconds: seconds,
+      accentColor: widget.accentColor,
+      borderColor: widget.borderColor,
+      backgroundColor: widget.backgroundColor,
+      titleColor: widget.titleColor,
+      labelColor: widget.labelColor,
+      valueTextColor: widget.valueTextColor,
+      valueBackgroundColor: widget.valueBackgroundColor,
+      onTap: widget.onTap,
+      onEdit: widget.onEdit,
+    );
   }
 }
 

@@ -19,20 +19,18 @@ class AuthMk {
   static Future<User?> signInWithGoogle() async {
     try {
       final provider = GoogleAuthProvider();
-      // 必要に応じてスコープやパラメータを追加できます
       provider.addScope('email');
       provider.setCustomParameters({'prompt': 'select_account'});
 
       if (kIsWeb) {
-        // Web版: Redirect方式を使用（型エラーを回避）
         return await _signInWithGoogleWeb(provider);
       } else {
-        // モバイル版: 未実装
-        debugPrint('❌ モバイル版のGoogle認証は未実装です');
+        debugPrint('❌ [AuthMk] モバイル版のGoogle認証は未実装です');
         return null;
       }
-    } catch (e) {
-      debugPrint('❌ 認証エラー: $e');
+    } catch (e, stackTrace) {
+      debugPrint('💥 [AuthMk] signInWithGoogle()で予期しないエラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
       return null;
     }
   }
@@ -43,22 +41,60 @@ class AuthMk {
   /// Web環境の型エラーを回避するため、広範な例外キャッチを使用
   static Future<User?> _signInWithGoogleWeb(GoogleAuthProvider provider) async {
     try {
-      // Popup方式でサインイン
       final UserCredential result = await FirebaseAuth.instance.signInWithPopup(provider);
       
       if (result.user != null) {
-        debugPrint('✅ Google認証成功: ${result.user!.email}');
+        debugPrint('✅ [AuthMk] Google認証成功: ${result.user!.email}');
         return result.user;
       }
       
-      debugPrint('⚠️ 認証がキャンセルされました');
+      debugPrint('⚠️ [AuthMk] 認証がキャンセルされました');
       return null;
-    } on FirebaseAuthException catch (e) {
-      debugPrint('❌ Firebase認証エラー: ${e.code} - ${e.message}');
-      return null;
-    } on Object catch (e) {
-      // Web環境での型エラーを回避するため、Object型でキャッチ
-      debugPrint('❌ Web認証エラー: $e');
+    } catch (e, stackTrace) {
+      debugPrint('💥 [AuthMk] _signInWithGoogleWeb()でエラーが発生しました');
+      debugPrint('   - エラータイプ: ${e.runtimeType}');
+      debugPrint('   - エラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
+      
+      // Web環境ではFirebaseAuthExceptionを直接キャッチすると型エラーが発生するため、
+      // すべての例外をObjectとしてキャッチし、エラーメッセージから情報を抽出
+      final errorMessage = e.toString();
+      debugPrint('   - エラーメッセージ（文字列）: $errorMessage');
+      
+      // FirebaseAuthExceptionの特徴的な文字列をチェック
+      if (errorMessage.contains('FirebaseAuthException') || 
+          errorMessage.contains('auth/')) {
+        debugPrint('   - FirebaseAuthExceptionと判定されました');
+        
+        // エラーコードを抽出（例: auth/popup-closed-by-user）
+        final codeMatch = RegExp(r'auth/([a-z-]+)').firstMatch(errorMessage);
+        final code = codeMatch?.group(1) ?? 'unknown';
+        debugPrint('   - 抽出されたエラーコード: $code');
+        
+        // ユーザーに分かりやすいメッセージに変換
+        String userMessage;
+        switch (code) {
+          case 'popup-closed-by-user':
+            userMessage = '認証がキャンセルされました';
+            break;
+          case 'popup-blocked':
+            userMessage = 'ポップアップがブロックされました。ブラウザの設定を確認してください';
+            break;
+          case 'network-request-failed':
+            userMessage = 'ネットワークエラーが発生しました';
+            break;
+          default:
+            userMessage = '認証エラーが発生しました: $code';
+        }
+        
+        debugPrint('❌ [AuthMk] Firebase認証エラー: $code - $userMessage');
+        debugPrint('   - 詳細: $errorMessage');
+        return null;
+      }
+      
+      // その他のエラー
+      debugPrint('❌ [AuthMk] Web認証エラー（FirebaseAuthException以外）');
+      debugPrint('   - エラーメッセージ: $errorMessage');
       return null;
     }
   }
@@ -85,12 +121,11 @@ class AuthMk {
       }
       
       return null;
-    } on FirebaseAuthException catch (e) {
-      debugPrint('❌ Redirect結果取得エラー: ${e.code} - ${e.message}');
-      return null;
-    } on Object catch (e) {
-      // Web環境での型エラーを回避するため、Object型でキャッチ
-      debugPrint('❌ Redirect結果取得エラー: $e');
+    } catch (e) {
+      // Web環境ではFirebaseAuthExceptionを直接キャッチすると型エラーが発生するため、
+      // すべての例外をObjectとしてキャッチ
+      final errorMessage = e.toString();
+      debugPrint('❌ Redirect結果取得エラー: $errorMessage');
       return null;
     }
   }
@@ -126,8 +161,9 @@ class AuthMk {
         return await user.getIdToken();
       }
       return null;
-    } catch (e) {
-      debugPrint('❌ IDトークン取得エラー: $e');
+    } catch (e, stackTrace) {
+      debugPrint('💥 [AuthMk] IDトークン取得エラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
       return null;
     }
   }
@@ -212,7 +248,6 @@ class AuthMk {
         throw error;
       }
       
-      LogMk.logDebug('ユーザーID取得: ${user.uid}', tag: 'AuthMk.getCurrentUserId');
       return user.uid;
     } catch (e) {
       if (e is DataManagerError) {

@@ -27,7 +27,7 @@ class AuthServiceUN {
         photoUrl: user.photoURL,
       );
       
-      debugPrint('✅ Google認証成功 & データ保存完了: ${user.email}');
+      debugPrint('✅ [AuthServiceUN] Google認証成功: ${user.email}');
       
       return AuthResult(
         success: true,
@@ -41,8 +41,9 @@ class AuthServiceUN {
           token: token,
         ),
       );
-    } catch (e) {
-      debugPrint('❌ ログインエラー: $e');
+    } catch (e, stackTrace) {
+      debugPrint('💥 [AuthServiceUN] ログイン処理エラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
       return AuthResult(
         success: false,
         message: 'ログイン処理中にエラーが発生しました: $e',
@@ -115,14 +116,11 @@ class AuthServiceUN {
       final isFirebaseAuthenticated = AuthMk.checkFirebaseAuthState();
       
       if (hasStoredAuth && isFirebaseAuthenticated) {
-        debugPrint('✅ 認証状態を復元しました');
         return true;
       } else {
-        debugPrint('ℹ️ 認証状態が見つからないか無効です');
         return false;
       }
     } catch (e) {
-      debugPrint('❌ 認証状態復元エラー: $e');
       return false;
     }
   }
@@ -137,14 +135,8 @@ class AuthServiceUN {
       }
       
       final userInfo = await getCurrentUserInfo();
-      
-      if (userInfo != null) {
-        debugPrint('ログイン中のユーザー: ${userInfo.email}');
-      }
-      
       return userInfo;
     } catch (e) {
-      debugPrint('❌ 認証初期化エラー: $e');
       return null;
     }
   }

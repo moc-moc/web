@@ -11,6 +11,31 @@ import 'package:test_flutter/data/services/log_service.dart';
 /// キュー管理、ネットワーク監視、リトライロジックに関する基本的な操作を提供する関数群
 /// カウントダウンなどの具体的なビジネスロジックは含まない
 class QueMk {
+  // ===== メモリキャッシュ（パフォーマンス最適化） =====
+  
+  /// メモリキャッシュされたキュー
+  static List<RetryItem>? _cachedQueue;
+  
+  /// キャッシュの最終更新時刻
+  static DateTime? _cacheTimestamp;
+  
+  /// キャッシュの有効期限（5秒）
+  static const _cacheExpiry = Duration(seconds: 5);
+  
+  /// キャッシュが有効かどうかをチェック
+  static bool _isCacheValid() {
+    if (_cachedQueue == null || _cacheTimestamp == null) {
+      return false;
+    }
+    return DateTime.now().difference(_cacheTimestamp!) < _cacheExpiry;
+  }
+  
+  /// キャッシュを無効化
+  static void _invalidateCache() {
+    _cachedQueue = null;
+    _cacheTimestamp = null;
+  }
+  
   // ===== キュー管理関連 =====
   
   /// キューにアイテムを追加
@@ -21,7 +46,7 @@ class QueMk {
     try {
       final queue = await _getQueue();
       queue.add(item);
-      await _saveQueue(queue);
+      await _saveQueue(queue, forceUpdate: true);
       debugPrint('📤 送信キューに追加: ${item.type.name} (ID: ${item.id})');
     } catch (e) {
       debugPrint('❌ 送信キュー追加エラー: $e');
@@ -34,9 +59,12 @@ class QueMk {
   static Future<void> removeFromQueue(String itemId) async {
     try {
       final queue = await _getQueue();
+      final beforeLength = queue.length;
       queue.removeWhere((item) => item.id == itemId);
-      await _saveQueue(queue);
-      debugPrint('🗑️ 送信キューから削除: $itemId');
+      if (queue.length < beforeLength) {
+        await _saveQueue(queue, forceUpdate: true);
+        debugPrint('🗑️ 送信キューから削除: $itemId');
+      }
     } catch (e) {
       debugPrint('❌ 送信キュー削除エラー: $e');
     }
@@ -98,7 +126,7 @@ class QueMk {
         }
         
         queue[index] = updatedItem;
-        await _saveQueue(queue);
+        await _saveQueue(queue, forceUpdate: true);
         debugPrint('🔄 送信キューアイテム更新: $itemId -> ${status.name}');
       }
     } catch (e) {
@@ -118,7 +146,7 @@ class QueMk {
       queue.removeWhere((item) => item.status == RetryStatus.success);
       
       if (queue.length < beforeCount) {
-        await _saveQueue(queue);
+        await _saveQueue(queue, forceUpdate: true);
         debugPrint('🧹 送信キュークリーンアップ: ${beforeCount - queue.length}件の成功アイテムを削除');
       }
     } catch (e) {
@@ -140,7 +168,7 @@ class QueMk {
       );
       
       if (queue.length < beforeCount) {
-        await _saveQueue(queue);
+        await _saveQueue(queue, forceUpdate: true);
         debugPrint('🧹 送信キュークリーンアップ: ${beforeCount - queue.length}件の失敗アイテムを削除');
       }
     } catch (e) {
@@ -188,6 +216,7 @@ class QueMk {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('retry_queue');
+      _invalidateCache();
       debugPrint('🗑️ 送信キューをクリアしました');
     } catch (e) {
       debugPrint('❌ 送信キュークリアエラー: $e');
@@ -320,31 +349,103 @@ class QueMk {
   
   // ===== プライベートヘルパー関数 =====
   
-  /// ローカルストレージからキューを取得
+  /// ローカルストレージからキューを取得（キャッシュ対応）
   static Future<List<RetryItem>> _getQueue() async {
+    // キャッシュが有効な場合はキャッシュを返す
+    if (_isCacheValid() && _cachedQueue != null) {
+      return List.from(_cachedQueue!);
+    }
+    
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonString = prefs.getString('retry_queue');
       
-      if (jsonString == null) return [];
+      if (jsonString == null) {
+        _cachedQueue = [];
+        _cacheTimestamp = DateTime.now();
+        return [];
+      }
       
+      // パフォーマンス最適化: Web環境対応
+      // Web環境ではList.lengthを直接設定するとnullで埋められるため、add()を使用
       final List<dynamic> jsonList = json.decode(jsonString);
-      return jsonList.map((json) => RetryItem.fromJson(json)).toList();
+      final queue = <RetryItem>[];
+      
+      for (final jsonItem in jsonList) {
+        if (jsonItem == null) {
+          continue;
+        }
+        
+        try {
+          queue.add(RetryItem.fromJson(jsonItem as Map<String, dynamic>));
+        } catch (e) {
+          debugPrint('❌ キューアイテムデコードエラー: $e');
+          // エラー時はスキップ（次のアイテムに続行）
+        }
+      }
+      
+      // キャッシュを更新
+      _cachedQueue = queue;
+      _cacheTimestamp = DateTime.now();
+      
+      return queue;
     } catch (e) {
       debugPrint('❌ 送信キュー取得エラー: $e');
+      _cachedQueue = [];
+      _cacheTimestamp = DateTime.now();
       return [];
     }
   }
   
-  /// ローカルストレージにキューを保存
-  static Future<void> _saveQueue(List<RetryItem> queue) async {
+  /// ローカルストレージにキューを保存（差分更新対応）
+  static Future<void> _saveQueue(List<RetryItem> queue, {bool forceUpdate = false}) async {
     try {
+      // キャッシュと比較して差分がある場合のみ保存
+      if (!forceUpdate && _isCacheValid() && _cachedQueue != null) {
+        if (_areQueuesEqual(_cachedQueue!, queue)) {
+          // 差分がない場合は保存をスキップ
+          return;
+        }
+      }
+      
       final prefs = await SharedPreferences.getInstance();
-      final jsonString = json.encode(queue.map((item) => item.toJson()).toList());
+      
+      // パフォーマンス最適化: Web環境対応
+      // Web環境ではList.lengthを直接設定するとnullで埋められるため、add()を使用
+      final jsonList = <Map<String, dynamic>>[];
+      for (final item in queue) {
+        jsonList.add(item.toJson());
+      }
+      
+      final jsonString = json.encode(jsonList);
       await prefs.setString('retry_queue', jsonString);
+      
+      // キャッシュを更新
+      _cachedQueue = List.from(queue);
+      _cacheTimestamp = DateTime.now();
     } catch (e) {
       debugPrint('❌ 送信キュー保存エラー: $e');
+      _invalidateCache();
     }
+  }
+  
+  /// 2つのキューが等しいかチェック（差分検出用）
+  static bool _areQueuesEqual(List<RetryItem> a, List<RetryItem> b) {
+    if (a.length != b.length) return false;
+    
+    final aMap = {for (var item in a) item.id: item};
+    final bMap = {for (var item in b) item.id: item};
+    
+    if (aMap.length != bMap.length) return false;
+    
+    for (final entry in aMap.entries) {
+      final bItem = bMap[entry.key];
+      if (bItem == null || entry.value.status != bItem.status || entry.value.retryCount != bItem.retryCount) {
+        return false;
+      }
+    }
+    
+    return true;
   }
 
   // ===== Phase 5: バックグラウンド処理機能 =====

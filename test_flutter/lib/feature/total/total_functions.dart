@@ -1,11 +1,10 @@
-// Flutterライブラリ
-import 'package:flutter/material.dart';
-
 // 外部パッケージ
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 // 内部パッケージ（プロジェクト内）
-import 'package:test_flutter/feature/Total/total_data_manager.dart';
+import 'package:test_flutter/feature/base/data_helper_functions.dart';
+import 'package:test_flutter/feature/total/total_model.dart';
+import 'package:test_flutter/feature/total/total_data_manager.dart';
 
 part 'total_functions.g.dart';
 
@@ -33,14 +32,9 @@ part 'total_functions.g.dart';
 class TotalDataNotifier extends _$TotalDataNotifier {
   @override
   TotalData build() {
-    debugPrint('🔍 [TotalDataNotifier.build] ★★★ Provider初期化実行（keepAlive: true）★★★');
-    debugPrint('🔍 [TotalDataNotifier.build] スタックトレース:');
-    debugPrint(StackTrace.current.toString().split('\n').take(5).join('\n'));
-    
     // 初期値を返す
     return TotalData(
       id: 'user_total',
-      totalLoginDays: 0,
       totalWorkTimeMinutes: 0,
       lastTrackedDate: DateTime.now(),
       lastModified: DateTime.now(),
@@ -49,16 +43,13 @@ class TotalDataNotifier extends _$TotalDataNotifier {
 
   /// 累計データを更新
   void updateTotal(TotalData newData) {
-    debugPrint('🔍 [TotalDataNotifier.updateTotal] 更新: ${newData.totalLoginDays}日、${newData.totalWorkTimeMinutes}分');
     state = newData;
   }
 
   /// データをリセット
   void reset() {
-    debugPrint('🔍 [TotalDataNotifier.reset] リセット実行');
     state = TotalData(
       id: 'user_total',
-      totalLoginDays: 0,
       totalWorkTimeMinutes: 0,
       lastTrackedDate: DateTime.now(),
       lastModified: DateTime.now(),
@@ -88,36 +79,51 @@ class TotalDataNotifier extends _$TotalDataNotifier {
 /// await loadTotalDataHelper(ref);
 /// ```
 Future<TotalData> loadTotalDataHelper(dynamic ref) async {
-  debugPrint('🔍 [loadTotalDataHelper] 開始');
-  
   final manager = TotalDataManager();
 
-  // Firestoreから取得を試みる（Firestore優先）
-  final totalData = await manager.getTotalDataWithAuth();
-  
-  if (totalData != null) {
-    debugPrint('🔍 [loadTotalDataHelper] Firestoreから取得: ${totalData.totalLoginDays}日、${totalData.totalWorkTimeMinutes}分');
-  } else {
-    // Firestoreから取得できない場合はデフォルト値
-    final defaultData = await manager.getTotalDataOrDefault();
-    debugPrint('🔍 [loadTotalDataHelper] デフォルト値を使用: ${defaultData.totalLoginDays}日、${defaultData.totalWorkTimeMinutes}分');
-    
-    // Notifierを使用してProviderを更新
-    ref.read(totalDataProvider.notifier).updateTotal(defaultData);
-    debugPrint('🔍 [loadTotalDataHelper] Provider更新完了');
-    
-    return defaultData;
-  }
+  return await loadSingleDataHelper<TotalData>(
+    ref: ref,
+    manager: manager,
+    getWithAuth: () => manager.getTotalDataWithAuth(),
+    getDefault: () => manager.getTotalDataOrDefault(),
+    updateProvider: (data) => ref.read(totalDataProvider.notifier).updateTotal(data),
+    functionName: 'loadTotalDataHelper',
+  );
+}
 
-  // Notifierを使用してProviderを更新
-  ref.read(totalDataProvider.notifier).updateTotal(totalData);
-  debugPrint('🔍 [loadTotalDataHelper] Provider更新完了');
-  
-  // 更新後の状態を確認
-  final updatedState = ref.read(totalDataProvider);
-  debugPrint('🔍 [loadTotalDataHelper] Provider更新後の状態: ${updatedState.totalLoginDays}日、${updatedState.totalWorkTimeMinutes}分');
+/// 累計データをバックグラウンド更新で読み込むヘルパー関数
+/// 
+/// まずローカルまたはデフォルト値で即座に表示し、
+/// その後バックグラウンドでFirestoreから最新データを取得して更新します。
+/// 
+/// **パラメータ**:
+/// - `ref`: Ref（Provider操作用）
+/// 
+/// **戻り値**: 読み込んだ累計データ（ローカルまたはデフォルト値）
+/// 
+/// **動作フロー**:
+/// 1. ローカルまたはデフォルト値で即座に表示
+/// 2. バックグラウンドでFirestoreから最新データを取得
+/// 3. 取得成功時はローカルにも保存してProviderに反映
+/// 4. 取得失敗時はローカルデータのまま
+/// 
+/// **使用例**:
+/// ```dart
+/// await loadTotalDataWithBackgroundRefreshHelper(ref);
+/// ```
+Future<TotalData> loadTotalDataWithBackgroundRefreshHelper(dynamic ref) async {
+  final manager = TotalDataManager();
 
-  return totalData;
+  return await loadSingleDataWithBackgroundRefreshHelper<TotalData>(
+    ref: ref,
+    manager: manager,
+    getWithAuth: () => manager.getTotalDataWithAuth(),
+    getLocal: () => manager.getLocalTotalData(),
+    getDefault: () => manager.getTotalDataOrDefault(),
+    saveLocal: (data) => manager.saveLocalTotalData(data),
+    updateProvider: (data) => ref.read(totalDataProvider.notifier).updateTotal(data),
+    functionName: 'loadTotalDataWithBackgroundRefreshHelper',
+  );
 }
 
 /// 累計データを同期するヘルパー関数
@@ -135,29 +141,14 @@ Future<TotalData> loadTotalDataHelper(dynamic ref) async {
 /// await syncTotalDataHelper(ref);
 /// ```
 Future<TotalData> syncTotalDataHelper(dynamic ref) async {
-  debugPrint('🔍 [syncTotalDataHelper] 開始');
-  
   final manager = TotalDataManager();
 
-  // Firestoreと同期（認証自動取得版）
-  final syncedList = await manager.syncTotalDataWithAuth();
-  debugPrint('🔍 [syncTotalDataHelper] 同期で取得: ${syncedList.length}件');
-
-  // Totalは1つだけなので、リストから取得またはデフォルト値
-  final totalData = syncedList.isNotEmpty 
-      ? syncedList.first 
-      : await manager.getTotalDataOrDefault();
-  
-  debugPrint('🔍 [syncTotalDataHelper] 最終データ: ${totalData.totalLoginDays}日、${totalData.totalWorkTimeMinutes}分');
-
-  // Notifierを使用してProviderを更新
-  ref.read(totalDataProvider.notifier).updateTotal(totalData);
-  debugPrint('🔍 [syncTotalDataHelper] Provider更新完了');
-  
-  // 更新後の状態を確認
-  final updatedState = ref.read(totalDataProvider);
-  debugPrint('🔍 [syncTotalDataHelper] Provider更新後の状態: ${updatedState.totalLoginDays}日、${updatedState.totalWorkTimeMinutes}分');
-
-  return totalData;
+  return await syncSingleDataHelper<TotalData>(
+    ref: ref,
+    manager: manager,
+    syncWithAuth: () => manager.syncTotalDataWithAuth(),
+    getDefault: () => manager.getTotalDataOrDefault(),
+    updateProvider: (data) => ref.read(totalDataProvider.notifier).updateTotal(data),
+    functionName: 'syncTotalDataHelper',
+  );
 }
-

@@ -218,3 +218,50 @@ class SpacedRow extends StatelessWidget {
     );
   }
 }
+
+/// "OR"テキスト付きの区切り線
+class OrDivider extends StatelessWidget {
+  final String text;
+  final Color? dividerColor;
+  final Color? textColor;
+
+  const OrDivider({
+    super.key,
+    this.text = 'OR',
+    this.dividerColor,
+    this.textColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveDividerColor =
+        dividerColor ?? AppColors.gray.withValues(alpha: 0.35);
+    final effectiveTextColor = textColor ?? AppColors.textSecondary;
+
+    return Row(
+      children: [
+        Expanded(
+          child: Divider(
+            color: effectiveDividerColor,
+            thickness: 1,
+          ),
+        ),
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+          child: Text(
+            text,
+            style: AppTextStyles.caption.copyWith(
+              color: effectiveTextColor,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Divider(
+            color: effectiveDividerColor,
+            thickness: 1,
+          ),
+        ),
+      ],
+    );
+  }
+}

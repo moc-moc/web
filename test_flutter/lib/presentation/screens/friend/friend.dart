@@ -3,7 +3,6 @@ import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
-import 'package:test_flutter/dummy_data/user_data.dart';
 import 'package:test_flutter/presentation/screens/friend/post_cards/tracking_post_card.dart';
 import 'package:test_flutter/presentation/screens/friend/post_cards/goal_achieved_post_card.dart';
 import 'package:test_flutter/presentation/screens/friend/post_cards/goal_set_post_card.dart';
@@ -211,7 +210,11 @@ class _FriendScreenNewState extends State<FriendScreenNew> {
                 ),
                 child: Center(
                   child: Text(
+<<<<<<< HEAD
                     dummyUser.name[0],
+=======
+                    'A',
+>>>>>>> dataedit_branch
                     style: TextStyle(
                       color: AppColors.blue,
                       fontSize: 20,

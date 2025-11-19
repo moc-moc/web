@@ -25,7 +25,8 @@ import 'package:test_flutter/presentation/screens/event/streak_milestone_event.d
 import 'package:test_flutter/presentation/screens/event/total_hours_milestone_event.dart';
 import 'package:test_flutter/presentation/screens/event/countdown_ended_event.dart';
 import 'package:test_flutter/presentation/screens/event/countdown_set_event.dart';
-
+import 'package:test_flutter/presentation/screens/friend/friend.dart';
+import 'package:test_flutter/presentation/screens/friend/friend_list.dart';
 class AppRoutes {
   // Auth Routes
   static const String signupLogin = '/signup-login';
@@ -55,7 +56,8 @@ class AppRoutes {
   static const String eventPreviewNew = '/event-preview-new';
   static const String colorPreview = '/color-preview';
   static const String widgetCatalog = '/widget-catalog';
-
+  static const String friend = '/friend';
+  static const String friendList = '/friend-list';
   // Event Routes (New)
   static const String goalAchievedEvent = '/goal-achieved-event';
   static const String goalSetEvent = '/goal-set-event';
@@ -101,7 +103,8 @@ class RouteGenerator {
     AppRoutes.eventPreviewNew: () => const EventPreviewScreenNew(),
     AppRoutes.colorPreview: () => const ColorPreviewScreen(),
     AppRoutes.widgetCatalog: () => const WidgetCatalogScreen(),
-
+    AppRoutes.friend: () => const FriendScreenNew(),
+    AppRoutes.friendList: () => const FriendListScreenNew(),
     // Event Routes (New)
     AppRoutes.goalAchievedEvent: () => const GoalAchievedEventScreen(),
     AppRoutes.goalSetEvent: () => const GoalSetEventScreen(),

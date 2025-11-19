@@ -136,3 +136,187 @@ class PeriodTabBar extends StatelessWidget {
     );
   }
 }
+
+/// 2つのタブを切り替えるスイッチャー（Sign Up / Log In用）
+class TabSwitcher extends StatelessWidget {
+  final String firstTab;
+  final String secondTab;
+  final bool isFirstSelected;
+  final ValueChanged<bool> onTabChanged;
+
+  const TabSwitcher({
+    super.key,
+    required this.firstTab,
+    required this.secondTab,
+    required this.isFirstSelected,
+    required this.onTabChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.black,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppColors.gray.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: _TabSwitcherItem(
+              text: firstTab,
+              isSelected: isFirstSelected,
+              onTap: () => onTabChanged(true),
+            ),
+          ),
+          Expanded(
+            child: _TabSwitcherItem(
+              text: secondTab,
+              isSelected: !isFirstSelected,
+              onTap: () => onTabChanged(false),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TabSwitcherItem extends StatelessWidget {
+  final String text;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  const _TabSwitcherItem({
+    required this.text,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: EdgeInsets.symmetric(
+            vertical: AppSpacing.sm,
+            horizontal: AppSpacing.xs,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? AppColors.blue.withValues(alpha: 0.15)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isSelected ? AppColors.blue : Colors.transparent,
+              width: 1.5,
+            ),
+          ),
+          child: Text(
+            text,
+            textAlign: TextAlign.center,
+            style: AppTextStyles.body2.copyWith(
+              color: isSelected
+                  ? AppColors.blue
+                  : AppColors.textSecondary,
+              fontWeight: isSelected
+                  ? FontWeight.bold
+                  : FontWeight.normal,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 複数のタブを切り替えるスイッチャー（3つ以上に対応）
+class MultiTabSwitcher extends StatelessWidget {
+  final Map<String, String> tabs; // key: 値, value: 表示ラベル
+  final String selectedKey;
+  final ValueChanged<String> onTabChanged;
+  final Color? selectedColor;
+
+  const MultiTabSwitcher({
+    super.key,
+    required this.tabs,
+    required this.selectedKey,
+    required this.onTabChanged,
+    this.selectedColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveSelectedColor = selectedColor ?? AppColors.orange;
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: BoxDecoration(
+        color: AppColors.black,
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(color: AppColors.gray.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        children: tabs.entries.map((entry) {
+          final isSelected = selectedKey == entry.key;
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () => onTabChanged(entry.key),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: EdgeInsets.symmetric(
+                      vertical: AppSpacing.sm,
+                      horizontal: AppSpacing.xs,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? effectiveSelectedColor.withValues(alpha: 0.15)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(24),
+                      border: Border.all(
+                        color: isSelected
+                            ? effectiveSelectedColor
+                            : Colors.transparent,
+                        width: 1.5,
+                      ),
+                    ),
+                    child: Center(
+                      child: Text(
+                        entry.value,
+                        textAlign: TextAlign.center,
+                        style: AppTextStyles.body2.copyWith(
+                          color: isSelected
+                              ? effectiveSelectedColor
+                              : AppColors.textSecondary,
+                          fontWeight: isSelected
+                              ? FontWeight.bold
+                              : FontWeight.normal,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+}

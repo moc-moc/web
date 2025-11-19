@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
+import 'package:test_flutter/feature/goals/goal_model.dart';
 
 /// 写真のデザインに基づいた目標プログレスカード
 class GoalProgressCardNew extends StatelessWidget {
@@ -15,6 +16,7 @@ class GoalProgressCardNew extends StatelessWidget {
   final double percentage; // 0.0 ~ 1.0
   final Color progressColor;
   final String daysText; // 例: '3 days', '2 weeks', '1 month'
+  final ComparisonType? comparisonType; // 比較タイプ（above/below）
 
   const GoalProgressCardNew({
     super.key,
@@ -29,6 +31,7 @@ class GoalProgressCardNew extends StatelessWidget {
     required this.percentage,
     required this.progressColor,
     required this.daysText,
+    this.comparisonType,
   });
 
   @override
@@ -101,21 +104,45 @@ class GoalProgressCardNew extends StatelessWidget {
                               SizedBox(height: AppSpacing.xs),
                               Padding(
                                 padding: EdgeInsets.only(left: 56 + AppSpacing.md),
-                                child: Container(
-                                  padding: EdgeInsets.symmetric(
-                                    horizontal: AppSpacing.sm,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: AppColors.middleblackgray,
-                                    borderRadius: BorderRadius.circular(AppRadius.small),
-                                  ),
-                                  child: Text(
-                                    periodLabel,
-                                    style: AppTextStyles.caption.copyWith(
-                                      color: AppColors.textSecondary,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.sm,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.middleblackgray,
+                                        borderRadius: BorderRadius.circular(AppRadius.small),
+                                      ),
+                                      child: Text(
+                                        periodLabel,
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
                                     ),
-                                  ),
+                                    if (comparisonType == ComparisonType.below) ...[
+                                      SizedBox(width: AppSpacing.xs),
+                                      Container(
+                                        padding: EdgeInsets.symmetric(
+                                          horizontal: AppSpacing.sm,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.middleblackgray,
+                                          borderRadius: BorderRadius.circular(AppRadius.small),
+                                        ),
+                                        child: Text(
+                                          'below',
+                                          style: AppTextStyles.caption.copyWith(
+                                            color: AppColors.purple,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
                             ],
@@ -158,21 +185,45 @@ class GoalProgressCardNew extends StatelessWidget {
                               ),
                               SizedBox(width: AppSpacing.sm),
                               // 期間ラベル（weekly/monthly）
-                              Container(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: AppSpacing.sm,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: AppColors.middleblackgray,
-                                  borderRadius: BorderRadius.circular(AppRadius.small),
-                                ),
-                                child: Text(
-                                  periodLabel,
-                                  style: AppTextStyles.caption.copyWith(
-                                    color: AppColors.textSecondary,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    padding: EdgeInsets.symmetric(
+                                      horizontal: AppSpacing.sm,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.middleblackgray,
+                                      borderRadius: BorderRadius.circular(AppRadius.small),
+                                    ),
+                                    child: Text(
+                                      periodLabel,
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  if (comparisonType == ComparisonType.below) ...[
+                                    SizedBox(width: AppSpacing.xs),
+                                    Container(
+                                      padding: EdgeInsets.symmetric(
+                                        horizontal: AppSpacing.sm,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.middleblackgray,
+                                        borderRadius: BorderRadius.circular(AppRadius.small),
+                                      ),
+                                      child: Text(
+                                        'below',
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: AppColors.purple,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           );

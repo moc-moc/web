@@ -55,7 +55,7 @@ class CircularProgressBar extends StatelessWidget {
           // Percentage text
           if (showPercentage)
             Text(
-              '${(clampedPercentage * 100).toInt()}%',
+              '${(clampedPercentage * 100).toStringAsFixed(1)}%',
               style: TextStyle(
                 fontSize: size * 0.18,
                 fontWeight: FontWeight.bold,
@@ -443,7 +443,7 @@ class GoalProgressCard extends StatelessWidget {
           ),
           SizedBox(height: AppSpacing.xs),
           Text(
-            '${(clampedPercentage * 100).round()}%',
+            '${(clampedPercentage * 100).toStringAsFixed(1)}%',
             style: AppTextStyles.caption.copyWith(
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,

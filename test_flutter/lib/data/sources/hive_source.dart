@@ -61,8 +61,6 @@ class HiveMk {
       
       // ボックス名を登録（getAllBoxNamesで取得できるようにする）
       await _registerBoxName(boxName);
-      
-      debugPrint('✅ Hiveリストデータ保存完了: $boxName (${items.length}件)');
     } catch (e) {
       debugPrint('❌ Hiveリストデータ保存エラー: $e');
     }
@@ -158,7 +156,9 @@ class HiveMk {
   /// 
   /// 指定されたIDのアイテムをリストから削除する
   /// idFieldでアイテムのIDフィールドを指定する
-  static Future<void> removeItemFromHive(
+  /// 
+  /// **戻り値**: 削除が成功した場合はtrue、アイテムが見つからない場合はfalse
+  static Future<bool> removeItemFromHive(
     String boxName,
     String itemId,
     String idField,
@@ -172,11 +172,14 @@ class HiveMk {
       if (items.length < beforeCount) {
         await saveAllToHive(boxName, items);
         debugPrint('✅ Hiveアイテム削除完了: $boxName (ID: $itemId)');
+        return true;
       } else {
-        debugPrint('❌ アイテムが見つかりません: $itemId');
+        debugPrint('⚠️ アイテムが見つかりません: $itemId');
+        return false;
       }
     } catch (e) {
       debugPrint('❌ Hiveアイテム削除エラー: $e');
+      return false;
     }
   }
   
@@ -244,7 +247,6 @@ class HiveMk {
     try {
       final box = await Hive.openBox('_hive_metadata');
       await box.put('${boxName}_last_sync', time.millisecondsSinceEpoch);
-      debugPrint('✅ Hive最終同期時刻設定完了: $boxName');
     } catch (e) {
       debugPrint('❌ Hive最終同期時刻設定エラー: $e');
     }

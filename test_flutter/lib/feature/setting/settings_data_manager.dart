@@ -29,8 +29,8 @@ final accountSettingsManager = FirestoreDataManager<AccountSettings>(
   // モデルからJSONに変換（SharedPreferences用）
   toJson: (item) => item.toJson(),
   
-  // JSONからモデルに変換（SharedPreferences用）
-  fromJson: AccountSettings.fromJson,
+  // JSONからモデルに変換（SharedPreferences用、null安全版）
+  fromJson: AccountSettings.fromJsonSafe,
 );
 
 /// 通知設定データマネージャー
@@ -61,8 +61,8 @@ final notificationSettingsManager = FirestoreDataManager<NotificationSettings>(
   // モデルからJSONに変換（SharedPreferences用）
   toJson: (item) => item.toJson(),
   
-  // JSONからモデルに変換（SharedPreferences用）
-  fromJson: NotificationSettings.fromJson,
+  // JSONからモデルに変換（SharedPreferences用、null安全版）
+  fromJson: NotificationSettings.fromJsonSafe,
 );
 
 /// 表示設定データマネージャー
@@ -93,8 +93,8 @@ final displaySettingsManager = FirestoreDataManager<DisplaySettings>(
   // モデルからJSONに変換（SharedPreferences用）
   toJson: (item) => item.toJson(),
   
-  // JSONからモデルに変換（SharedPreferences用）
-  fromJson: DisplaySettings.fromJson,
+  // JSONからモデルに変換（SharedPreferences用、null安全版）
+  fromJson: DisplaySettings.fromJsonSafe,
 );
 
 /// 時間設定データマネージャー
@@ -125,7 +125,39 @@ final timeSettingsManager = FirestoreDataManager<TimeSettings>(
   // モデルからJSONに変換（SharedPreferences用）
   toJson: (item) => item.toJson(),
   
-  // JSONからモデルに変換（SharedPreferences用）
-  fromJson: TimeSettings.fromJson,
+  // JSONからモデルに変換（SharedPreferences用、null安全版）
+  fromJson: TimeSettings.fromJsonSafe,
+);
+
+/// トラッキング設定データマネージャー
+/// 
+/// `FirestoreDataManager`を使用してトラッキング設定を管理します。
+/// 
+/// **使用例**:
+/// ```dart
+/// // トラッキング設定を同期
+/// final settings = await trackingSettingsManager.sync(userId);
+/// 
+/// // トラッキング設定を保存
+/// await trackingSettingsManager.saveWithRetry(userId, newSettings);
+/// ```
+final trackingSettingsManager = FirestoreDataManager<TrackingSettings>(
+  // Firestoreのコレクションパス
+  collectionPathBuilder: (userId) => 'users/$userId/settings',
+  
+  // Firestoreデータからモデルに変換
+  fromFirestore: TrackingSettings.fromFirestore,
+  
+  // モデルからFirestoreデータに変換
+  toFirestore: (item) => item.toFirestore(),
+  
+  // SharedPreferencesのキー
+  storageKey: 'tracking_settings',
+  
+  // モデルからJSONに変換（SharedPreferences用）
+  toJson: (item) => item.toJson(),
+  
+  // JSONからモデルに変換（SharedPreferences用、null安全版）
+  fromJson: TrackingSettings.fromJsonSafe,
 );
 

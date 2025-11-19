@@ -379,16 +379,172 @@ class TimeInputCard extends StatelessWidget {
   }
 }
 
+/// カテゴリ選択カード（アイコン、ラベル、選択状態を持つ）
+class CategoryCard extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final String? subtitle;
+
+  const CategoryCard({
+    super.key,
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.isSelected,
+    required this.onTap,
+    this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? color.withValues(alpha: 0.2)
+            : AppColors.black,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: Border.all(
+          color: isSelected
+              ? color
+              : AppColors.gray.withValues(alpha: 0.35),
+          width: isSelected ? 1.5 : 1,
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(AppRadius.large),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.sm,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      color: isSelected ? color : AppColors.textSecondary,
+                      size: 20,
+                    ),
+                    SizedBox(width: AppSpacing.sm),
+                    Text(
+                      label,
+                      style: AppTextStyles.body2.copyWith(
+                        color: isSelected
+                            ? AppColors.textPrimary
+                            : AppColors.textSecondary,
+                        fontWeight: isSelected
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ],
+                ),
+                if (subtitle != null) ...[
+                  SizedBox(height: AppSpacing.xs),
+                  Text(
+                    subtitle!,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.gray,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// フォームセクション（タイトルと子ウィジェットを持つセクションコンテナ）
+class FormSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final Color? backgroundColor;
+  final Color? borderColor;
+  final double? borderWidth;
+  final Widget? subtitle;
+  final String? subtitleText;
+
+  const FormSection({
+    super.key,
+    required this.title,
+    required this.child,
+    this.padding,
+    this.backgroundColor,
+    this.borderColor,
+    this.borderWidth,
+    this.subtitle,
+    this.subtitleText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final effectiveBackgroundColor = backgroundColor ?? AppColors.blackgray;
+    final effectiveBorderColor =
+        borderColor ?? AppColors.gray.withValues(alpha: 0.35);
+    final effectiveBorderWidth = borderWidth ?? 1.5;
+
+    return Container(
+      padding: padding ?? EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: effectiveBackgroundColor,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: Border.all(
+          color: effectiveBorderColor,
+          width: effectiveBorderWidth,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AppTextStyles.body1.copyWith(
+              fontWeight: FontWeight.w600,
+              color: AppColors.white,
+            ),
+          ),
+          if (subtitle != null) ...[
+            SizedBox(height: AppSpacing.sm),
+            subtitle!,
+          ] else if (subtitleText != null) ...[
+            SizedBox(height: AppSpacing.sm),
+            Text(
+              subtitleText!,
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+          ],
+          SizedBox(height: AppSpacing.md),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
 /// 累計データ表示カード
 ///
-/// 総ログイン日数と総作業時間を横並びで表示します。
+/// 総作業時間を表示します。
 class TotalStatsCard extends StatelessWidget {
-  final int totalLoginDays;
   final String totalWorkTime;
 
   const TotalStatsCard({
     super.key,
-    required this.totalLoginDays,
     required this.totalWorkTime,
   });
 
@@ -396,73 +552,34 @@ class TotalStatsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-      child: Row(
-        children: [
-          Expanded(
-            child: CustomCard(
-              height: 120,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.calendar_today,
-                      color: AppColors.blue,
-                      size: 28,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '$totalLoginDays日',
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      '総ログイン',
-                      style: TextStyle(color: AppColors.gray, fontSize: 12),
-                    ),
-                  ],
+      child: CustomCard(
+        height: 120,
+        child: Padding(
+          padding: const EdgeInsets.all(12.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.timer, color: AppColors.green, size: 28),
+              const SizedBox(height: 6),
+              Text(
+                totalWorkTime,
+                style: const TextStyle(
+                  color: AppColors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
                 ),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: CustomCard(
-              height: 120,
-              child: Padding(
-                padding: const EdgeInsets.all(12.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.timer, color: AppColors.green, size: 28),
-                    const SizedBox(height: 6),
-                    Text(
-                      totalWorkTime,
-                      style: const TextStyle(
-                        color: AppColors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 2),
-                    const Text(
-                      '総作業時間',
-                      style: TextStyle(color: AppColors.gray, fontSize: 12),
-                    ),
-                  ],
-                ),
+              const SizedBox(height: 2),
+              const Text(
+                '総作業時間',
+                style: TextStyle(color: AppColors.gray, fontSize: 12),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

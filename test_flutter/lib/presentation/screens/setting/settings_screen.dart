@@ -378,14 +378,14 @@ class SettingsScreenNew extends StatelessWidget {
 
   Widget _buildBottomNavigationBar(BuildContext context) {
     return AppBottomNavigationBar(
-      currentIndex: 3,
+      currentIndex: 4,
       items: AppBottomNavigationBar.defaultItems,
       onTap: (index) => _handleNavigationTap(context, index),
     );
   }
 
   void _handleNavigationTap(BuildContext context, int index) {
-    if (index == 3) return;
+    if (index == 4) return;
     switch (index) {
       case 0:
         Navigator.pushReplacementNamed(context, AppRoutes.home);
@@ -395,6 +395,9 @@ class SettingsScreenNew extends StatelessWidget {
         break;
       case 2:
         Navigator.pushReplacementNamed(context, AppRoutes.report);
+        break;
+      case 3:
+        Navigator.pushReplacementNamed(context, AppRoutes.friend);
         break;
     }
   }

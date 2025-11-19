@@ -356,7 +356,7 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
   }) {
     final prefix = value > 0 ? '+' : '';
     final formatted = isPercentage
-        ? value.toStringAsFixed(0) + '%'
+        ? '${value.toStringAsFixed(0)}%'
         : value.toStringAsFixed(0);
     return '$prefix$formatted$unit';
   }
@@ -816,6 +816,9 @@ class _ReportScreenNewState extends State<ReportScreenNew> {
         Navigator.pushReplacementNamed(context, AppRoutes.goal);
         break;
       case 3:
+        Navigator.pushReplacementNamed(context, AppRoutes.friend);
+        break;
+      case 4:
         Navigator.pushReplacementNamed(context, AppRoutes.settings);
         break;
     }

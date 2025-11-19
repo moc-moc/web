@@ -393,6 +393,9 @@ class HomeScreenNew extends StatelessWidget {
         Navigator.pushReplacementNamed(context, AppRoutes.report);
         break;
       case 3:
+        Navigator.pushReplacementNamed(context, AppRoutes.friend);
+        break;
+      case 4:
         Navigator.pushReplacementNamed(context, AppRoutes.settings);
         break;
     }

@@ -3,6 +3,7 @@ import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/screens/home/home_screen.dart';
 import 'package:test_flutter/presentation/screens/goal/goal.dart';
 import 'package:test_flutter/presentation/screens/report/report.dart';
+import 'package:test_flutter/presentation/screens/friend/friend.dart';
 import 'package:test_flutter/presentation/screens/setting/settings_screen.dart';
 
 // ========================================
@@ -37,7 +38,7 @@ class AppBottomNavigationBar extends StatelessWidget {
     required this.items,
   });
 
-  /// デフォルトの4項目ナビゲーション（Home, Goal, Report, Settings）
+  /// デフォルトの5項目ナビゲーション（Home, Goal, Report, Friend, Settings）
   static List<NavigationItem> get defaultItems => [
     const NavigationItem(
       icon: Icons.home,
@@ -58,10 +59,16 @@ class AppBottomNavigationBar extends StatelessWidget {
       activeColor: AppColors.green,
     ),
     const NavigationItem(
+      icon: Icons.people,
+      label: 'Friend',
+      screen: FriendScreenNew(),
+      activeColor: AppColors.purple,
+    ),
+    const NavigationItem(
       icon: Icons.settings,
       label: 'Settings',
       screen: SettingsScreenNew(),
-      activeColor: AppColors.purple,
+      activeColor: AppColors.gray,
     ),
   ];
 

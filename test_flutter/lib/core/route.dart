@@ -9,6 +9,7 @@ import 'package:test_flutter/presentation/screens/tracking/tracking.dart';
 import 'package:test_flutter/presentation/screens/tracking/tracking_finished.dart';
 import 'package:test_flutter/presentation/screens/goal/goal.dart';
 import 'package:test_flutter/presentation/screens/report/report.dart';
+import 'package:test_flutter/presentation/screens/friend/friend.dart';
 import 'package:test_flutter/presentation/screens/setting/settings_screen.dart';
 import 'package:test_flutter/presentation/screens/setting/account_settings.dart';
 import 'package:test_flutter/presentation/screens/setting/notification_settings.dart';
@@ -39,6 +40,9 @@ class AppRoutes {
   static const String reportNew = '/report-new'; // 新デザインシステム版
   static const String goal = '/goal';
   static const String goalNew = '/goal-new'; // 新デザインシステム版
+  static const String friend = '/friend';
+  static const String friendNew = '/friend-new'; // 新デザインシステム版
+  static const String friendList = '/friend-list'; // フレンドリスト画面
 
   // Tracking Routes (New)
   static const String trackingSettingNew = '/tracking-setting-new';
@@ -82,6 +86,9 @@ class RouteGenerator {
     AppRoutes.reportNew: () => const ReportScreenNew(), // 新デザインシステム版
     AppRoutes.goal: () => const GoalScreenNew(),
     AppRoutes.goalNew: () => const GoalScreenNew(), // 新デザインシステム版
+    AppRoutes.friend: () => const FriendScreenNew(),
+    AppRoutes.friendNew: () => const FriendScreenNew(), // 新デザインシステム版
+    AppRoutes.friendList: () => const FriendListScreenNew(), // フレンドリスト画面
     // Tracking Routes (New)
     AppRoutes.trackingSettingNew: () => const TrackingSettingScreenNew(),
     AppRoutes.trackingNew: () => const TrackingScreenNew(),

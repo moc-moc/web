@@ -484,7 +484,7 @@ class _TrackingScreenNewState extends State<TrackingScreenNew> {
                 ),
               ),
             );
-          }).toList(),
+          }),
         ],
       ),
       ),

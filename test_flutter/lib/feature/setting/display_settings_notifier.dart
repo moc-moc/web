@@ -40,6 +40,7 @@ class DisplaySettingsNotifier extends _$DisplaySettingsNotifier {
 /// **戻り値**: 読み込んだ表示設定（ローカルまたはデフォルト値）
 Future<DisplaySettings> loadDisplaySettingsWithBackgroundRefreshHelper(dynamic ref) async {
   final dummyManager = Object(); // マネージャーは使用しないためダミー
+  final displayNotifier = ref.read(displaySettingsProvider.notifier);
 
   return await loadSingleDataWithBackgroundRefreshHelper<DisplaySettings>(
     ref: ref,
@@ -71,7 +72,7 @@ Future<DisplaySettings> loadDisplaySettingsWithBackgroundRefreshHelper(dynamic r
         await displaySettingsManager.updateLocal(settings);
       }
     },
-    updateProvider: (settings) => ref.read(displaySettingsProvider.notifier).updateSettings(settings),
+    updateProvider: displayNotifier.updateSettings,
     functionName: 'loadDisplaySettingsWithBackgroundRefreshHelper',
   );
 }
@@ -79,40 +80,28 @@ Future<DisplaySettings> loadDisplaySettingsWithBackgroundRefreshHelper(dynamic r
 /// 表示設定を同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、Providerを更新します。
+/// 共通ヘルパー関数を使用してタイムアウト処理とエラーハンドリングを統一します。
 /// 
 /// **パラメータ**:
 /// - `ref`: dynamic（Provider操作用）
 /// 
 /// **戻り値**: 同期された表示設定
 Future<DisplaySettings> syncDisplaySettingsHelper(dynamic ref) async {
-  try {
-    final userId = AuthMk.getCurrentUserId();
-    
-    // データマネージャーで同期
-    final settingsList = await displaySettingsManager.sync(userId);
-    
-    // IDが 'display_settings' のものを探す
-    DisplaySettings settings;
-    try {
-      settings = settingsList.firstWhere((s) => s.id == 'display_settings');
-    } catch (e) {
-      // データがない場合はデフォルト値を作成して保存
-      settings = DisplaySettings.defaultSettings();
-      await displaySettingsManager.saveWithRetry(userId, settings);
-    }
-    
-    // Notifierを使用してProviderを更新
-    ref.read(displaySettingsProvider.notifier).updateSettings(settings);
-    
-    return settings;
-  } catch (e) {
-    debugPrint('❌ [syncDisplaySettingsHelper] エラー: $e');
-    
-    // エラー時はデフォルト値を返す
-    final defaultSettings = DisplaySettings.defaultSettings();
-    ref.read(displaySettingsProvider.notifier).updateSettings(defaultSettings);
-    return defaultSettings;
-  }
+  final manager = displaySettingsManager;
+  final displayNotifier = ref.read(displaySettingsProvider.notifier);
+
+  return await syncSingleDataHelper<DisplaySettings>(
+    ref: ref,
+    manager: manager,
+    syncWithAuth: () async {
+      final userId = AuthMk.getCurrentUserId();
+      final settingsList = await manager.sync(userId);
+      return settingsList;
+    },
+    getDefault: () async => DisplaySettings.defaultSettings(),
+    updateProvider: displayNotifier.updateSettings,
+    functionName: 'syncDisplaySettingsHelper',
+  );
 }
 
 /// 表示設定を保存するヘルパー関数
@@ -127,6 +116,7 @@ Future<DisplaySettings> syncDisplaySettingsHelper(dynamic ref) async {
 Future<bool> saveDisplaySettingsHelper(dynamic ref, DisplaySettings settings) async {
   try {
     final userId = AuthMk.getCurrentUserId();
+    final displayNotifier = ref.read(displaySettingsProvider.notifier);
     
     // 最終更新日時を更新
     final updatedSettings = settings.copyWith(lastModified: DateTime.now());
@@ -136,7 +126,7 @@ Future<bool> saveDisplaySettingsHelper(dynamic ref, DisplaySettings settings) as
     
     if (success) {
       // Notifierを使用してProviderを更新
-      ref.read(displaySettingsProvider.notifier).updateSettings(updatedSettings);
+      displayNotifier.updateSettings(updatedSettings);
     }
     
     return success;

@@ -11,6 +11,7 @@ _AccountSettings _$AccountSettingsFromJson(Map<String, dynamic> json) =>
       id: json['id'] as String,
       accountName: json['accountName'] as String,
       avatarColor: json['avatarColor'] as String,
+      email: json['email'] as String?,
       lastModified: DateTime.parse(json['lastModified'] as String),
     );
 
@@ -19,6 +20,7 @@ Map<String, dynamic> _$AccountSettingsToJson(_AccountSettings instance) =>
       'id': instance.id,
       'accountName': instance.accountName,
       'avatarColor': instance.avatarColor,
+      'email': instance.email,
       'lastModified': instance.lastModified.toIso8601String(),
     };
 
@@ -103,3 +105,15 @@ Map<String, dynamic> _$TrackingSettingsToJson(_TrackingSettings instance) =>
       'selectedSmartphoneGoalId': instance.selectedSmartphoneGoalId,
       'lastModified': instance.lastModified.toIso8601String(),
     };
+
+_GoalMemo _$GoalMemoFromJson(Map<String, dynamic> json) => _GoalMemo(
+  id: json['id'] as String,
+  content: json['content'] as String,
+  lastModified: DateTime.parse(json['lastModified'] as String),
+);
+
+Map<String, dynamic> _$GoalMemoToJson(_GoalMemo instance) => <String, dynamic>{
+  'id': instance.id,
+  'content': instance.content,
+  'lastModified': instance.lastModified.toIso8601String(),
+};

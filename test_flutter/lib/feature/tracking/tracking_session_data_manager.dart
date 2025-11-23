@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:test_flutter/data/repositories/base/base_data_manager.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 
@@ -60,22 +61,42 @@ class TrackingSessionDataManager extends BaseHiveDataManager<TrackingSession> {
 
   // ===== カスタム機能（トラッキングセッション特有） =====
 
-  /// トラッキングセッションを追加（ローカルのみ）
+  /// トラッキングセッションを追加（ローカル + Firestore）
   /// 
-  /// 新しいセッションをローカルストレージ（Hive）のみに保存します。
-  /// Firestoreは使用しません（統計データはdaily_statistics等に集計済み）。
+  /// 新しいセッションをローカルストレージ（Hive）に保存した後、
+  /// Firestoreにも同じ内容を保存します。
   Future<bool> addSessionWithAuth(TrackingSession session) async {
     try {
-      // 既存のセッションを取得
+      // 既存のセッションを取得し、同じIDのものを除外
       final existingSessions = await getLocalAll();
+      final filteredSessions =
+          existingSessions.where((item) => item.id != session.id).toList();
       
-      // 新しいセッションを追加
-      final updatedSessions = [session, ...existingSessions];
-      
-      // ローカルのみに保存
+      // 最新セッションを先頭に配置してローカルへ保存
+      final updatedSessions = [session, ...filteredSessions];
       await saveLocal(updatedSessions);
+      
+      debugPrint('✅ [TrackingSessionDataManager] ローカル保存完了: ${session.id}');
+      
+      // Firestoreへの保存（awaitして確実に実行）
+      try {
+        debugPrint('🔄 [TrackingSessionDataManager] Firestore保存開始: ${session.id}');
+        final firestoreSuccess = await manager.addWithAuth(session);
+        if (firestoreSuccess) {
+          debugPrint('✅ [TrackingSessionDataManager] Firestore保存成功: ${session.id}');
+        } else {
+          debugPrint('⚠️ [TrackingSessionDataManager] Firestore保存失敗（リトライキューに追加済み）: ${session.id}');
+        }
+      } catch (e, stackTrace) {
+        debugPrint('❌ [TrackingSessionDataManager] Firestore保存エラー: $e');
+        debugPrint('   - スタックトレース: $stackTrace');
+        // ローカル保存は成功しているのでtrueを返す
+      }
+      
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ [TrackingSessionDataManager] addSessionWithAuthエラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
       return false;
     }
   }

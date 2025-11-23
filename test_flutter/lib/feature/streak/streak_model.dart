@@ -14,6 +14,8 @@ part 'streak_model.g.dart';
 /// - `longestStreak`: 最長連続記録
 /// - `lastTrackedDate`: 最後にトラッキングした日
 /// - `lastModified`: 最終更新日時（同期管理用）
+/// - `milestoneList`: マイルストーンリスト（日数）
+/// - `lastAchievedMilestone`: 最後に達成したマイルストーン（日数）
 @freezed
 abstract class StreakData with _$StreakData {
   /// StreakDataモデルのコンストラクタ
@@ -24,12 +26,16 @@ abstract class StreakData with _$StreakData {
   /// - `longestStreak`: 最長連続記録
   /// - `lastTrackedDate`: 最後にトラッキングした日
   /// - `lastModified`: 最終更新日時
+  /// - `milestoneList`: マイルストーンリスト（日数）
+  /// - `lastAchievedMilestone`: 最後に達成したマイルストーン（日数）
   const factory StreakData({
     required String id,
     required int currentStreak,
     required int longestStreak,
     required DateTime lastTrackedDate,
     required DateTime lastModified,
+    @Default([]) List<int> milestoneList,
+    int? lastAchievedMilestone,
   }) = _StreakData;
 
   /// JSONからStreakDataモデルを生成

@@ -1,5 +1,6 @@
 // Flutter / Riverpod
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 // Project files
 import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';
@@ -78,14 +79,25 @@ Future<List<TrackingSession>> loadTrackingSessionsWithBackgroundRefreshHelper(dy
 Future<List<TrackingSession>> syncTrackingSessionsHelper(dynamic ref) async {
   final manager = TrackingSessionDataManager();
 
+  // refがProviderContainerの場合、container.read()を直接使用
+  final container = ref is ProviderContainer ? ref : null;
+
   try {
     // ローカルのみから取得
     final localSessions = await manager.getLocalAll();
-    ref.read(trackingSessionsProvider.notifier).updateSessions(localSessions);
+    if (container != null) {
+      container.read(trackingSessionsProvider.notifier).updateSessions(localSessions);
+    } else {
+      ref.read(trackingSessionsProvider.notifier).updateSessions(localSessions);
+    }
     return localSessions;
   } catch (e) {
     // エラー時は空のリストを返す
-    ref.read(trackingSessionsProvider.notifier).updateSessions([]);
+    if (container != null) {
+      container.read(trackingSessionsProvider.notifier).updateSessions([]);
+    } else {
+      ref.read(trackingSessionsProvider.notifier).updateSessions([]);
+    }
     return [];
   }
 }

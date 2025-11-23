@@ -84,5 +84,46 @@ class WeeklyStatisticsDataManager extends BaseDataManager<WeeklyStatistics> {
     final day = date.day.toString().padLeft(2, '0');
     return '$year-$month-$day';
   }
+
+  /// 古いデータを削除（6ヶ月（約26週）以上経過したデータを物理削除）
+  /// 
+  /// Firestoreとローカルストレージの両方から削除します。
+  /// 
+  /// **戻り値**: 削除されたデータの数
+  Future<int> deleteOldData() async {
+    try {
+      final now = DateTime.now();
+      final cutoffDate = now.subtract(const Duration(days: 180)); // 6ヶ月 = 約180日
+      
+      // 全データを取得
+      final allData = await getAllWithAuth();
+      
+      // 古いデータをフィルタリング（週の開始日で判定）
+      final oldData = allData.where((item) => item.weekStart.isBefore(cutoffDate)).toList();
+      
+      if (oldData.isEmpty) {
+        return 0;
+      }
+      
+      // Firestoreから削除
+      int deletedCount = 0;
+      for (final item in oldData) {
+        try {
+          final success = await deleteWithAuth(item.id);
+          if (success) {
+            deletedCount++;
+          }
+        } catch (e) {
+          debugPrint('❌ [deleteOldData] 削除エラー: $e');
+        }
+      }
+      
+      debugPrint('✅ [deleteOldData] $deletedCount件の古い週次統計データを削除しました');
+      return deletedCount;
+    } catch (e) {
+      debugPrint('❌ [deleteOldData] エラー: $e');
+      return 0;
+    }
+  }
 }
 

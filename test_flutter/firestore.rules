@@ -10,6 +10,36 @@ service cloud.firestore {
     match /users/{userId}/tracking_sessions/{sessionId} {
       allow read, write, delete: if request.auth != null && request.auth.uid == userId;
     }
+
+    // 日次統計データ
+    match /users/{userId}/daily_statistics/{docId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 週次統計データ
+    match /users/{userId}/weekly_statistics/{docId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 月次統計データ
+    match /users/{userId}/monthly_statistics/{docId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 年次統計データ
+    match /users/{userId}/yearly_statistics/{docId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // 累計データ
+    match /users/{userId}/total/{docId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // ストリークデータ
+    match /users/{userId}/streak/{docId} {
+      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+    }
     
     // Settings（設定）用
     match /users/{userId}/settings/{settingId} {

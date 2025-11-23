@@ -174,7 +174,8 @@ class HiveMk {
         debugPrint('✅ Hiveアイテム削除完了: $boxName (ID: $itemId)');
         return true;
       } else {
-        debugPrint('⚠️ アイテムが見つかりません: $itemId');
+        // 既に存在しない場合は正常な状態の可能性がある（INFOレベル）
+        debugPrint('ℹ️ アイテムが見つかりません（既に削除済みの可能性）: $itemId');
         return false;
       }
     } catch (e) {

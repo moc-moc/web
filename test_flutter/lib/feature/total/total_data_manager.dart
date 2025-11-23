@@ -19,11 +19,17 @@ class TotalDataManager extends BaseDataManager<TotalData> {
 
   @override
   TotalData convertFromFirestore(Map<String, dynamic> data) {
+    final now = DateTime.now();
+    final milestoneList = _readIntList(data['milestoneList']);
     return TotalData(
-      id: data['id'] as String,
-      totalWorkTimeMinutes: data['totalWorkTimeMinutes'] as int,
-      lastTrackedDate: (data['lastTrackedDate'] as Timestamp).toDate(),
-      lastModified: (data['lastModified'] as Timestamp).toDate(),
+      id: _readString(data['id']).isNotEmpty
+          ? _readString(data['id'])
+          : 'user_total',
+      totalWorkTimeMinutes: _readInt(data['totalWorkTimeMinutes']) ?? 0,
+      lastTrackedDate: _readDateTime(data['lastTrackedDate']) ?? now,
+      lastModified: _readDateTime(data['lastModified']) ?? now,
+      milestoneList: milestoneList,
+      lastAchievedMilestone: _readInt(data['lastAchievedMilestone']),
     );
   }
 
@@ -34,6 +40,8 @@ class TotalDataManager extends BaseDataManager<TotalData> {
       'totalWorkTimeMinutes': item.totalWorkTimeMinutes,
       'lastTrackedDate': Timestamp.fromDate(item.lastTrackedDate),
       'lastModified': Timestamp.fromDate(item.lastModified),
+      'milestoneList': item.milestoneList,
+      if (item.lastAchievedMilestone != null) 'lastAchievedMilestone': item.lastAchievedMilestone,
     };
   }
 
@@ -56,7 +64,6 @@ class TotalDataManager extends BaseDataManager<TotalData> {
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
-        debugPrint('⚠️ [getTotalDataWithAuth] ユーザー未認証');
         return await getLocalTotalData();
       }
       
@@ -68,7 +75,6 @@ class TotalDataManager extends BaseDataManager<TotalData> {
         return firestoreData;
       }
     } catch (e) {
-      debugPrint('⚠️ [getTotalDataWithAuth] Firestore取得失敗（オフライン？）: $e');
     }
     
     // Firestoreから取得できない場合のみローカルを使用
@@ -268,5 +274,43 @@ class TotalDataManager extends BaseDataManager<TotalData> {
     return date1.year == date2.year &&
            date1.month == date2.month &&
            date1.day == date2.day;
+  }
+
+  static String _readString(dynamic value) {
+    if (value is String) return value.trim();
+    return '';
+  }
+
+  static int? _readInt(dynamic value) {
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static DateTime? _readDateTime(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    if (value is int) {
+      try {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  static List<int> _readIntList(dynamic value) {
+    if (value is List) {
+      return value
+          .where((e) => e != null)
+          .map((e) => _readInt(e) ?? 0)
+          .toList();
+    }
+    return [];
   }
 }

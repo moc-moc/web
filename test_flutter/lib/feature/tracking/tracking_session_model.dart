@@ -31,10 +31,25 @@ abstract class DetectionPeriod with _$DetectionPeriod {
       _$DetectionPeriodFromJson(json);
 
   /// FirestoreデータからDetectionPeriodを生成
+  /// 
+  /// Timestamp型と文字列形式（ISO8601）の両方の日時形式に対応しています。
   factory DetectionPeriod.fromFirestore(Map<String, dynamic> data) {
+    // 日時フィールドの変換ヘルパー関数
+    DateTime _parseDateTime(dynamic value) {
+      if (value is Timestamp) {
+        return value.toDate();
+      } else if (value is String) {
+        return DateTime.parse(value);
+      } else if (value is DateTime) {
+        return value;
+      } else {
+        throw FormatException('日時形式が不正です: $value');
+      }
+    }
+
     return DetectionPeriod(
-      startTime: (data['startTime'] as Timestamp).toDate(),
-      endTime: (data['endTime'] as Timestamp).toDate(),
+      startTime: _parseDateTime(data['startTime']),
+      endTime: _parseDateTime(data['endTime']),
       category: data['category'] as String,
       confidence: (data['confidence'] as num).toDouble(),
     );
@@ -74,6 +89,9 @@ abstract class TrackingSession with _$TrackingSession {
     /// 検出期間のリスト（時系列データ）
     @Default([]) List<DetectionPeriod> detectionPeriods,
     
+    /// セッション開始時の選択された目標ID（study/pc/smartphone）
+    @Default({}) Map<String, String?> selectedGoalIds,
+    
     /// 最終更新日時
     required DateTime lastModified,
   }) = _TrackingSession;
@@ -86,19 +104,37 @@ abstract class TrackingSession with _$TrackingSession {
       _$TrackingSessionFromJson(json);
 
   /// FirestoreデータからTrackingSessionモデルを生成
+  /// 
+  /// Timestamp型と文字列形式（ISO8601）の両方の日時形式に対応しています。
   factory TrackingSession.fromFirestore(Map<String, dynamic> data) {
+    // 日時フィールドの変換ヘルパー関数
+    DateTime _parseDateTime(dynamic value) {
+      if (value is Timestamp) {
+        return value.toDate();
+      } else if (value is String) {
+        return DateTime.parse(value);
+      } else if (value is DateTime) {
+        return value;
+      } else {
+        throw FormatException('日時形式が不正です: $value');
+      }
+    }
+
     // 後方互換性: categoryMinutesもcategorySecondsも受け入れる
     final categoryData = data['categorySeconds'] ?? data['categoryMinutes'];
     return TrackingSession(
       id: data['id'] as String,
-      startTime: (data['startTime'] as Timestamp).toDate(),
-      endTime: (data['endTime'] as Timestamp).toDate(),
+      startTime: _parseDateTime(data['startTime']),
+      endTime: _parseDateTime(data['endTime']),
       categorySeconds: Map<String, int>.from(categoryData as Map),
       detectionPeriods: (data['detectionPeriods'] as List<dynamic>?)
               ?.map((e) => DetectionPeriod.fromFirestore(e as Map<String, dynamic>))
               .toList() ??
           [],
-      lastModified: (data['lastModified'] as Timestamp).toDate(),
+      selectedGoalIds: data['selectedGoalIds'] != null
+          ? Map<String, String?>.from(data['selectedGoalIds'] as Map)
+          : {},
+      lastModified: _parseDateTime(data['lastModified']),
     );
   }
 
@@ -113,6 +149,7 @@ abstract class TrackingSession with _$TrackingSession {
       'startTime': Timestamp.fromDate(startTime),
       'endTime': Timestamp.fromDate(endTime),
       'categorySeconds': categorySeconds,
+      'selectedGoalIds': selectedGoalIds,
       'lastModified': Timestamp.fromDate(lastModified),
     };
     

@@ -11,6 +11,9 @@ import 'package:test_flutter/presentation/widgets/goal_progress_card.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/countdown/countdown_functions.dart';
+import 'package:test_flutter/feature/countdown/countdown_model.dart';
+import 'package:test_flutter/presentation/widgets/buttons.dart';
+import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
 
 /// 目標画面（新デザインシステム版）
 class GoalScreenNew extends ConsumerStatefulWidget {
@@ -21,32 +24,163 @@ class GoalScreenNew extends ConsumerStatefulWidget {
 }
 
 class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
+  bool _isLoading = false; // 初期値はfalse（データ更新が必要な場合のみtrueになる）
+  bool _hasError = false;
+  String? _errorMessage;
+  int? _pendingGoalToken;
+  bool _hasInitialized = false; // 初期化済みフラグ
+
   @override
   void initState() {
     super.initState();
-    // 画面が開かれた時にデータをバックグラウンド更新で読み込む
+    // 初期状態をチェック（最初のフレーム後）
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeData();
+      if (mounted && !_hasInitialized) {
+        _hasInitialized = true;
+        _handleGoalRefreshTrigger(ref.read(dataRefreshProvider));
+      }
     });
   }
 
-  Future<void> _initializeData() async {
+  Future<void> _loadGoalData() async {
+    if (!mounted) return;
+    await deleteExpiredCountdownsHelper(
+      ref,
+      context: context,
+      mounted: mounted,
+    );
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+      _errorMessage = null;
+    });
+
     try {
-      // カウントダウンとゴールのデータをバックグラウンド更新で読み込む
       await Future.wait([
-        loadCountdownsWithBackgroundRefreshHelper(ref),
-        loadGoalsWithBackgroundRefreshHelper(ref),
+        loadGoalsWithBackgroundRefreshHelper(ref).catchError((e) {
+          debugPrint('❌ [GoalScreen] Goals取得エラー: $e');
+          return loadGoalsHelper(ref);
+        }),
+        loadCountdownsWithBackgroundRefreshHelper(ref).catchError((e) {
+          debugPrint('❌ [GoalScreen] Countdown取得エラー: $e');
+          return loadCountdownsHelper(ref);
+        }),
       ]);
-      
-      // 期限切れカウントダウンを削除
-      await deleteExpiredCountdownsHelper(ref);
-    } catch (e) {
-      debugPrint('❌ [GoalScreenNew] データ初期化エラー: $e');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [GoalScreen] データ取得エラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _errorMessage = 'データの取得に失敗しました。';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  void _handleGoalRefreshTrigger(DataRefreshState state) {
+    final token = state.goalToken;
+    final ack = state.goalAckToken;
+    
+    // tokenが0または既に処理済みの場合は何もしない
+    if (token == 0 || token == ack) {
+      return;
+    }
+    
+    // 既に同じtokenを処理中または処理済みの場合は何もしない
+    if (_pendingGoalToken == token) {
+      return;
+    }
+    
+    // 他のtokenを処理中の場合は待つ
+    if (_pendingGoalToken != null) {
+      return;
+    }
+    
+    // データ読み込みを開始
+    _pendingGoalToken = token;
+    _loadGoalData().whenComplete(() {
+      if (!mounted) return;
+      markGoalHandled(ref, token);
+      _pendingGoalToken = null;
+      
+      // 処理完了後、新しい更新がないか確認（再帰呼び出しを削除）
+      // 新しい更新はref.listenで検知されるため、再帰呼び出しは不要
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    // データ更新のリスナーを設定（build内でのみ使用可能）
+    ref.listen<DataRefreshState>(
+      dataRefreshProvider,
+      (previous, next) {
+        // 初回呼び出し（previous == null）はinitStateで処理済みなのでスキップ
+        if (previous == null) {
+          return;
+        }
+
+        // goalTokenに変化がなければ何もしない
+        if (previous.goalToken == next.goalToken) {
+          return;
+        }
+
+        _handleGoalRefreshTrigger(next);
+      },
+    );
+    
+    if (_isLoading) {
+      return AppScaffold(
+        backgroundColor: AppColors.black,
+        bottomNavigationBar: _buildBottomNavigationBar(context),
+        body: const SafeArea(
+          child: Center(
+            child: CircularProgressIndicator(color: AppColors.blue),
+          ),
+        ),
+      );
+    }
+
+    if (_hasError) {
+      return AppScaffold(
+        backgroundColor: AppColors.black,
+        bottomNavigationBar: _buildBottomNavigationBar(context),
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.error_outline, color: AppColors.error, size: 56),
+                  SizedBox(height: AppSpacing.md),
+                  Text(
+                    _errorMessage ?? 'データの取得に失敗しました',
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: AppSpacing.md),
+                  PrimaryButton(
+                    text: '再試行',
+                    onPressed: _loadGoalData,
+                    size: ButtonSize.medium,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
     return AppScaffold(
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
@@ -206,30 +340,51 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     if (countdowns.isEmpty) {
       return const SizedBox.shrink();
     }
-    
-    // 最初のカウントダウンを使用（または最も近い未来のカウントダウン）
+
     final now = DateTime.now();
-    final activeCountdowns = countdowns.where((c) => c.targetDate.isAfter(now)).toList();
+    final activeCountdowns = countdowns
+        .where((c) => c.targetDate.isAfter(now) && !c.isDeleted)
+        .toList()
+      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+
     if (activeCountdowns.isEmpty) {
       return const SizedBox.shrink();
     }
-    
-    // 最も近い未来のカウントダウンを選択
-    activeCountdowns.sort((a, b) => a.targetDate.compareTo(b.targetDate));
-    final countdown = activeCountdowns.first;
-    
+
+    final accentPalette = [
+      AppColors.blue,
+      AppColors.orange,
+      AppColors.purple,
+      AppColors.green,
+    ];
+
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: RealtimeCountdownDisplay(
-        eventName: countdown.title,
-        targetDate: countdown.targetDate,
-        accentColor: AppColors.blue,
-        borderColor: AppColors.blue.withValues(alpha: 0.45),
-        backgroundColor: AppColors.black,
-        titleColor: AppColors.white,
-        labelColor: AppColors.gray,
-        valueTextColor: AppColors.white,
-        valueBackgroundColor: AppColors.middleblackgray,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...List.generate(activeCountdowns.length, (index) {
+            final countdown = activeCountdowns[index];
+            final accent = accentPalette[index % accentPalette.length];
+            final bottomPadding =
+                index == activeCountdowns.length - 1 ? 0.0 : AppSpacing.sm;
+            return Padding(
+              padding: EdgeInsets.only(bottom: bottomPadding),
+              child: RealtimeCountdownDisplay(
+                eventName: countdown.title,
+                targetDate: countdown.targetDate,
+                accentColor: accent,
+                borderColor: accent.withValues(alpha: 0.35),
+                backgroundColor: AppColors.black,
+                titleColor: AppColors.white,
+                labelColor: accent.withValues(alpha: 0.8),
+                valueTextColor: AppColors.white,
+                valueBackgroundColor: AppColors.middleblackgray,
+                onEdit: () => _openCountdownEditor(context, ref, countdown),
+              ),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -304,7 +459,8 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     String periodLabel = _getPeriodLabelFromDurationDays(goal.durationDays);
 
     // 日数テキスト
-    final endDate = goal.startDate.add(Duration(days: goal.durationDays));
+    final endDate =
+        goal.periodEndDate ?? goal.startDate.add(Duration(days: goal.durationDays));
     final remainingDuration = endDate.difference(DateTime.now());
     final remainingDays = remainingDuration.inDays;
     final remainingHours = remainingDuration.inHours % 24;
@@ -436,8 +592,13 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     }
   }
 
-  /// 秒単位の値を表示用の文字列に変換（分/時間単位）
+  /// 秒単位の値を表示用の文字列に変換（秒/分/時間単位）
   String _formatSecondsToDisplay(int seconds) {
+    if (seconds < 60) {
+      // 1分未満は秒単位で表示
+      return '${seconds}s';
+    }
+    
     final minutes = seconds ~/ 60;
     if (minutes < 60) {
       return '${minutes}m';
@@ -481,38 +642,11 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
       builder: (context) => _AddEditSelectionDialog(
         onCountdownAdd: () {
           NavigationHelper.pop(context);
-          showDialog(
-            context: context,
-            builder: (context) => const CountdownSettingDialog(),
-          );
+          _openCountdownCreationDialog(context);
         },
         onCountdownEdit: () {
           NavigationHelper.pop(context);
-          showDialog(
-            context: context,
-              builder: (context) {
-                final countdowns = ref.read(countdownsListProvider);
-                if (countdowns.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                final now = DateTime.now();
-                final activeCountdowns = countdowns.where((c) => c.targetDate.isAfter(now)).toList();
-                if (activeCountdowns.isEmpty) {
-                  return const SizedBox.shrink();
-                }
-                activeCountdowns.sort((a, b) => a.targetDate.compareTo(b.targetDate));
-                final countdown = activeCountdowns.first;
-                return CountdownSettingDialog(
-                  isEdit: true,
-                  countdownId: countdown.id,
-                  initialEventName: countdown.title,
-                  initialDate: countdown.targetDate,
-                  onDelete: () {
-                    // 削除処理はCountdownSettingDialog内で実行される
-                  },
-                );
-              },
-          );
+          _showCountdownEditPicker(context, ref);
         },
         onGoalAdd: () {
           NavigationHelper.pop(context);
@@ -523,29 +657,111 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
         },
         onGoalEdit: () {
           NavigationHelper.pop(context);
-          // 最初のゴールを編集する（実際の実装では選択ダイアログを表示する）
-          final goals = ref.read(goalsListProvider);
-          if (goals.isNotEmpty) {
-            final goal = goals.first;
-            final category = _getCategoryFromDetectionItem(goal.detectionItem);
-            final targetHours = goal.targetTime / 3600.0;
-            final periodLabel = _getPeriodLabelFromDurationDays(goal.durationDays);
-            showDialog(
-              context: context,
-              builder: (context) => GoalSettingDialog(
-                isEdit: true,
-                goalId: goal.id,
-                initialTitle: goal.title,
-                initialCategory: category,
-                initialPeriod: periodLabel.toLowerCase(),
-                initialTargetHours: targetHours,
-                initialIsFocusedOnly: true,
-                onDelete: () {
-                  // 削除処理はGoalSettingDialog内で実行される
-                },
-              ),
-            );
-          }
+          _showGoalEditPicker(context, ref);
+        },
+      ),
+    );
+  }
+
+  void _openCountdownCreationDialog(BuildContext context) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => const CountdownSettingDialog(),
+    );
+  }
+
+  void _openCountdownEditor(
+      BuildContext context, WidgetRef ref, Countdown countdown) {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (context) => CountdownSettingDialog(
+        isEdit: true,
+        countdownId: countdown.id,
+        initialEventName: countdown.title,
+        initialDate: countdown.targetDate,
+      ),
+    );
+  }
+
+  void _showCountdownEditPicker(BuildContext context, WidgetRef ref) {
+    final countdowns = ref.read(countdownsListProvider);
+    final now = DateTime.now();
+    final activeCountdowns = countdowns
+        .where((c) => c.targetDate.isAfter(now) && !c.isDeleted)
+        .toList()
+      ..sort((a, b) => a.targetDate.compareTo(b.targetDate));
+
+    if (activeCountdowns.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('編集できるカウントダウンがありません'),
+            backgroundColor: AppColors.gray,
+          ),
+        );
+      }
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => _CountdownPickerDialog(
+        countdowns: activeCountdowns,
+        onCountdownSelected: (countdown) {
+          Navigator.of(context).pop();
+          _openCountdownEditor(context, ref, countdown);
+        },
+      ),
+    );
+  }
+
+  void _showGoalEditPicker(BuildContext context, WidgetRef ref) {
+    final goals = ref.read(goalsListProvider);
+
+    if (goals.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('編集できる目標がありません'),
+            backgroundColor: AppColors.gray,
+          ),
+        );
+      }
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => _GoalPickerDialog(
+        goals: goals,
+        onGoalSelected: (goal) {
+          Navigator.of(context).pop();
+          _openGoalEditor(context, ref, goal);
+        },
+      ),
+    );
+  }
+
+  void _openGoalEditor(
+      BuildContext context, WidgetRef ref, Goal goal) {
+    if (!mounted) return;
+    final category = _getCategoryFromDetectionItem(goal.detectionItem);
+    final targetHours = goal.targetTime / 3600.0;
+    final periodLabel = _getPeriodLabelFromDurationDays(goal.durationDays);
+    showDialog(
+      context: context,
+      builder: (context) => GoalSettingDialog(
+        isEdit: true,
+        goalId: goal.id,
+        initialTitle: goal.title,
+        initialCategory: category,
+        initialPeriod: periodLabel.toLowerCase(),
+        initialTargetHours: targetHours,
+        initialIsFocusedOnly: true,
+        onDelete: () {
+          // 削除処理はGoalSettingDialog内で実行される
         },
       ),
     );
@@ -699,6 +915,142 @@ class _AddEditSelectionDialog extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _CountdownPickerDialog extends StatelessWidget {
+  final List<Countdown> countdowns;
+  final ValueChanged<Countdown> onCountdownSelected;
+
+  const _CountdownPickerDialog({
+    required this.countdowns,
+    required this.onCountdownSelected,
+  });
+
+  String _formatCountdownDate(DateTime date) {
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${date.year}/${two(date.month)}/${two(date.day)} ${two(date.hour)}:${two(date.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppDialogBase(
+      title: 'Select Countdown',
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: countdowns
+            .map(
+              (countdown) => Padding(
+                padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Material(
+                  color: AppColors.lightblackgray,
+                  borderRadius: BorderRadius.circular(AppRadius.medium),
+                  child: ListTile(
+                    onTap: () => onCountdownSelected(countdown),
+                    title: Text(
+                      countdown.title,
+                      style: AppTextStyles.body1.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      _formatCountdownDate(countdown.targetDate),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            )
+            .toList(),
+      ),
+    );
+  }
+}
+
+class _GoalPickerDialog extends StatelessWidget {
+  final List<Goal> goals;
+  final ValueChanged<Goal> onGoalSelected;
+
+  const _GoalPickerDialog({
+    required this.goals,
+    required this.onGoalSelected,
+  });
+
+  String _getCategoryLabel(DetectionItem item) {
+    switch (item) {
+      case DetectionItem.book:
+        return 'Study';
+      case DetectionItem.pc:
+        return 'Computer';
+      case DetectionItem.smartphone:
+        return 'Smartphone';
+    }
+  }
+
+  String _getPeriodLabelFromDurationDays(int durationDays) {
+    if (durationDays == 1) {
+      return 'Daily';
+    } else if (durationDays == 7) {
+      return 'Weekly';
+    } else if (durationDays == 30) {
+      return 'Monthly';
+    } else {
+      return '$durationDays days';
+    }
+  }
+
+  String _formatGoalInfo(Goal goal) {
+    final category = _getCategoryLabel(goal.detectionItem);
+    final periodLabel = _getPeriodLabelFromDurationDays(goal.durationDays);
+    return '$category • $periodLabel';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppDialogBase(
+      title: 'Select Goal',
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: goals
+            .map(
+              (goal) => Padding(
+                padding: EdgeInsets.only(bottom: AppSpacing.sm),
+                child: Material(
+                  color: AppColors.lightblackgray,
+                  borderRadius: BorderRadius.circular(AppRadius.medium),
+                  child: ListTile(
+                    onTap: () => onGoalSelected(goal),
+                    title: Text(
+                      goal.title,
+                      style: AppTextStyles.body1.copyWith(
+                        color: AppColors.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    subtitle: Text(
+                      _formatGoalInfo(goal),
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    trailing: const Icon(
+                      Icons.chevron_right,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }

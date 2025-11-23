@@ -18,12 +18,19 @@ class CountdownDataManager extends BaseDataManager<Countdown> {
 
   @override
   Countdown convertFromFirestore(Map<String, dynamic> data) {
+    final now = DateTime.now();
+    final id = _readString(data['id']).isNotEmpty
+        ? _readString(data['id'])
+        : 'countdown_${now.microsecondsSinceEpoch}';
+    final title = _readString(data['title']).isNotEmpty
+        ? _readString(data['title'])
+        : 'Countdown';
     return Countdown(
-      id: data['id'] as String,
-      title: data['title'] as String,
-      targetDate: (data['targetDate'] as Timestamp).toDate(),
-      isDeleted: data['isDeleted'] as bool? ?? false,
-      lastModified: (data['lastModified'] as Timestamp).toDate(),
+      id: id,
+      title: title,
+      targetDate: _readDateTime(data['targetDate']) ?? now,
+      isDeleted: _readBool(data['isDeleted']) ?? false,
+      lastModified: _readDateTime(data['lastModified']) ?? now,
     );
   }
 
@@ -89,6 +96,37 @@ class CountdownDataManager extends BaseDataManager<Countdown> {
   /// 全カウントダウンを取得します（物理削除のため、削除済みは存在しません）
   Future<List<Countdown>> getActiveCountdownsWithAuth() async {
     return await getAllCountdownsWithAuth();
+  }
+
+  static String _readString(dynamic value) {
+    if (value is String) return value.trim();
+    return '';
+  }
+
+  static DateTime? _readDateTime(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    if (value is int) {
+      try {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  static bool? _readBool(dynamic value) {
+    if (value is bool) return value;
+    if (value is String) {
+      final lower = value.toLowerCase();
+      if (lower == 'true') return true;
+      if (lower == 'false') return false;
+    }
+    return null;
   }
 }
 

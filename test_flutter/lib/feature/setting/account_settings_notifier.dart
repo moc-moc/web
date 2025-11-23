@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:test_flutter/data/models/settings_models.dart';
 import 'package:test_flutter/data/sources/auth_source.dart';
+import 'package:test_flutter/data/sources/secure_storage_source.dart';
 import 'package:test_flutter/feature/base/data_helper_functions.dart';
 import 'package:test_flutter/feature/setting/settings_data_manager.dart';
 
@@ -40,6 +41,7 @@ class AccountSettingsNotifier extends _$AccountSettingsNotifier {
 /// **戻り値**: 読み込んだアカウント設定（ローカルまたはデフォルト値）
 Future<AccountSettings> loadAccountSettingsWithBackgroundRefreshHelper(dynamic ref) async {
   final dummyManager = Object(); // マネージャーは使用しないためダミー
+  final accountNotifier = ref.read(accountSettingsProvider.notifier);
 
   return await loadSingleDataWithBackgroundRefreshHelper<AccountSettings>(
     ref: ref,
@@ -72,7 +74,7 @@ Future<AccountSettings> loadAccountSettingsWithBackgroundRefreshHelper(dynamic r
         await accountSettingsManager.updateLocal(settings);
       }
     },
-    updateProvider: (settings) => ref.read(accountSettingsProvider.notifier).updateSettings(settings),
+    updateProvider: accountNotifier.updateSettings,
     functionName: 'loadAccountSettingsWithBackgroundRefreshHelper',
   );
 }
@@ -80,39 +82,82 @@ Future<AccountSettings> loadAccountSettingsWithBackgroundRefreshHelper(dynamic r
 /// アカウント設定を同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、Providerを更新します。
+/// 共通ヘルパー関数を使用してタイムアウト処理とエラーハンドリングを統一します。
+/// メールアドレスがFirestoreにない場合は、Firebase AuthまたはSecureStorageから取得して補完します。
 /// 
 /// **パラメータ**:
 /// - `ref`: dynamic（Provider操作用）
 /// 
 /// **戻り値**: 同期されたアカウント設定
 Future<AccountSettings> syncAccountSettingsHelper(dynamic ref) async {
-  try {
-    final userId = AuthMk.getCurrentUserId();
-    
-    // データマネージャーで同期
-    final settingsList = await accountSettingsManager.sync(userId);
-    
-    // IDが 'account_settings' のものを探す
-    AccountSettings settings;
-    try {
-      settings = settingsList.firstWhere((s) => s.id == 'account_settings');
-    } catch (e) {
-      // データがない場合はデフォルト値を作成して保存
-      settings = AccountSettings.defaultSettings();
-      await accountSettingsManager.saveWithRetry(userId, settings);
+  final manager = accountSettingsManager;
+  final accountNotifier = ref.read(accountSettingsProvider.notifier);
+
+  final syncedSettings = await syncSingleDataHelper<AccountSettings>(
+    ref: ref,
+    manager: manager,
+    syncWithAuth: () async {
+      final userId = AuthMk.getCurrentUserId();
+      final settingsList = await manager.sync(userId);
+      return settingsList;
+    },
+    getDefault: () async => AccountSettings.defaultSettings(),
+    updateProvider: accountNotifier.updateSettings,
+    functionName: 'syncAccountSettingsHelper',
+  );
+
+  // メールアドレスがnullの場合は補完
+  if (syncedSettings.email == null || syncedSettings.email!.isEmpty) {
+    final email = await _getEmailFromAuthOrStorage();
+    if (email != null && email.isNotEmpty) {
+      final updatedSettings = syncedSettings.copyWith(
+        email: email,
+        lastModified: DateTime.now(),
+      );
+      // Providerを更新
+      accountNotifier.updateSettings(updatedSettings);
+      
+      // Firestoreにも保存（バックグラウンドで実行、エラーは無視）
+      final userId = AuthMk.getCurrentUserId();
+      manager.saveWithRetry(userId, updatedSettings).then((success) {
+        if (success) {
+          debugPrint('✅ [syncAccountSettingsHelper] メールアドレスをFirestoreに保存しました');
+        } else {
+          debugPrint('⚠️ [syncAccountSettingsHelper] メールアドレスのFirestore保存に失敗しました');
+        }
+      }).catchError((e) {
+        debugPrint('⚠️ [syncAccountSettingsHelper] メールアドレスのFirestore保存エラー: $e');
+      });
+      
+      return updatedSettings;
     }
-    
-    // Notifierを使用してProviderを更新
-    ref.read(accountSettingsProvider.notifier).updateSettings(settings);
-    
-    return settings;
+  }
+
+  return syncedSettings;
+}
+
+/// Firebase AuthまたはSecureStorageからメールアドレスを取得するヘルパー関数
+/// 
+/// 優先順位: Firebase Auth > SecureStorage
+Future<String?> _getEmailFromAuthOrStorage() async {
+  try {
+    // 1. Firebase Authから取得を試みる
+    final user = AuthMk.getCurrentUser();
+    if (user?.email != null && user!.email!.isNotEmpty) {
+      return user.email;
+    }
+
+    // 2. SecureStorageから取得を試みる
+    final storedInfo = await SecureStorageMk.getUserInfoFromStorage();
+    final email = storedInfo['email'];
+    if (email != null && email.isNotEmpty) {
+      return email;
+    }
+
+    return null;
   } catch (e) {
-    debugPrint('❌ [syncAccountSettingsHelper] エラー: $e');
-    
-    // エラー時はデフォルト値を返す
-    final defaultSettings = AccountSettings.defaultSettings();
-    ref.read(accountSettingsProvider.notifier).updateSettings(defaultSettings);
-    return defaultSettings;
+    debugPrint('❌ [_getEmailFromAuthOrStorage] エラー: $e');
+    return null;
   }
 }
 
@@ -128,6 +173,7 @@ Future<AccountSettings> syncAccountSettingsHelper(dynamic ref) async {
 Future<bool> saveAccountSettingsHelper(dynamic ref, AccountSettings settings) async {
   try {
     final userId = AuthMk.getCurrentUserId();
+    final accountNotifier = ref.read(accountSettingsProvider.notifier);
     
     // 最終更新日時を更新
     final updatedSettings = settings.copyWith(lastModified: DateTime.now());
@@ -137,7 +183,7 @@ Future<bool> saveAccountSettingsHelper(dynamic ref, AccountSettings settings) as
     
     if (success) {
       // Notifierを使用してProviderを更新
-      ref.read(accountSettingsProvider.notifier).updateSettings(updatedSettings);
+      accountNotifier.updateSettings(updatedSettings);
     }
     
     return success;

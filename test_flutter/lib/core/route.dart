@@ -27,7 +27,11 @@ import 'package:test_flutter/presentation/screens/event/countdown_ended_event.da
 import 'package:test_flutter/presentation/screens/event/countdown_set_event.dart';
 import 'package:test_flutter/presentation/screens/friend/friend.dart';
 import 'package:test_flutter/presentation/screens/friend/friend_list.dart';
+import 'package:test_flutter/presentation/screens/tutorial/tutorial_screen.dart';
 class AppRoutes {
+  // Tutorial Route
+  static const String tutorial = '/tutorial';
+  
   // Auth Routes
   static const String signupLogin = '/signup-login';
   static const String initialSetup = '/initial-setup';
@@ -72,6 +76,9 @@ class RouteGenerator {
   /// ルート名とウィジェットのマッピング
   /// 各主要画面は自身でボトムナビゲーションを保持
   static final Map<String, Widget Function()> _routeMap = {
+    // Tutorial Route
+    AppRoutes.tutorial: () => const TutorialScreen(),
+    
     // Auth Routes
     AppRoutes.signupLogin: () => const SignupLoginScreen(),
     AppRoutes.initialSetup: () => const InitialSetupScreen(),
@@ -116,9 +123,108 @@ class RouteGenerator {
     AppRoutes.countdownSetEvent: () => const CountdownSetEventScreen(),
   };
 
+  /// MaterialAppのroutesプロパティへ渡すためのWidgetBuilderマップ
+  static Map<String, WidgetBuilder> get materialRouteBuilders {
+    return {
+      for (final entry in _routeMap.entries) entry.key: (_) => entry.value(),
+    };
+  }
+
   /// ルート生成メイン関数
   /// CoreMkの汎用関数を利用してルートを生成
   static Route<dynamic> generateRoute(RouteSettings settings) {
-    return RouteMk.generateRoute(settings: settings, routeMap: _routeMap);
+    // CountdownSetEventScreenの場合は引数を処理
+    if (settings.name == AppRoutes.countdownSetEvent) {
+      final arguments = settings.arguments;
+      if (arguments is Map<String, dynamic>) {
+        final eventName = arguments['eventName'] as String?;
+        final remainingDays = arguments['remainingDays'] as int?;
+        return RouteMk.createMaterialPageRoute(
+          widget: CountdownSetEventScreen(
+            eventName: eventName,
+            remainingDays: remainingDays,
+          ),
+          settings: settings,
+        );
+      }
+    }
+
+    // GoalPeriodEndedEventScreenの場合は引数を処理
+    if (settings.name == AppRoutes.goalPeriodEndedEvent) {
+      final arguments = settings.arguments;
+      if (arguments is Map<String, dynamic>) {
+        final goalName = arguments['goalName'] as String?;
+        final targetHours = arguments['targetHours'] as double?;
+        final achievedHours = arguments['achievedHours'] as double?;
+        final progress = arguments['progress'] as double?;
+        final consecutiveDays = arguments['consecutiveDays'] as int?;
+        final period = arguments['period'] as String?;
+        final goalId = arguments['goalId'] as String?;
+        return RouteMk.createMaterialPageRoute(
+          widget: GoalPeriodEndedEventScreen(
+            goalName: goalName,
+            targetHours: targetHours,
+            achievedHours: achievedHours,
+            progress: progress,
+            consecutiveDays: consecutiveDays,
+            period: period,
+            goalId: goalId,
+          ),
+          settings: settings,
+        );
+      }
+    }
+    
+    // GoalSetEventScreenの場合は引数を処理
+    if (settings.name == AppRoutes.goalSetEvent) {
+      final arguments = settings.arguments;
+      if (arguments is Map<String, dynamic>) {
+        final goalTitle = arguments['goalTitle'] as String?;
+        final targetTime = arguments['targetTime'] as int?;
+        final consecutiveDays = arguments['consecutiveDays'] as int?;
+        final durationDays = arguments['durationDays'] as int?;
+        final consecutivePeriodAchievements = arguments['consecutivePeriodAchievements'] as int?;
+        return RouteMk.createMaterialPageRoute(
+          widget: GoalSetEventScreen(
+            goalTitle: goalTitle,
+            targetTime: targetTime,
+            consecutiveDays: consecutiveDays,
+            durationDays: durationDays,
+            consecutivePeriodAchievements: consecutivePeriodAchievements,
+          ),
+          settings: settings,
+        );
+      }
+    }
+    
+    // StreakMilestoneEventScreenの場合は引数を処理
+    if (settings.name == AppRoutes.streakMilestoneEvent) {
+      final arguments = settings.arguments;
+      if (arguments is Map<String, dynamic>) {
+        final days = arguments['days'] as int?;
+        final nextMilestone = arguments['nextMilestone'] as int?;
+        return RouteMk.createMaterialPageRoute(
+          widget: StreakMilestoneEventScreen(
+            days: days,
+            nextMilestone: nextMilestone,
+          ),
+          settings: settings,
+        );
+      }
+    }
+    // ルートマップからルートを生成
+    final route = RouteMk.generateRoute(settings: settings, routeMap: _routeMap);
+    
+    // ルートが見つからない場合（404エラーページが返された場合）の処理
+    // これは通常発生しないはずですが、念のためログを出力
+    if (route.settings.name == settings.name && 
+        route.settings.name != null &&
+        !_routeMap.containsKey(route.settings.name)) {
+      debugPrint('⚠️ [RouteGenerator] ルートが見つかりませんでした: ${route.settings.name}');
+      debugPrint('   - 登録されているルート: ${_routeMap.keys.join(", ")}');
+    }
+    
+    return route;
   }
+
 }

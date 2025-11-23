@@ -450,8 +450,8 @@ class GoalProgressCard extends StatelessWidget {
             ),
           ),
           SizedBox(height: AppSpacing.sm),
-          Align(
-            alignment: Alignment.bottomRight,
+          SizedBox(
+            width: double.infinity,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               mainAxisSize: MainAxisSize.min,
@@ -466,14 +466,16 @@ class GoalProgressCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 SizedBox(height: AppSpacing.xs),
-                Text(
-                  '$currentValue / $targetValue',
-                  style: AppTextStyles.caption.copyWith(
-                    color: AppColors.textSecondary,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '$currentValue / $targetValue',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                    textAlign: TextAlign.right,
                   ),
-                  textAlign: TextAlign.right,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),

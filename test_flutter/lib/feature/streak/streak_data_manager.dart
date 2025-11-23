@@ -19,12 +19,18 @@ class StreakDataManager extends BaseDataManager<StreakData> {
 
   @override
   StreakData convertFromFirestore(Map<String, dynamic> data) {
+    final now = DateTime.now();
+    final milestoneList = _readIntList(data['milestoneList']);
     return StreakData(
-      id: data['id'] as String,
-      currentStreak: data['currentStreak'] as int,
-      longestStreak: data['longestStreak'] as int,
-      lastTrackedDate: (data['lastTrackedDate'] as Timestamp).toDate(),
-      lastModified: (data['lastModified'] as Timestamp).toDate(),
+      id: _readString(data['id']).isNotEmpty
+          ? _readString(data['id'])
+          : 'user_streak',
+      currentStreak: _readInt(data['currentStreak']) ?? 0,
+      longestStreak: _readInt(data['longestStreak']) ?? 0,
+      lastTrackedDate: _readDateTime(data['lastTrackedDate']) ?? now,
+      lastModified: _readDateTime(data['lastModified']) ?? now,
+      milestoneList: milestoneList,
+      lastAchievedMilestone: _readInt(data['lastAchievedMilestone']),
     );
   }
 
@@ -36,6 +42,8 @@ class StreakDataManager extends BaseDataManager<StreakData> {
       'longestStreak': item.longestStreak,
       'lastTrackedDate': Timestamp.fromDate(item.lastTrackedDate),
       'lastModified': Timestamp.fromDate(item.lastModified),
+      'milestoneList': item.milestoneList,
+      if (item.lastAchievedMilestone != null) 'lastAchievedMilestone': item.lastAchievedMilestone,
     };
   }
 
@@ -58,7 +66,6 @@ class StreakDataManager extends BaseDataManager<StreakData> {
     try {
       final userId = FirebaseAuth.instance.currentUser?.uid;
       if (userId == null) {
-        debugPrint('⚠️ [getStreakDataWithAuth] ユーザー未認証');
         return await getLocalStreakData();
       }
       
@@ -67,17 +74,15 @@ class StreakDataManager extends BaseDataManager<StreakData> {
       if (firestoreData != null) {
         // Firestoreから取得できた場合は、ローカルにも保存
         await updateLocalStreakData(firestoreData);
-        debugPrint('✅ Firestoreからデータ取得・ローカル保存完了');
         return firestoreData;
       }
     } catch (e) {
-      debugPrint('⚠️ Firestore取得失敗（オフライン？）: $e');
+      // エラーは無視してローカルデータを使用
     }
     
     // Firestoreから取得できない場合のみローカルを使用
     final localData = await getLocalStreakData();
     if (localData != null) {
-      debugPrint('📱 ローカルデータを使用');
       return localData;
     }
     
@@ -144,38 +149,37 @@ class StreakDataManager extends BaseDataManager<StreakData> {
       
       // 2. データが存在しない場合は初期データを作成（初回トラッキング）
       if (currentData == null) {
+        // デフォルトのマイルストーンリストを生成
+        final defaultMilestones = _generateDefaultMilestoneList();
+        
         final newData = StreakData(
           id: 'user_streak',
           currentStreak: 1,
           longestStreak: 1,
           lastTrackedDate: now,
           lastModified: now,
+          milestoneList: defaultMilestones,
         );
         
-        // ローカルに保存
+        // ローカルに保存（即座に完了）
         await saveLocalStreakData(newData);
         debugPrint('✅ [trackFinished] ローカル保存完了: currentStreak=${newData.currentStreak}');
         
-        // ログイン済みならFirestoreにも保存（upsert: 存在確認付き）
+        // Firestoreへの保存（awaitして確実に実行）
         final currentUser = FirebaseAuth.instance.currentUser;
         if (currentUser != null) {
+          final userId = currentUser.uid;
           try {
-            final userId = currentUser.uid;
-            debugPrint('🔍 [trackFinished] ユーザーID取得成功: $userId');
-            debugPrint('🔥 [trackFinished] Firestore保存開始...');
-            final firestoreSuccess = await manager.saveWithRetry(userId, newData);
-            debugPrint('🔥 [trackFinished] Firestore保存結果: $firestoreSuccess');
-            if (firestoreSuccess) {
-              debugPrint('✅ [trackFinished] Firestore保存成功！');
+            debugPrint('🔄 [trackFinished] Firestore保存開始');
+            final success = await manager.saveWithRetry(userId, newData);
+            if (success) {
+              debugPrint('✅ [trackFinished] Firestore保存成功');
             } else {
-              debugPrint('❌ [trackFinished] Firestore保存失敗（リトライキューに追加された可能性）');
+              debugPrint('⚠️ [trackFinished] Firestore保存失敗（リトライキューに追加済み）');
             }
           } catch (e) {
-            debugPrint('❌ Firestore保存エラー: $e');
-            debugPrint('❌ スタックトレース: ${StackTrace.current}');
+            debugPrint('❌ [trackFinished] Firestore保存エラー: $e');
           }
-        } else {
-          debugPrint('⚠️ [trackFinished] Firestore保存スキップ（未ログイン）');
         }
         
         return {
@@ -196,19 +200,24 @@ class StreakDataManager extends BaseDataManager<StreakData> {
           lastModified: now,
         );
         
-        // ローカルに保存
+        // ローカルに保存（即座に完了）
         await updateLocalStreakData(updatedData);
         debugPrint('✅ [trackFinished] 本日記録済み - lastModified更新');
         
-        // Firestoreにも保存
+        // Firestoreへの保存（awaitして確実に実行）
         final currentUser = FirebaseAuth.instance.currentUser;
         if (currentUser != null) {
+          final userId = currentUser.uid;
           try {
-            final userId = currentUser.uid;
-            await manager.saveWithRetry(userId, updatedData);
-            debugPrint('✅ [trackFinished] Firestore lastModified更新完了');
+            debugPrint('🔄 [trackFinished] Firestore更新開始');
+            final success = await manager.saveWithRetry(userId, updatedData);
+            if (success) {
+              debugPrint('✅ [trackFinished] Firestore更新成功');
+            } else {
+              debugPrint('⚠️ [trackFinished] Firestore更新失敗（リトライキューに追加済み）');
+            }
           } catch (e) {
-            debugPrint('⚠️ Firestore更新エラー: $e');
+            debugPrint('⚠️ [trackFinished] Firestore更新エラー: $e');
           }
         }
         
@@ -235,39 +244,40 @@ class StreakDataManager extends BaseDataManager<StreakData> {
           ? newStreak 
           : currentData.longestStreak;
       
-      // 7. 新しいStreakDataを作成
+      // 7. 新しいStreakDataを作成（既存のマイルストーン情報を保持）
+      final milestoneList = currentData.milestoneList.isNotEmpty
+          ? currentData.milestoneList
+          : _generateDefaultMilestoneList();
+      
       final updatedData = StreakData(
         id: 'user_streak',
         currentStreak: newStreak,
         longestStreak: newLongestStreak,
         lastTrackedDate: now,
         lastModified: now,
+        milestoneList: milestoneList,
+        lastAchievedMilestone: currentData.lastAchievedMilestone,
       );
       
-      // ローカルに保存
+      // ローカルに保存（即座に完了）
       await updateLocalStreakData(updatedData);
       debugPrint('✅ [trackFinished] ローカル更新完了: currentStreak=${updatedData.currentStreak}');
       
-      // 8. ログイン済みならFirestoreにも保存（upsert: 存在確認付き）
+      // Firestoreへの保存（awaitして確実に実行）
       final currentUser = FirebaseAuth.instance.currentUser;
       if (currentUser != null) {
+        final userId = currentUser.uid;
         try {
-          final userId = currentUser.uid;
-          debugPrint('🔍 [trackFinished] ユーザーID取得成功: $userId');
-          debugPrint('🔥 [trackFinished] Firestore保存開始...');
-          final firestoreSuccess = await manager.saveWithRetry(userId, updatedData);
-          debugPrint('🔥 [trackFinished] Firestore保存結果: $firestoreSuccess');
-          if (firestoreSuccess) {
-            debugPrint('✅ [trackFinished] Firestore保存成功！');
+          debugPrint('🔄 [trackFinished] Firestore保存開始');
+          final success = await manager.saveWithRetry(userId, updatedData);
+          if (success) {
+            debugPrint('✅ [trackFinished] Firestore保存成功');
           } else {
-            debugPrint('❌ [trackFinished] Firestore保存失敗（リトライキューに追加された可能性）');
+            debugPrint('⚠️ [trackFinished] Firestore保存失敗（リトライキューに追加済み）');
           }
         } catch (e) {
-          debugPrint('❌ Firestore保存エラー: $e');
-          debugPrint('❌ スタックトレース: ${StackTrace.current}');
+          debugPrint('❌ [trackFinished] Firestore保存エラー: $e');
         }
-      } else {
-        debugPrint('⚠️ [trackFinished] Firestore保存スキップ（未ログイン）');
       }
       
       return {
@@ -299,5 +309,63 @@ class StreakDataManager extends BaseDataManager<StreakData> {
   bool _isYesterday(DateTime date, DateTime today) {
     final yesterday = today.subtract(const Duration(days: 1));
     return _isSameDay(date, yesterday);
+  }
+
+  /// デフォルトのマイルストーンリストを生成
+  /// 
+  /// 最初は変則的で、その後は50日おきと1年おきを組み合わせた周期
+  static List<int> _generateDefaultMilestoneList() {
+    final List<int> milestones = [1, 3, 5, 7, 10, 15, 30, 50, 100, 150, 200, 250, 300, 350, 365];
+    
+    // 365日以降は50日おきと1年おきを組み合わせ
+    // 365の次は400（+35）、その次は450（+50）、その後は50日おき
+    int current = 400; // 365の次は400
+    milestones.add(current);
+    
+    // その後は50日おき
+    while (current < 1000) {
+      current += 50;
+      milestones.add(current);
+    }
+    
+    return milestones;
+  }
+
+  static String _readString(dynamic value) {
+    if (value is String) return value.trim();
+    return '';
+  }
+
+  static int? _readInt(dynamic value) {
+    if (value is int) return value;
+    if (value is double) return value.round();
+    if (value is String) return int.tryParse(value);
+    return null;
+  }
+
+  static DateTime? _readDateTime(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    if (value is String) {
+      return DateTime.tryParse(value);
+    }
+    if (value is int) {
+      try {
+        return DateTime.fromMillisecondsSinceEpoch(value);
+      } catch (_) {
+        return null;
+      }
+    }
+    return null;
+  }
+
+  static List<int> _readIntList(dynamic value) {
+    if (value is List) {
+      return value
+          .where((e) => e != null)
+          .map((e) => _readInt(e) ?? 0)
+          .toList();
+    }
+    return [];
   }
 }

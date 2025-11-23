@@ -18,7 +18,8 @@ mixin _$AccountSettings {
 /// 固定ID（'account_settings'）
  String get id;/// アカウント名
  String get accountName;/// アバターの色（'blue', 'red', 'green', 'purple', 'orange', 'pink'）
- String get avatarColor;/// 最終更新日時
+ String get avatarColor;/// メールアドレス（後方互換性のためnullable）
+ String? get email;/// 最終更新日時
  DateTime get lastModified;
 /// Create a copy of AccountSettings
 /// with the given fields replaced by the non-null parameter values.
@@ -32,16 +33,16 @@ $AccountSettingsCopyWith<AccountSettings> get copyWith => _$AccountSettingsCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AccountSettings&&(identical(other.id, id) || other.id == id)&&(identical(other.accountName, accountName) || other.accountName == accountName)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AccountSettings&&(identical(other.id, id) || other.id == id)&&(identical(other.accountName, accountName) || other.accountName == accountName)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.email, email) || other.email == email)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,accountName,avatarColor,lastModified);
+int get hashCode => Object.hash(runtimeType,id,accountName,avatarColor,email,lastModified);
 
 @override
 String toString() {
-  return 'AccountSettings(id: $id, accountName: $accountName, avatarColor: $avatarColor, lastModified: $lastModified)';
+  return 'AccountSettings(id: $id, accountName: $accountName, avatarColor: $avatarColor, email: $email, lastModified: $lastModified)';
 }
 
 
@@ -52,7 +53,7 @@ abstract mixin class $AccountSettingsCopyWith<$Res>  {
   factory $AccountSettingsCopyWith(AccountSettings value, $Res Function(AccountSettings) _then) = _$AccountSettingsCopyWithImpl;
 @useResult
 $Res call({
- String id, String accountName, String avatarColor, DateTime lastModified
+ String id, String accountName, String avatarColor, String? email, DateTime lastModified
 });
 
 
@@ -69,12 +70,13 @@ class _$AccountSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AccountSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? accountName = null,Object? avatarColor = null,Object? lastModified = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? accountName = null,Object? avatarColor = null,Object? email = freezed,Object? lastModified = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,accountName: null == accountName ? _self.accountName : accountName // ignore: cast_nullable_to_non_nullable
 as String,avatarColor: null == avatarColor ? _self.avatarColor : avatarColor // ignore: cast_nullable_to_non_nullable
-as String,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as String,email: freezed == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
+as String?,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }
@@ -160,10 +162,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String accountName,  String avatarColor,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String accountName,  String avatarColor,  String? email,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AccountSettings() when $default != null:
-return $default(_that.id,_that.accountName,_that.avatarColor,_that.lastModified);case _:
+return $default(_that.id,_that.accountName,_that.avatarColor,_that.email,_that.lastModified);case _:
   return orElse();
 
 }
@@ -181,10 +183,10 @@ return $default(_that.id,_that.accountName,_that.avatarColor,_that.lastModified)
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String accountName,  String avatarColor,  DateTime lastModified)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String accountName,  String avatarColor,  String? email,  DateTime lastModified)  $default,) {final _that = this;
 switch (_that) {
 case _AccountSettings():
-return $default(_that.id,_that.accountName,_that.avatarColor,_that.lastModified);case _:
+return $default(_that.id,_that.accountName,_that.avatarColor,_that.email,_that.lastModified);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -201,10 +203,10 @@ return $default(_that.id,_that.accountName,_that.avatarColor,_that.lastModified)
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String accountName,  String avatarColor,  DateTime lastModified)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String accountName,  String avatarColor,  String? email,  DateTime lastModified)?  $default,) {final _that = this;
 switch (_that) {
 case _AccountSettings() when $default != null:
-return $default(_that.id,_that.accountName,_that.avatarColor,_that.lastModified);case _:
+return $default(_that.id,_that.accountName,_that.avatarColor,_that.email,_that.lastModified);case _:
   return null;
 
 }
@@ -216,7 +218,7 @@ return $default(_that.id,_that.accountName,_that.avatarColor,_that.lastModified)
 @JsonSerializable()
 
 class _AccountSettings extends AccountSettings {
-  const _AccountSettings({required this.id, required this.accountName, required this.avatarColor, required this.lastModified}): super._();
+  const _AccountSettings({required this.id, required this.accountName, required this.avatarColor, this.email, required this.lastModified}): super._();
   factory _AccountSettings.fromJson(Map<String, dynamic> json) => _$AccountSettingsFromJson(json);
 
 /// 固定ID（'account_settings'）
@@ -225,6 +227,8 @@ class _AccountSettings extends AccountSettings {
 @override final  String accountName;
 /// アバターの色（'blue', 'red', 'green', 'purple', 'orange', 'pink'）
 @override final  String avatarColor;
+/// メールアドレス（後方互換性のためnullable）
+@override final  String? email;
 /// 最終更新日時
 @override final  DateTime lastModified;
 
@@ -241,16 +245,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AccountSettings&&(identical(other.id, id) || other.id == id)&&(identical(other.accountName, accountName) || other.accountName == accountName)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AccountSettings&&(identical(other.id, id) || other.id == id)&&(identical(other.accountName, accountName) || other.accountName == accountName)&&(identical(other.avatarColor, avatarColor) || other.avatarColor == avatarColor)&&(identical(other.email, email) || other.email == email)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,accountName,avatarColor,lastModified);
+int get hashCode => Object.hash(runtimeType,id,accountName,avatarColor,email,lastModified);
 
 @override
 String toString() {
-  return 'AccountSettings(id: $id, accountName: $accountName, avatarColor: $avatarColor, lastModified: $lastModified)';
+  return 'AccountSettings(id: $id, accountName: $accountName, avatarColor: $avatarColor, email: $email, lastModified: $lastModified)';
 }
 
 
@@ -261,7 +265,7 @@ abstract mixin class _$AccountSettingsCopyWith<$Res> implements $AccountSettings
   factory _$AccountSettingsCopyWith(_AccountSettings value, $Res Function(_AccountSettings) _then) = __$AccountSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String accountName, String avatarColor, DateTime lastModified
+ String id, String accountName, String avatarColor, String? email, DateTime lastModified
 });
 
 
@@ -278,12 +282,13 @@ class __$AccountSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AccountSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? accountName = null,Object? avatarColor = null,Object? lastModified = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? accountName = null,Object? avatarColor = null,Object? email = freezed,Object? lastModified = null,}) {
   return _then(_AccountSettings(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,accountName: null == accountName ? _self.accountName : accountName // ignore: cast_nullable_to_non_nullable
 as String,avatarColor: null == avatarColor ? _self.avatarColor : avatarColor // ignore: cast_nullable_to_non_nullable
-as String,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as String,email: freezed == email ? _self.email : email // ignore: cast_nullable_to_non_nullable
+as String?,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }
@@ -1444,6 +1449,281 @@ as bool,selectedStudyGoalId: freezed == selectedStudyGoalId ? _self.selectedStud
 as String?,selectedPcGoalId: freezed == selectedPcGoalId ? _self.selectedPcGoalId : selectedPcGoalId // ignore: cast_nullable_to_non_nullable
 as String?,selectedSmartphoneGoalId: freezed == selectedSmartphoneGoalId ? _self.selectedSmartphoneGoalId : selectedSmartphoneGoalId // ignore: cast_nullable_to_non_nullable
 as String?,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as DateTime,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$GoalMemo {
+
+/// 固定ID（'goal_memo'）
+ String get id;/// メモの内容
+ String get content;/// 最終更新日時
+ DateTime get lastModified;
+/// Create a copy of GoalMemo
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$GoalMemoCopyWith<GoalMemo> get copyWith => _$GoalMemoCopyWithImpl<GoalMemo>(this as GoalMemo, _$identity);
+
+  /// Serializes this GoalMemo to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is GoalMemo&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,content,lastModified);
+
+@override
+String toString() {
+  return 'GoalMemo(id: $id, content: $content, lastModified: $lastModified)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $GoalMemoCopyWith<$Res>  {
+  factory $GoalMemoCopyWith(GoalMemo value, $Res Function(GoalMemo) _then) = _$GoalMemoCopyWithImpl;
+@useResult
+$Res call({
+ String id, String content, DateTime lastModified
+});
+
+
+
+
+}
+/// @nodoc
+class _$GoalMemoCopyWithImpl<$Res>
+    implements $GoalMemoCopyWith<$Res> {
+  _$GoalMemoCopyWithImpl(this._self, this._then);
+
+  final GoalMemo _self;
+  final $Res Function(GoalMemo) _then;
+
+/// Create a copy of GoalMemo
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? content = null,Object? lastModified = null,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
+as String,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as DateTime,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [GoalMemo].
+extension GoalMemoPatterns on GoalMemo {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _GoalMemo value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _GoalMemo() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _GoalMemo value)  $default,){
+final _that = this;
+switch (_that) {
+case _GoalMemo():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _GoalMemo value)?  $default,){
+final _that = this;
+switch (_that) {
+case _GoalMemo() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String content,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _GoalMemo() when $default != null:
+return $default(_that.id,_that.content,_that.lastModified);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String content,  DateTime lastModified)  $default,) {final _that = this;
+switch (_that) {
+case _GoalMemo():
+return $default(_that.id,_that.content,_that.lastModified);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String content,  DateTime lastModified)?  $default,) {final _that = this;
+switch (_that) {
+case _GoalMemo() when $default != null:
+return $default(_that.id,_that.content,_that.lastModified);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _GoalMemo extends GoalMemo {
+  const _GoalMemo({required this.id, required this.content, required this.lastModified}): super._();
+  factory _GoalMemo.fromJson(Map<String, dynamic> json) => _$GoalMemoFromJson(json);
+
+/// 固定ID（'goal_memo'）
+@override final  String id;
+/// メモの内容
+@override final  String content;
+/// 最終更新日時
+@override final  DateTime lastModified;
+
+/// Create a copy of GoalMemo
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$GoalMemoCopyWith<_GoalMemo> get copyWith => __$GoalMemoCopyWithImpl<_GoalMemo>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$GoalMemoToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _GoalMemo&&(identical(other.id, id) || other.id == id)&&(identical(other.content, content) || other.content == content)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,content,lastModified);
+
+@override
+String toString() {
+  return 'GoalMemo(id: $id, content: $content, lastModified: $lastModified)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$GoalMemoCopyWith<$Res> implements $GoalMemoCopyWith<$Res> {
+  factory _$GoalMemoCopyWith(_GoalMemo value, $Res Function(_GoalMemo) _then) = __$GoalMemoCopyWithImpl;
+@override @useResult
+$Res call({
+ String id, String content, DateTime lastModified
+});
+
+
+
+
+}
+/// @nodoc
+class __$GoalMemoCopyWithImpl<$Res>
+    implements _$GoalMemoCopyWith<$Res> {
+  __$GoalMemoCopyWithImpl(this._self, this._then);
+
+  final _GoalMemo _self;
+  final $Res Function(_GoalMemo) _then;
+
+/// Create a copy of GoalMemo
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? content = null,Object? lastModified = null,}) {
+  return _then(_GoalMemo(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,content: null == content ? _self.content : content // ignore: cast_nullable_to_non_nullable
+as String,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }

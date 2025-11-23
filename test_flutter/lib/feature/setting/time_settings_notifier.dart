@@ -40,6 +40,7 @@ class TimeSettingsNotifier extends _$TimeSettingsNotifier {
 /// **戻り値**: 読み込んだ時間設定（ローカルまたはデフォルト値）
 Future<TimeSettings> loadTimeSettingsWithBackgroundRefreshHelper(dynamic ref) async {
   final dummyManager = Object(); // マネージャーは使用しないためダミー
+  final timeNotifier = ref.read(timeSettingsProvider.notifier);
 
   return await loadSingleDataWithBackgroundRefreshHelper<TimeSettings>(
     ref: ref,
@@ -71,7 +72,7 @@ Future<TimeSettings> loadTimeSettingsWithBackgroundRefreshHelper(dynamic ref) as
         await timeSettingsManager.updateLocal(settings);
       }
     },
-    updateProvider: (settings) => ref.read(timeSettingsProvider.notifier).updateSettings(settings),
+    updateProvider: timeNotifier.updateSettings,
     functionName: 'loadTimeSettingsWithBackgroundRefreshHelper',
   );
 }
@@ -79,40 +80,28 @@ Future<TimeSettings> loadTimeSettingsWithBackgroundRefreshHelper(dynamic ref) as
 /// 時間設定を同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、Providerを更新します。
+/// 共通ヘルパー関数を使用してタイムアウト処理とエラーハンドリングを統一します。
 /// 
 /// **パラメータ**:
 /// - `ref`: dynamic（Provider操作用）
 /// 
 /// **戻り値**: 同期された時間設定
 Future<TimeSettings> syncTimeSettingsHelper(dynamic ref) async {
-  try {
-    final userId = AuthMk.getCurrentUserId();
-    
-    // データマネージャーで同期
-    final settingsList = await timeSettingsManager.sync(userId);
-    
-    // IDが 'time_settings' のものを探す
-    TimeSettings settings;
-    try {
-      settings = settingsList.firstWhere((s) => s.id == 'time_settings');
-    } catch (e) {
-      // データがない場合はデフォルト値を作成して保存
-      settings = TimeSettings.defaultSettings();
-      await timeSettingsManager.saveWithRetry(userId, settings);
-    }
-    
-    // Notifierを使用してProviderを更新
-    ref.read(timeSettingsProvider.notifier).updateSettings(settings);
-    
-    return settings;
-  } catch (e) {
-    debugPrint('❌ [syncTimeSettingsHelper] エラー: $e');
-    
-    // エラー時はデフォルト値を返す
-    final defaultSettings = TimeSettings.defaultSettings();
-    ref.read(timeSettingsProvider.notifier).updateSettings(defaultSettings);
-    return defaultSettings;
-  }
+  final manager = timeSettingsManager;
+  final timeNotifier = ref.read(timeSettingsProvider.notifier);
+
+  return await syncSingleDataHelper<TimeSettings>(
+    ref: ref,
+    manager: manager,
+    syncWithAuth: () async {
+      final userId = AuthMk.getCurrentUserId();
+      final settingsList = await manager.sync(userId);
+      return settingsList;
+    },
+    getDefault: () async => TimeSettings.defaultSettings(),
+    updateProvider: timeNotifier.updateSettings,
+    functionName: 'syncTimeSettingsHelper',
+  );
 }
 
 /// 時間設定を保存するヘルパー関数
@@ -127,6 +116,7 @@ Future<TimeSettings> syncTimeSettingsHelper(dynamic ref) async {
 Future<bool> saveTimeSettingsHelper(dynamic ref, TimeSettings settings) async {
   try {
     final userId = AuthMk.getCurrentUserId();
+    final timeNotifier = ref.read(timeSettingsProvider.notifier);
     
     // 最終更新日時を更新
     final updatedSettings = settings.copyWith(lastModified: DateTime.now());
@@ -136,7 +126,7 @@ Future<bool> saveTimeSettingsHelper(dynamic ref, TimeSettings settings) async {
     
     if (success) {
       // Notifierを使用してProviderを更新
-      ref.read(timeSettingsProvider.notifier).updateSettings(updatedSettings);
+      timeNotifier.updateSettings(updatedSettings);
     }
     
     return success;

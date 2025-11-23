@@ -13,6 +13,8 @@ part 'total_model.g.dart';
 /// - `totalWorkTimeMinutes`: 総作業時間（分単位）
 /// - `lastTrackedDate`: 最後にトラッキングした日
 /// - `lastModified`: 最終更新日時（同期管理用）
+/// - `milestoneList`: マイルストーンリスト（時間単位）
+/// - `lastAchievedMilestone`: 最後に達成したマイルストーン（時間単位）
 @freezed
 abstract class TotalData with _$TotalData {
   /// TotalDataモデルのコンストラクタ
@@ -22,11 +24,15 @@ abstract class TotalData with _$TotalData {
   /// - `totalWorkTimeMinutes`: 総作業時間（分単位）
   /// - `lastTrackedDate`: 最後にトラッキングした日
   /// - `lastModified`: 最終更新日時
+  /// - `milestoneList`: マイルストーンリスト（時間単位）
+  /// - `lastAchievedMilestone`: 最後に達成したマイルストーン（時間単位）
   const factory TotalData({
     required String id,
     required int totalWorkTimeMinutes,
     required DateTime lastTrackedDate,
     required DateTime lastModified,
+    @Default([]) List<int> milestoneList,
+    int? lastAchievedMilestone,
   }) = _TotalData;
 
   /// JSONからTotalDataモデルを生成

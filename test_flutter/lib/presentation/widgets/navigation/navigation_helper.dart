@@ -15,15 +15,20 @@ class NavigationHelper {
     Object? arguments,
   }) async {
     try {
+      debugPrint('🚀 [NavigationHelper] push開始: routeName=$routeName, arguments=$arguments');
+      
       await Navigator.pushNamed(
         context,
         routeName,
         arguments: arguments,
       );
+      
+      debugPrint('✅ [NavigationHelper] push成功: routeName=$routeName');
       return true;
     } catch (e, stackTrace) {
       debugPrint('💥 [NavigationHelper] pushエラー: $e');
       debugPrint('   - ルート名: $routeName');
+      debugPrint('   - 引数: $arguments');
       debugPrint('   - スタックトレース: $stackTrace');
       
       if (context.mounted) {

@@ -1,5 +1,6 @@
 // 外部パッケージ
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 // 内部パッケージ（プロジェクト内）
 import 'package:test_flutter/feature/base/data_helper_functions.dart';
@@ -80,13 +81,14 @@ class TotalDataNotifier extends _$TotalDataNotifier {
 /// ```
 Future<TotalData> loadTotalDataHelper(dynamic ref) async {
   final manager = TotalDataManager();
+  final totalNotifier = ref.read(totalDataProvider.notifier);
 
   return await loadSingleDataHelper<TotalData>(
     ref: ref,
     manager: manager,
     getWithAuth: () => manager.getTotalDataWithAuth(),
     getDefault: () => manager.getTotalDataOrDefault(),
-    updateProvider: (data) => ref.read(totalDataProvider.notifier).updateTotal(data),
+    updateProvider: totalNotifier.updateTotal,
     functionName: 'loadTotalDataHelper',
   );
 }
@@ -113,6 +115,7 @@ Future<TotalData> loadTotalDataHelper(dynamic ref) async {
 /// ```
 Future<TotalData> loadTotalDataWithBackgroundRefreshHelper(dynamic ref) async {
   final manager = TotalDataManager();
+  final totalNotifier = ref.read(totalDataProvider.notifier);
 
   return await loadSingleDataWithBackgroundRefreshHelper<TotalData>(
     ref: ref,
@@ -121,7 +124,7 @@ Future<TotalData> loadTotalDataWithBackgroundRefreshHelper(dynamic ref) async {
     getLocal: () => manager.getLocalTotalData(),
     getDefault: () => manager.getTotalDataOrDefault(),
     saveLocal: (data) => manager.saveLocalTotalData(data),
-    updateProvider: (data) => ref.read(totalDataProvider.notifier).updateTotal(data),
+    updateProvider: totalNotifier.updateTotal,
     functionName: 'loadTotalDataWithBackgroundRefreshHelper',
   );
 }
@@ -142,13 +145,14 @@ Future<TotalData> loadTotalDataWithBackgroundRefreshHelper(dynamic ref) async {
 /// ```
 Future<TotalData> syncTotalDataHelper(dynamic ref) async {
   final manager = TotalDataManager();
+  final totalNotifier = ref.read(totalDataProvider.notifier);
 
   return await syncSingleDataHelper<TotalData>(
     ref: ref,
     manager: manager,
     syncWithAuth: () => manager.syncTotalDataWithAuth(),
     getDefault: () => manager.getTotalDataOrDefault(),
-    updateProvider: (data) => ref.read(totalDataProvider.notifier).updateTotal(data),
+    updateProvider: totalNotifier.updateTotal,
     functionName: 'syncTotalDataHelper',
   );
 }

@@ -4,6 +4,7 @@ import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_data_manager.dart';
+import 'package:test_flutter/feature/statistics/session_info_model.dart';
 import 'package:test_flutter/feature/statistics/weekly_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/weekly_statistics_data_manager.dart';
 import 'package:test_flutter/feature/statistics/monthly_statistics_model.dart';
@@ -12,7 +13,13 @@ import 'package:test_flutter/feature/statistics/yearly_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/yearly_statistics_data_manager.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/goals/goal_data_manager.dart';
+import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/total/total_data_manager.dart';
+import 'package:test_flutter/feature/total/total_functions.dart';
+import 'package:test_flutter/feature/total/total_hours_milestone_manager.dart';
+import 'package:test_flutter/feature/setting/settings_data_manager.dart';
+import 'package:test_flutter/data/models/settings_models.dart';
+import 'package:test_flutter/data/repositories/initialization_repository.dart';
 
 /// 統計集計サービス
 /// 
@@ -25,22 +32,38 @@ class StatisticsAggregationService {
   static final YearlyStatisticsDataManager _yearlyManager = YearlyStatisticsDataManager();
   static final GoalDataManager _goalManager = GoalDataManager();
   static final TotalDataManager _totalManager = TotalDataManager();
+  static final TotalHoursMilestoneManager _milestoneManager = TotalHoursMilestoneManager();
+  static final TrackingSettingsDataManager _trackingSettingsManager = TrackingSettingsDataManager();
   
   // 目標キャッシュ（セッション処理中は再利用）
   List<Goal>? _cachedGoals;
   DateTime? _goalsCacheTime;
   static const _goalsCacheExpiry = Duration(minutes: 5);
 
-  /// セッション終了時の集計処理
+  // 同じセッションを短時間で重複処理しないためのガード
+  static final Map<String, DateTime> _processedSessionHistory = {};
+  static const _processedSessionRetention = Duration(hours: 2);
+
+  /// セッション終了時の集計処理（最適化版）
   /// 
   /// トラッキングセッションのデータを各期間の統計に反映します。
+  /// Phase 1: 日次統計のみ同期的に実行（画面表示に必須）
+  /// Phase 2: 週次、月次、年次、目標、Total Timeを並列実行（バックグラウンド）
   /// 
   /// **パラメータ**:
   /// - `session`: トラッキングセッション
   /// 
-  /// **戻り値**: 処理成功時true、失敗時false
+  /// **戻り値**: Phase 1の処理成功時true、失敗時false（Phase 2はバックグラウンドで実行）
   Future<bool> aggregateSessionData(TrackingSession session) async {
     try {
+      if (!_markSessionAsProcessing(session.id)) {
+        LogMk.logWarning(
+          '⚠️ セッションID ${session.id} は既に処理済みのためスキップします',
+          tag: 'StatisticsAggregationService',
+        );
+        return false;
+      }
+
       LogMk.logDebug(
         '📊 統計集計処理を開始: セッションID ${session.id}',
         tag: 'StatisticsAggregationService',
@@ -57,46 +80,40 @@ class StatisticsAggregationService {
       final workSeconds = (session.categorySeconds['study'] ?? 0) +
                          (session.categorySeconds['pc'] ?? 0);
 
-      // 3-6. 統計データをバッチで事前取得（パフォーマンス最適化）
       final date = DateTime(session.startTime.year, session.startTime.month, session.startTime.day);
       final year = session.startTime.year;
       final month = session.startTime.month;
       
-      // 並列で既存データを取得
-      final existingData = await Future.wait([
-        _dailyManager.getByDateWithAuth(date),
-        _weeklyManager.getByWeekWithAuth(session.startTime),
-        _monthlyManager.getByMonthWithAuth(year, month),
-        _yearlyManager.getByYearWithAuth(year),
-      ]);
-      
-      final existingDaily = existingData[0] as DailyStatistics?;
-      final existingWeekly = existingData[1] as WeeklyStatistics?;
-      final existingMonthly = existingData[2] as MonthlyStatistics?;
-      final existingYearly = existingData[3] as YearlyStatistics?;
-
-      // 3. 日次データの集計・更新
-      await _updateDailyStatistics(session, categorySecondsWithNothing, workSeconds, existingDaily);
-
-      // 4. 週次データの集計・更新
-      await _updateWeeklyStatistics(session, categorySecondsWithNothing, workSeconds, existingWeekly);
-
-      // 5. 月次データの集計・更新（personOnly/nothingDetected除外）
-      await _updateMonthlyStatistics(session, workSeconds, existingMonthly);
-
-      // 6. 年次データの集計・更新（personOnly/nothingDetected除外）
-      await _updateYearlyStatistics(session, workSeconds, existingYearly);
-
-      // 7. 目標の更新
-      await _updateGoalProgress(session);
-
-      // 8. Total Timeの更新
-      await _updateTotalTime(workSeconds, session.startTime);
-
+      // ===== Phase 1: 日次統計のみ同期的に実行（画面表示に必須） =====
       LogMk.logDebug(
-        '✅ 統計集計処理が完了しました',
+        '📊 Phase 1: 日次統計の更新を開始',
         tag: 'StatisticsAggregationService',
       );
+      
+      final existingDaily = await _dailyManager.getByDateWithAuth(date);
+      final dailySuccess = await _updateDailyStatisticsPhase1(
+        session, 
+        categorySecondsWithNothing, 
+        workSeconds, 
+        existingDaily,
+      );
+      
+      if (!dailySuccess) {
+        LogMk.logError(
+          '❌ Phase 1: 日次統計の更新に失敗しました',
+          tag: 'StatisticsAggregationService',
+        );
+        return false;
+      }
+      
+      LogMk.logDebug(
+        '✅ Phase 1: 日次統計の更新が完了しました',
+        tag: 'StatisticsAggregationService',
+      );
+
+      // ===== Phase 2: バックグラウンドで並列実行 =====
+      // 画面表示をブロックしないため、非同期で実行
+      _runPhase2InBackground(session, categorySecondsWithNothing, workSeconds, year, month);
 
       return true;
     } catch (e, stackTrace) {
@@ -109,77 +126,207 @@ class StatisticsAggregationService {
     }
   }
 
+  bool _markSessionAsProcessing(String sessionId) {
+    final now = DateTime.now();
+    _processedSessionHistory.removeWhere(
+      (_, processedAt) => now.difference(processedAt) >= _processedSessionRetention,
+    );
+
+    final lastProcessed = _processedSessionHistory[sessionId];
+    if (lastProcessed != null) {
+      // retention期間内に同一セッションが再度来た場合は重複とみなす
+      if (now.difference(lastProcessed) < _processedSessionRetention) {
+        return false;
+      }
+    }
+
+    _processedSessionHistory[sessionId] = now;
+    return true;
+  }
+
+  /// Phase 2をバックグラウンドで実行（非同期、エラーをログに記録するのみ）
+  void _runPhase2InBackground(
+    TrackingSession session,
+    Map<String, int> categorySecondsWithNothing,
+    int workSeconds,
+    int year,
+    int month,
+  ) {
+    // 非同期で実行（awaitしない）
+    Future(() async {
+      try {
+        LogMk.logDebug(
+          '📊 Phase 2: バックグラウンド処理を開始',
+          tag: 'StatisticsAggregationService',
+        );
+
+        // 並列で既存データを取得
+        final existingData = await Future.wait([
+          _weeklyManager.getByWeekWithAuth(session.startTime),
+          _monthlyManager.getByMonthWithAuth(year, month),
+          _yearlyManager.getByYearWithAuth(year),
+        ]);
+        
+        final existingWeekly = existingData[0] as WeeklyStatistics?;
+        final existingMonthly = existingData[1] as MonthlyStatistics?;
+        final existingYearly = existingData[2] as YearlyStatistics?;
+
+        // 週次、月次、年次、目標、Total Timeを並列実行
+        await Future.wait([
+          _updateWeeklyStatistics(session, categorySecondsWithNothing, workSeconds, existingWeekly)
+              .catchError((e, stackTrace) {
+            LogMk.logError(
+              '❌ 週次統計の更新に失敗しました: $e',
+              tag: 'StatisticsAggregationService',
+              stackTrace: stackTrace,
+            );
+          }),
+          _updateMonthlyStatistics(session, workSeconds, existingMonthly)
+              .catchError((e, stackTrace) {
+            LogMk.logError(
+              '❌ 月次統計の更新に失敗しました: $e',
+              tag: 'StatisticsAggregationService',
+              stackTrace: stackTrace,
+            );
+          }),
+          _updateYearlyStatistics(session, workSeconds, existingYearly)
+              .catchError((e, stackTrace) {
+            LogMk.logError(
+              '❌ 年次統計の更新に失敗しました: $e',
+              tag: 'StatisticsAggregationService',
+              stackTrace: stackTrace,
+            );
+          }),
+          _updateGoalProgress(session)
+              .catchError((e, stackTrace) {
+            LogMk.logError(
+              '❌ 目標更新に失敗しました: $e',
+              tag: 'StatisticsAggregationService',
+              stackTrace: stackTrace,
+            );
+          }),
+          _updateTotalTime(workSeconds, session.startTime)
+              .catchError((e, stackTrace) {
+            LogMk.logError(
+              '❌ Total Time更新に失敗しました: $e',
+              tag: 'StatisticsAggregationService',
+              stackTrace: stackTrace,
+            );
+          }),
+        ]);
+
+        // 更新後の総時間を確認
+        final updatedTotalData = await _totalManager.getTotalDataOrDefault();
+        LogMk.logDebug(
+          '📊 Total Time更新後: ${updatedTotalData.totalWorkTimeMinutes}分（${updatedTotalData.totalWorkTimeMinutes ~/ 60}時間）',
+          tag: 'StatisticsAggregationService',
+        );
+
+        LogMk.logDebug(
+          '✅ Phase 2: バックグラウンド処理が完了しました',
+          tag: 'StatisticsAggregationService',
+        );
+      } catch (e, stackTrace) {
+        LogMk.logError(
+          '❌ Phase 2: バックグラウンド処理中にエラーが発生しました: $e',
+          tag: 'StatisticsAggregationService',
+          stackTrace: stackTrace,
+        );
+      }
+    });
+  }
+
+  /// Phase 1: 日次データの集計・更新（ローカル保存優先、Firestoreは非同期）
+  /// 
+  /// 既存のセッション情報を考慮して、新しいセッションを追加または更新します。
+  /// saveOrUpdateWithAuth()を使用することで、updateFromSessions()が自動的に呼ばれ、
+  /// すべてのセッションからcategorySeconds等が再計算されます。
+  Future<bool> _updateDailyStatisticsPhase1(
+    TrackingSession session,
+    Map<String, int> categorySeconds,
+    int workSeconds,
+    DailyStatistics? existing,
+  ) async {
+    try {
+      final date = DateTime(session.startTime.year, session.startTime.month, session.startTime.day);
+      final id = _formatDateId(date);
+      
+      // TrackingSessionをSessionInfoに変換
+      final sessionInfo = SessionInfo(
+        id: session.id,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        categorySeconds: Map<String, int>.from(session.categorySeconds),
+        detectionPeriods: List<DetectionPeriod>.from(session.detectionPeriods),
+        lastModified: session.lastModified,
+      );
+      
+      // 既存データがあればセッションをマージ、なければ新規作成
+      List<SessionInfo> updatedSessions;
+      if (existing != null) {
+        // 既存のセッションリストを取得
+        updatedSessions = List<SessionInfo>.from(existing.sessions);
+        
+        // 同じIDのセッションがあれば置き換え、なければ追加
+        final existingIndex = updatedSessions.indexWhere((s) => s.id == sessionInfo.id);
+        if (existingIndex >= 0) {
+          updatedSessions[existingIndex] = sessionInfo;
+          LogMk.logDebug(
+            '📝 既存セッションを更新: ${sessionInfo.id}',
+            tag: 'StatisticsAggregationService',
+          );
+        } else {
+          updatedSessions.add(sessionInfo);
+          LogMk.logDebug(
+            '➕ 新規セッションを追加: ${sessionInfo.id}',
+            tag: 'StatisticsAggregationService',
+          );
+        }
+      } else {
+        // 新規作成
+        updatedSessions = [sessionInfo];
+        LogMk.logDebug(
+          '🆕 新規日次統計を作成: $id',
+          tag: 'StatisticsAggregationService',
+        );
+      }
+      
+      // 日次統計データを作成（sessionsのみ設定、categorySeconds等はsaveOrUpdateWithAuth内で計算）
+      final dailyStats = DailyStatistics(
+        id: id,
+        date: date,
+        categorySeconds: existing?.categorySeconds ?? {},
+        totalWorkTimeSeconds: existing?.totalWorkTimeSeconds ?? 0,
+        pieChartData: existing?.pieChartData,
+        hourlyCategorySeconds: existing?.hourlyCategorySeconds ?? {},
+        sessions: updatedSessions,
+        lastModified: DateTime.now(),
+      );
+      
+      // 保存（saveOrUpdateWithAuth内でupdateFromSessionsが呼ばれ、すべてのセッションから再計算される）
+      await _dailyManager.saveOrUpdateWithAuth(dailyStats);
+      
+      LogMk.logDebug(
+        '✅ 日次統計を更新しました（ローカル保存完了）: $id',
+        tag: 'StatisticsAggregationService',
+      );
+      
+      return true;
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        '❌ 日次統計の更新に失敗しました: $e',
+        tag: 'StatisticsAggregationService',
+        stackTrace: stackTrace,
+      );
+      return false;
+    }
+  }
+
   /// nothingDetected時間を計算
   int _calculateNothingDetectedSeconds(TrackingSession session) {
     return session.detectionPeriods
         .where((p) => p.category == 'nothingDetected')
         .fold(0, (sum, p) => sum + p.endTime.difference(p.startTime).inSeconds);
-  }
-
-  /// セッションから時間ごとのカテゴリ別秒数を集計（日次用）
-  /// 戻り値: {"0": {study: 600, pc: 300, ...}, "1": {...}, ...}
-  Map<String, Map<String, int>> _aggregateHourlyCategorySeconds(
-    TrackingSession session,
-  ) {
-    final date = DateTime(
-      session.startTime.year,
-      session.startTime.month,
-      session.startTime.day,
-    );
-    final hourlyData = <String, Map<String, int>>{};
-    
-    // 24時間分の初期化
-    for (int hour = 0; hour < 24; hour++) {
-      hourlyData[hour.toString()] = {
-        'study': 0,
-        'pc': 0,
-        'smartphone': 0,
-        'personOnly': 0,
-        'nothingDetected': 0,
-      };
-    }
-    
-    // detectionPeriodsから時間ごとに集計
-    for (final period in session.detectionPeriods) {
-      final periodStart = period.startTime.isAfter(date)
-          ? period.startTime
-          : date;
-      final periodEnd = period.endTime;
-      
-      // 期間が複数の時間帯にまたがる場合を処理
-      var currentTime = periodStart;
-      while (currentTime.isBefore(periodEnd)) {
-        final hour = currentTime.hour;
-        final hourStart = DateTime(
-          currentTime.year,
-          currentTime.month,
-          currentTime.day,
-          hour,
-        );
-        final hourEnd = hourStart.add(const Duration(hours: 1));
-        
-        // この時間帯に該当する期間の開始と終了を計算
-        final segmentStart = currentTime.isAfter(hourStart) ? currentTime : hourStart;
-        final segmentEnd = periodEnd.isBefore(hourEnd) ? periodEnd : hourEnd;
-        
-        if (segmentStart.isBefore(segmentEnd)) {
-          final durationSeconds = segmentEnd.difference(segmentStart).inSeconds;
-          final hourKey = hour.toString();
-          
-          if (hourlyData.containsKey(hourKey)) {
-            final category = period.category;
-            if (hourlyData[hourKey]!.containsKey(category)) {
-              hourlyData[hourKey]![category] = 
-                  (hourlyData[hourKey]![category] ?? 0) + durationSeconds;
-            }
-          }
-        }
-        
-        currentTime = hourEnd;
-      }
-    }
-    
-    return hourlyData;
   }
 
   /// セッションから日ごとのカテゴリ別秒数を集計（週次・月次用）
@@ -260,75 +407,6 @@ class StatisticsAggregationService {
     }
     
     return monthlyData;
-  }
-
-  /// 日次データの集計・更新
-  Future<void> _updateDailyStatistics(
-    TrackingSession session,
-    Map<String, int> categorySeconds,
-    int workSeconds,
-    DailyStatistics? existing,
-  ) async {
-    try {
-      final date = DateTime(session.startTime.year, session.startTime.month, session.startTime.day);
-      final id = _formatDateId(date);
-      
-      // 既存データがあれば加算、なければ新規作成
-      final updatedCategorySeconds = <String, int>{
-        'study': (existing?.categorySeconds['study'] ?? 0) + (categorySeconds['study'] ?? 0),
-        'pc': (existing?.categorySeconds['pc'] ?? 0) + (categorySeconds['pc'] ?? 0),
-        'smartphone': (existing?.categorySeconds['smartphone'] ?? 0) + (categorySeconds['smartphone'] ?? 0),
-        'personOnly': (existing?.categorySeconds['personOnly'] ?? 0) + (categorySeconds['personOnly'] ?? 0),
-        'nothingDetected': (existing?.categorySeconds['nothingDetected'] ?? 0) + (categorySeconds['nothingDetected'] ?? 0),
-      };
-      final updatedWorkSeconds = (existing?.totalWorkTimeSeconds ?? 0) + workSeconds;
-      
-      // 時間ごとのデータを集計
-      final sessionHourlyData = _aggregateHourlyCategorySeconds(session);
-      final updatedHourlyCategorySeconds = <String, Map<String, int>>{};
-      
-      // 既存の時間ごとのデータと新しいデータをマージ
-      for (int hour = 0; hour < 24; hour++) {
-        final hourKey = hour.toString();
-        final existingHourly = existing?.hourlyCategorySeconds[hourKey] ?? <String, int>{};
-        final sessionHourly = sessionHourlyData[hourKey] ?? <String, int>{};
-        
-        updatedHourlyCategorySeconds[hourKey] = {
-          'study': (existingHourly['study'] ?? 0) + (sessionHourly['study'] ?? 0),
-          'pc': (existingHourly['pc'] ?? 0) + (sessionHourly['pc'] ?? 0),
-          'smartphone': (existingHourly['smartphone'] ?? 0) + (sessionHourly['smartphone'] ?? 0),
-          'personOnly': (existingHourly['personOnly'] ?? 0) + (sessionHourly['personOnly'] ?? 0),
-          'nothingDetected': (existingHourly['nothingDetected'] ?? 0) + (sessionHourly['nothingDetected'] ?? 0),
-        };
-      }
-      
-      // 円グラフデータを計算
-      final pieChartData = _calculatePieChartData(updatedCategorySeconds, includeAllCategories: true);
-      
-      final dailyStats = DailyStatistics(
-        id: id,
-        date: date,
-        categorySeconds: updatedCategorySeconds,
-        totalWorkTimeSeconds: updatedWorkSeconds,
-        pieChartData: pieChartData,
-        hourlyCategorySeconds: updatedHourlyCategorySeconds,
-        lastModified: DateTime.now(),
-      );
-      
-      await _dailyManager.saveOrUpdateWithAuth(dailyStats);
-      
-      LogMk.logDebug(
-        '✅ 日次統計を更新しました: $id',
-        tag: 'StatisticsAggregationService',
-      );
-    } catch (e, stackTrace) {
-      LogMk.logError(
-        '❌ 日次統計の更新に失敗しました: $e',
-        tag: 'StatisticsAggregationService',
-        stackTrace: stackTrace,
-      );
-      rethrow;
-    }
   }
 
   /// 週次データの集計・更新
@@ -598,52 +676,123 @@ class StatisticsAggregationService {
         );
       }
       
+      // セッション開始時の選択目標IDを取得（セッションに記録されたIDを使用）
+      // セッションに記録されていない場合は、現在のトラッキング設定から取得
+      String? selectedStudyGoalId;
+      String? selectedPcGoalId;
+      String? selectedSmartphoneGoalId;
+      
+      if (session.selectedGoalIds.isNotEmpty) {
+        // セッションに記録された選択目標IDを使用
+        selectedStudyGoalId = session.selectedGoalIds['study'];
+        selectedPcGoalId = session.selectedGoalIds['pc'];
+        selectedSmartphoneGoalId = session.selectedGoalIds['smartphone'];
+        
+        LogMk.logDebug(
+          '📋 セッションから選択目標IDを取得: study=$selectedStudyGoalId, pc=$selectedPcGoalId, smartphone=$selectedSmartphoneGoalId',
+          tag: 'StatisticsAggregationService',
+        );
+      } else {
+        // セッションに記録されていない場合は、現在のトラッキング設定から取得（後方互換性）
+        TrackingSettings? trackingSettings;
+        try {
+          final settingsList = await _trackingSettingsManager.getAllWithAuth();
+          trackingSettings = settingsList.isNotEmpty ? settingsList.first : null;
+          if (trackingSettings == null) {
+            // ローカルから取得を試みる
+            final localSettings = await _trackingSettingsManager.getLocalById('tracking_settings');
+            trackingSettings = localSettings;
+          }
+        } catch (e) {
+          LogMk.logWarning(
+            '⚠️ トラッキング設定の取得に失敗: $e',
+            tag: 'StatisticsAggregationService',
+          );
+        }
+        
+        selectedStudyGoalId = trackingSettings?.selectedStudyGoalId;
+        selectedPcGoalId = trackingSettings?.selectedPcGoalId;
+        selectedSmartphoneGoalId = trackingSettings?.selectedSmartphoneGoalId;
+      }
+      
       // セッション期間内の目標のみをフィルタリング
       final relevantGoals = goals.where((goal) {
-        final goalEndDate = goal.startDate.add(Duration(days: goal.durationDays));
+        final goalEndDate =
+            goal.periodEndDate ?? goal.startDate.add(Duration(days: goal.durationDays));
         return !session.startTime.isBefore(goal.startDate) &&
                !session.startTime.isAfter(goalEndDate);
       }).toList();
+      
+      LogMk.logDebug(
+        '📋 関連する目標: ${relevantGoals.length}件（全目標: ${goals.length}件）',
+        tag: 'StatisticsAggregationService',
+      );
       
       // バッチ更新用のリスト
       final goalsToUpdate = <Goal>[];
       
       for (final goal in relevantGoals) {
-        
-        // detectionItemに応じて時間を取得
+        // 選択された目標かどうかをチェック
+        bool isSelected = false;
         int categorySeconds = 0;
         String categoryKey = '';
         
         switch (goal.detectionItem) {
           case DetectionItem.book:
+            isSelected = goal.id == selectedStudyGoalId;
             categoryKey = 'study';
             categorySeconds = session.categorySeconds['study'] ?? 0;
+            LogMk.logDebug(
+              '🔍 目標チェック [study]: goal.id=${goal.id}, selectedStudyGoalId=$selectedStudyGoalId, isSelected=$isSelected, categorySeconds=$categorySeconds',
+              tag: 'StatisticsAggregationService',
+            );
             break;
           case DetectionItem.smartphone:
+            isSelected = goal.id == selectedSmartphoneGoalId;
             categoryKey = 'smartphone';
             categorySeconds = session.categorySeconds['smartphone'] ?? 0;
+            LogMk.logDebug(
+              '🔍 目標チェック [smartphone]: goal.id=${goal.id}, selectedSmartphoneGoalId=$selectedSmartphoneGoalId, isSelected=$isSelected, categorySeconds=$categorySeconds',
+              tag: 'StatisticsAggregationService',
+            );
             break;
           case DetectionItem.pc:
+            isSelected = goal.id == selectedPcGoalId;
             categoryKey = 'pc';
             categorySeconds = session.categorySeconds['pc'] ?? 0;
+            LogMk.logDebug(
+              '🔍 目標チェック [pc]: goal.id=${goal.id}, selectedPcGoalId=$selectedPcGoalId, isSelected=$isSelected, categorySeconds=$categorySeconds',
+              tag: 'StatisticsAggregationService',
+            );
             break;
         }
         
-        if (categorySeconds > 0) {
-          // achievedTimeは秒単位で保存・加算
+        // 選択された目標のみに時間を加算
+        if (isSelected && categorySeconds > 0) {
+          // achievedTime（累積）は秒単位で保存・加算
           final currentAchievedTime = goal.achievedTime ?? 0;
           final updatedAchievedTime = currentAchievedTime + categorySeconds;
+          
+          // todayAchievedTime（その日）も秒単位で保存・加算
+          final currentTodayAchievedTime = goal.todayAchievedTime ?? 0;
+          final updatedTodayAchievedTime = currentTodayAchievedTime + categorySeconds;
           
           // 目標を更新（copyWithで新しいGoalを作成）
           final updatedGoal = goal.copyWith(
             achievedTime: updatedAchievedTime,
+            todayAchievedTime: updatedTodayAchievedTime,
             lastModified: DateTime.now(),
           );
           
           goalsToUpdate.add(updatedGoal);
           
           LogMk.logDebug(
-            '📝 目標更新予約: ${goal.id} ($categoryKey: +$categorySeconds秒)',
+            '📝 目標更新予約: ${goal.id} ($categoryKey: +$categorySeconds秒) [選択済み]',
+            tag: 'StatisticsAggregationService',
+          );
+        } else if (!isSelected && categorySeconds > 0) {
+          LogMk.logDebug(
+            '⏭️ 目標スキップ: ${goal.id} ($categoryKey: +$categorySeconds秒) [未選択]',
             tag: 'StatisticsAggregationService',
           );
         }
@@ -651,22 +800,105 @@ class StatisticsAggregationService {
       
       // バッチ更新（パフォーマンス最適化）
       if (goalsToUpdate.isNotEmpty) {
-        await Future.wait(
-          goalsToUpdate.map((goal) => _goalManager.updateGoalWithAuth(goal)),
+        // Firestoreに更新（updateGoalWithRetryWithAuthを使用してリトライ機能付き）
+        // 各目標の更新結果を個別に確認
+        final updateResults = await Future.wait(
+          goalsToUpdate.map((goal) async {
+            try {
+              final success = await _goalManager.updateGoalWithRetryWithAuth(goal);
+              return {'goal': goal, 'success': success};
+            } catch (e, stackTrace) {
+              LogMk.logError(
+                '❌ 目標更新エラー: ${goal.id} (${goal.title}): $e',
+                tag: 'StatisticsAggregationService._updateGoalProgress',
+                stackTrace: stackTrace,
+              );
+              return {'goal': goal, 'success': false};
+            }
+          }),
         );
         
-        // キャッシュを更新
-        for (final updatedGoal in goalsToUpdate) {
-          final index = _cachedGoals!.indexWhere((g) => g.id == updatedGoal.id);
-          if (index != -1) {
-            _cachedGoals![index] = updatedGoal;
+        // 成功した目標と失敗した目標を分離
+        final successfulGoals = <Goal>[];
+        final failedGoals = <Goal>[];
+        
+        for (final result in updateResults) {
+          final goal = result['goal'] as Goal;
+          final success = result['success'] as bool;
+          if (success) {
+            successfulGoals.add(goal);
+          } else {
+            failedGoals.add(goal);
+            LogMk.logWarning(
+              '⚠️ 目標のFirestore更新に失敗（リトライキューに追加済み）: ${goal.id} (${goal.title})',
+              tag: 'StatisticsAggregationService._updateGoalProgress',
+            );
           }
         }
         
-        LogMk.logDebug(
-          '✅ 目標をバッチ更新しました: ${goalsToUpdate.length}件',
-          tag: 'StatisticsAggregationService',
-        );
+        // 成功した目標のみローカルデータを更新
+        if (successfulGoals.isNotEmpty) {
+          // 現在のローカル目標リストを取得
+          final localGoals = await _goalManager.getLocalGoals();
+          
+          // 成功した目標でローカルデータを更新
+          final updatedLocalGoals = localGoals.map((localGoal) {
+            final updatedGoal = successfulGoals.firstWhere(
+              (g) => g.id == localGoal.id,
+              orElse: () => localGoal,
+            );
+            return updatedGoal.id == localGoal.id ? updatedGoal : localGoal;
+          }).toList();
+          
+          // 新規追加された目標（ローカルに存在しない）を追加
+          for (final updatedGoal in successfulGoals) {
+            if (!updatedLocalGoals.any((g) => g.id == updatedGoal.id)) {
+              updatedLocalGoals.add(updatedGoal);
+            }
+          }
+          
+          // ローカルに保存
+          await _goalManager.saveLocalGoals(updatedLocalGoals);
+          
+          // キャッシュを更新（成功した目標のみ）
+          if (_cachedGoals != null) {
+            for (final updatedGoal in successfulGoals) {
+              final index = _cachedGoals!.indexWhere((g) => g.id == updatedGoal.id);
+              if (index != -1) {
+                _cachedGoals![index] = updatedGoal;
+              } else {
+                _cachedGoals!.add(updatedGoal);
+              }
+            }
+          }
+          
+          // Providerを更新（グローバルコンテナを使用）
+          final container = AppInitUN.getGlobalContainer();
+          if (container != null) {
+            try {
+              container.read(goalsListProvider.notifier).updateList(updatedLocalGoals);
+              LogMk.logDebug(
+                '✅ goalsListProviderを更新しました: ${updatedLocalGoals.length}件',
+                tag: 'StatisticsAggregationService',
+              );
+            } catch (e) {
+              LogMk.logWarning(
+                '⚠️ goalsListProviderの更新に失敗: $e',
+                tag: 'StatisticsAggregationService',
+              );
+            }
+          }
+          
+          LogMk.logDebug(
+            '✅ 目標をバッチ更新しました（成功: ${successfulGoals.length}件、失敗: ${failedGoals.length}件）',
+            tag: 'StatisticsAggregationService',
+          );
+        } else {
+          LogMk.logWarning(
+            '⚠️ すべての目標のFirestore更新に失敗しました（リトライキューに追加済み）: ${goalsToUpdate.length}件',
+            tag: 'StatisticsAggregationService',
+          );
+        }
       }
     } catch (e, stackTrace) {
       LogMk.logError(
@@ -695,21 +927,37 @@ class StatisticsAggregationService {
         lastModified: DateTime.now(),
       );
       
-      // ローカルに保存
+      // ローカルに保存（即座に完了）
       await _totalManager.updateLocalTotalData(updatedTotalData);
       
-      // Firestoreにも保存
-      try {
-        await _totalManager.manager.saveWithRetryAuth(updatedTotalData);
-      } catch (e) {
+      // Providerを更新（グローバルコンテナを使用）
+      final container = AppInitUN.getGlobalContainer();
+      if (container != null) {
+        try {
+          container.read(totalDataProvider.notifier).updateTotal(updatedTotalData);
+          LogMk.logDebug(
+            '✅ totalDataProviderを更新しました: ${updatedTotalData.totalWorkTimeMinutes}分',
+            tag: 'StatisticsAggregationService',
+          );
+        } catch (e) {
+          LogMk.logWarning(
+            '⚠️ totalDataProviderの更新に失敗: $e',
+            tag: 'StatisticsAggregationService',
+          );
+        }
+      }
+      
+      // Firestore保存はバックグラウンドで非同期実行
+      _totalManager.manager.saveWithRetryAuth(updatedTotalData).catchError((e) {
         LogMk.logWarning(
           '⚠️ Total TimeのFirestore保存に失敗しました: $e',
           tag: 'StatisticsAggregationService',
         );
-      }
+        return false;
+      });
       
       LogMk.logDebug(
-        '✅ Total Timeを更新しました: +$workMinutes分',
+        '✅ Total Timeを更新しました（ローカル + Provider）: +$workMinutes分',
         tag: 'StatisticsAggregationService',
       );
     } catch (e, stackTrace) {
@@ -719,6 +967,79 @@ class StatisticsAggregationService {
         stackTrace: stackTrace,
       );
       rethrow;
+    }
+  }
+
+  /// 総時間マイルストーンをチェック
+  /// 
+  /// 現在の総時間がマイルストーンを達成しているかチェックします。
+  /// 
+  /// **戻り値**: 達成したマイルストーン情報（達成していない場合はnull）
+  /// - `achievedMilestone`: 達成したマイルストーン（時間単位）
+  /// - `nextMilestone`: 次のマイルストーン（時間単位）
+  /// - `totalHours`: 現在の総時間（時間単位）
+  Future<Map<String, int>?> checkTotalHoursMilestone() async {
+    try {
+      final totalData = await _totalManager.getTotalDataOrDefault();
+      final totalHours = totalData.totalWorkTimeMinutes ~/ 60;
+      
+      return await checkTotalHoursMilestoneWithCache(totalHours);
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        '❌ 総時間マイルストーンチェックエラー: $e',
+        tag: 'StatisticsAggregationService',
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+  }
+
+  /// 総時間マイルストーンをチェック（キャッシュされた値を使用）
+  /// 
+  /// キャッシュされた総時間を使用してマイルストーンをチェックします。
+  /// 
+  /// **パラメータ**:
+  /// - `totalHours`: キャッシュされた総時間（時間単位）
+  /// 
+  /// **戻り値**: 達成したマイルストーン情報（達成していない場合はnull）
+  Future<Map<String, int>?> checkTotalHoursMilestoneWithCache(int totalHours) async {
+    try {
+      LogMk.logDebug(
+        '🔍 総時間マイルストーンチェック開始: 総時間=${totalHours}時間',
+        tag: 'StatisticsAggregationService',
+      );
+      
+      // 達成したマイルストーンをチェック
+      final achievedMilestone = await _milestoneManager.checkMilestone(totalHours);
+      
+      if (achievedMilestone == null) {
+        LogMk.logDebug(
+          'ℹ️ マイルストーン未達成: 総時間=${totalHours}時間',
+          tag: 'StatisticsAggregationService',
+        );
+        return null;
+      }
+      
+      // 次のマイルストーンを取得
+      final nextMilestone = await _milestoneManager.getNextMilestone(totalHours);
+      
+      LogMk.logDebug(
+        '🎉 マイルストーン達成: $achievedMilestone時間, 次のマイルストーン: ${nextMilestone ?? "なし"}',
+        tag: 'StatisticsAggregationService',
+      );
+      
+      return {
+        'achievedMilestone': achievedMilestone,
+        'nextMilestone': nextMilestone ?? 0,
+        'totalHours': totalHours,
+      };
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        '❌ 総時間マイルストーンチェックエラー: $e',
+        tag: 'StatisticsAggregationService',
+        stackTrace: stackTrace,
+      );
+      return null;
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
@@ -74,17 +75,41 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
         final result = await AuthServiceUN.signInWithGoogle();
 
         if (result.success && mounted) {
-          // 認証成功後にデータ読み込みを実行
+          // 認証成功後にデータ読み込みを実行（main.dartと同じ処理）
           try {
-            debugPrint('🔄 [認証成功] Firestoreからデータを読み込み開始');
-            await AppInitUN.loadAllData();
-            debugPrint('✅ [認証成功] データ読み込み完了');
-          } catch (e) {
+            debugPrint('🔄 [認証成功] アプリ初期化開始');
+            // AppContextを初期化
+            await AppInitUN.initialize();
+            debugPrint('✅ [認証成功] AppContext初期化完了');
+            
+            // 優先度1のデータを取得（カウントダウン、ストリーク、ゴール、トータル、トラッキング）
+            debugPrint('🔄 [認証成功] loadCriticalData開始');
+            try {
+              await AppInitUN.loadCriticalData().timeout(
+                const Duration(seconds: 30),
+                onTimeout: () {
+                  debugPrint('⚠️ [認証成功] loadCriticalData全体タイムアウト（30秒）');
+                  // タイムアウト時は例外を投げて、完了した処理の結果は保持する
+                  throw TimeoutException('loadCriticalDataがタイムアウトしました', const Duration(seconds: 30));
+                },
+              );
+              debugPrint('✅ [認証成功] データ読み込み完了');
+            } on TimeoutException catch (e) {
+              debugPrint('⚠️ [認証成功] loadCriticalDataタイムアウト: $e');
+              debugPrint('   一部のデータ読み込みが完了していない可能性がありますが、続行します');
+              // タイムアウトしても続行（完了した処理の結果は保持されている）
+            }
+          } catch (e, stackTrace) {
             debugPrint('⚠️ [認証成功] データ読み込みエラー: $e');
+            debugPrint('   - スタックトレース: $stackTrace');
             // エラーが発生してもホーム画面に遷移
           }
 
-          NavigationHelper.pushReplacement(context, AppRoutes.home);
+          // ホーム画面に遷移（全画面をクリア）
+          await NavigationHelper.pushAndRemoveUntil(
+            context,
+            AppRoutes.home,
+          );
         } else if (mounted) {
           showErrorSnackBar(context, result.message);
         }

@@ -19,6 +19,8 @@ abstract class AccountSettings with _$AccountSettings {
     required String accountName,
     /// アバターの色（'blue', 'red', 'green', 'purple', 'orange', 'pink'）
     required String avatarColor,
+    /// メールアドレス（後方互換性のためnullable）
+    String? email,
     /// 最終更新日時
     required DateTime lastModified,
   }) = _AccountSettings;
@@ -28,6 +30,7 @@ abstract class AccountSettings with _$AccountSettings {
         id: 'account_settings',
         accountName: 'ユーザー',
         avatarColor: 'blue',
+        email: null,
         lastModified: DateTime.now(),
       );
 
@@ -47,6 +50,7 @@ abstract class AccountSettings with _$AccountSettings {
         id: json['id'] as String? ?? 'account_settings',
         accountName: json['accountName'] as String? ?? 'ユーザー',
         avatarColor: json['avatarColor'] as String? ?? 'blue',
+        email: json['email'] as String?,
         lastModified: json['lastModified'] != null
             ? (json['lastModified'] is String
                 ? DateTime.tryParse(json['lastModified'] as String) ?? DateTime.now()
@@ -62,18 +66,24 @@ abstract class AccountSettings with _$AccountSettings {
       id: data['id'] as String? ?? 'account_settings',
       accountName: data['accountName'] as String? ?? 'ユーザー',
       avatarColor: data['avatarColor'] as String? ?? 'blue',
+      email: data['email'] as String?,
       lastModified: (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
   /// Firestore形式に変換
   Map<String, dynamic> toFirestore() {
-    return {
+    final map = <String, dynamic>{
       'id': id,
       'accountName': accountName,
       'avatarColor': avatarColor,
       'lastModified': Timestamp.fromDate(lastModified),
     };
+    // emailがnullでない場合のみ追加（後方互換性のため）
+    if (email != null) {
+      map['email'] = email!;
+    }
+    return map;
   }
 }
 
@@ -408,6 +418,72 @@ abstract class TrackingSettings with _$TrackingSettings {
       'selectedStudyGoalId': selectedStudyGoalId,
       'selectedPcGoalId': selectedPcGoalId,
       'selectedSmartphoneGoalId': selectedSmartphoneGoalId,
+      'lastModified': Timestamp.fromDate(lastModified),
+    };
+  }
+}
+
+/// 目標メモモデル
+/// 
+/// ユーザーが自分を鼓舞するための目標メモを管理します。
+@freezed
+abstract class GoalMemo with _$GoalMemo {
+  const GoalMemo._();
+
+  const factory GoalMemo({
+    /// 固定ID（'goal_memo'）
+    required String id,
+    /// メモの内容
+    required String content,
+    /// 最終更新日時
+    required DateTime lastModified,
+  }) = _GoalMemo;
+
+  /// デフォルト値を持つコンストラクタ
+  factory GoalMemo.defaultMemo() => GoalMemo(
+        id: 'goal_memo',
+        content: '',
+        lastModified: DateTime.now(),
+      );
+
+  /// JSON形式から生成
+  factory GoalMemo.fromJson(Map<String, dynamic> json) =>
+      _$GoalMemoFromJson(json);
+
+  /// JSON形式から生成（null安全版）
+  /// 
+  /// null値が含まれている場合でもデフォルト値で補完して生成します。
+  factory GoalMemo.fromJsonSafe(Map<String, dynamic> json) {
+    try {
+      return GoalMemo.fromJson(json);
+    } catch (e) {
+      // null値が含まれている場合はデフォルト値で補完
+      return GoalMemo(
+        id: json['id'] as String? ?? 'goal_memo',
+        content: json['content'] as String? ?? '',
+        lastModified: json['lastModified'] != null
+            ? (json['lastModified'] is String
+                ? DateTime.tryParse(json['lastModified'] as String) ?? DateTime.now()
+                : DateTime.now())
+            : DateTime.now(),
+      );
+    }
+  }
+
+  /// Firestoreデータから生成
+  factory GoalMemo.fromFirestore(Map<String, dynamic> data) {
+    return GoalMemo(
+      id: data['id'] as String? ?? 'goal_memo',
+      content: data['content'] as String? ?? '',
+      lastModified: (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
+    );
+  }
+
+  /// Firestore形式に変換
+  Map<String, dynamic> toFirestore() {
+    return {
+      'id': id,
+      'content': content,
       'lastModified': Timestamp.fromDate(lastModified),
     };
   }

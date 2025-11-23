@@ -300,7 +300,8 @@ mixin _$TrackingSession {
  DateTime get startTime;/// セッション終了時刻
  DateTime get endTime;/// カテゴリ別の時間（秒単位）
  Map<String, int> get categorySeconds;/// 検出期間のリスト（時系列データ）
- List<DetectionPeriod> get detectionPeriods;/// 最終更新日時
+ List<DetectionPeriod> get detectionPeriods;/// セッション開始時の選択された目標ID（study/pc/smartphone）
+ Map<String, String?> get selectedGoalIds;/// 最終更新日時
  DateTime get lastModified;
 /// Create a copy of TrackingSession
 /// with the given fields replaced by the non-null parameter values.
@@ -314,16 +315,16 @@ $TrackingSessionCopyWith<TrackingSession> get copyWith => _$TrackingSessionCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is TrackingSession&&(identical(other.id, id) || other.id == id)&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&const DeepCollectionEquality().equals(other.categorySeconds, categorySeconds)&&const DeepCollectionEquality().equals(other.detectionPeriods, detectionPeriods)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is TrackingSession&&(identical(other.id, id) || other.id == id)&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&const DeepCollectionEquality().equals(other.categorySeconds, categorySeconds)&&const DeepCollectionEquality().equals(other.detectionPeriods, detectionPeriods)&&const DeepCollectionEquality().equals(other.selectedGoalIds, selectedGoalIds)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,startTime,endTime,const DeepCollectionEquality().hash(categorySeconds),const DeepCollectionEquality().hash(detectionPeriods),lastModified);
+int get hashCode => Object.hash(runtimeType,id,startTime,endTime,const DeepCollectionEquality().hash(categorySeconds),const DeepCollectionEquality().hash(detectionPeriods),const DeepCollectionEquality().hash(selectedGoalIds),lastModified);
 
 @override
 String toString() {
-  return 'TrackingSession(id: $id, startTime: $startTime, endTime: $endTime, categorySeconds: $categorySeconds, detectionPeriods: $detectionPeriods, lastModified: $lastModified)';
+  return 'TrackingSession(id: $id, startTime: $startTime, endTime: $endTime, categorySeconds: $categorySeconds, detectionPeriods: $detectionPeriods, selectedGoalIds: $selectedGoalIds, lastModified: $lastModified)';
 }
 
 
@@ -334,7 +335,7 @@ abstract mixin class $TrackingSessionCopyWith<$Res>  {
   factory $TrackingSessionCopyWith(TrackingSession value, $Res Function(TrackingSession) _then) = _$TrackingSessionCopyWithImpl;
 @useResult
 $Res call({
- String id, DateTime startTime, DateTime endTime, Map<String, int> categorySeconds, List<DetectionPeriod> detectionPeriods, DateTime lastModified
+ String id, DateTime startTime, DateTime endTime, Map<String, int> categorySeconds, List<DetectionPeriod> detectionPeriods, Map<String, String?> selectedGoalIds, DateTime lastModified
 });
 
 
@@ -351,14 +352,15 @@ class _$TrackingSessionCopyWithImpl<$Res>
 
 /// Create a copy of TrackingSession
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? startTime = null,Object? endTime = null,Object? categorySeconds = null,Object? detectionPeriods = null,Object? lastModified = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? startTime = null,Object? endTime = null,Object? categorySeconds = null,Object? detectionPeriods = null,Object? selectedGoalIds = null,Object? lastModified = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,startTime: null == startTime ? _self.startTime : startTime // ignore: cast_nullable_to_non_nullable
 as DateTime,endTime: null == endTime ? _self.endTime : endTime // ignore: cast_nullable_to_non_nullable
 as DateTime,categorySeconds: null == categorySeconds ? _self.categorySeconds : categorySeconds // ignore: cast_nullable_to_non_nullable
 as Map<String, int>,detectionPeriods: null == detectionPeriods ? _self.detectionPeriods : detectionPeriods // ignore: cast_nullable_to_non_nullable
-as List<DetectionPeriod>,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as List<DetectionPeriod>,selectedGoalIds: null == selectedGoalIds ? _self.selectedGoalIds : selectedGoalIds // ignore: cast_nullable_to_non_nullable
+as Map<String, String?>,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }
@@ -444,10 +446,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  DateTime startTime,  DateTime endTime,  Map<String, int> categorySeconds,  List<DetectionPeriod> detectionPeriods,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  DateTime startTime,  DateTime endTime,  Map<String, int> categorySeconds,  List<DetectionPeriod> detectionPeriods,  Map<String, String?> selectedGoalIds,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _TrackingSession() when $default != null:
-return $default(_that.id,_that.startTime,_that.endTime,_that.categorySeconds,_that.detectionPeriods,_that.lastModified);case _:
+return $default(_that.id,_that.startTime,_that.endTime,_that.categorySeconds,_that.detectionPeriods,_that.selectedGoalIds,_that.lastModified);case _:
   return orElse();
 
 }
@@ -465,10 +467,10 @@ return $default(_that.id,_that.startTime,_that.endTime,_that.categorySeconds,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  DateTime startTime,  DateTime endTime,  Map<String, int> categorySeconds,  List<DetectionPeriod> detectionPeriods,  DateTime lastModified)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  DateTime startTime,  DateTime endTime,  Map<String, int> categorySeconds,  List<DetectionPeriod> detectionPeriods,  Map<String, String?> selectedGoalIds,  DateTime lastModified)  $default,) {final _that = this;
 switch (_that) {
 case _TrackingSession():
-return $default(_that.id,_that.startTime,_that.endTime,_that.categorySeconds,_that.detectionPeriods,_that.lastModified);case _:
+return $default(_that.id,_that.startTime,_that.endTime,_that.categorySeconds,_that.detectionPeriods,_that.selectedGoalIds,_that.lastModified);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -485,10 +487,10 @@ return $default(_that.id,_that.startTime,_that.endTime,_that.categorySeconds,_th
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  DateTime startTime,  DateTime endTime,  Map<String, int> categorySeconds,  List<DetectionPeriod> detectionPeriods,  DateTime lastModified)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  DateTime startTime,  DateTime endTime,  Map<String, int> categorySeconds,  List<DetectionPeriod> detectionPeriods,  Map<String, String?> selectedGoalIds,  DateTime lastModified)?  $default,) {final _that = this;
 switch (_that) {
 case _TrackingSession() when $default != null:
-return $default(_that.id,_that.startTime,_that.endTime,_that.categorySeconds,_that.detectionPeriods,_that.lastModified);case _:
+return $default(_that.id,_that.startTime,_that.endTime,_that.categorySeconds,_that.detectionPeriods,_that.selectedGoalIds,_that.lastModified);case _:
   return null;
 
 }
@@ -500,7 +502,7 @@ return $default(_that.id,_that.startTime,_that.endTime,_that.categorySeconds,_th
 @JsonSerializable()
 
 class _TrackingSession extends TrackingSession {
-  const _TrackingSession({required this.id, required this.startTime, required this.endTime, required final  Map<String, int> categorySeconds, final  List<DetectionPeriod> detectionPeriods = const [], required this.lastModified}): _categorySeconds = categorySeconds,_detectionPeriods = detectionPeriods,super._();
+  const _TrackingSession({required this.id, required this.startTime, required this.endTime, required final  Map<String, int> categorySeconds, final  List<DetectionPeriod> detectionPeriods = const [], final  Map<String, String?> selectedGoalIds = const {}, required this.lastModified}): _categorySeconds = categorySeconds,_detectionPeriods = detectionPeriods,_selectedGoalIds = selectedGoalIds,super._();
   factory _TrackingSession.fromJson(Map<String, dynamic> json) => _$TrackingSessionFromJson(json);
 
 /// セッションID（自動生成）
@@ -527,6 +529,15 @@ class _TrackingSession extends TrackingSession {
   return EqualUnmodifiableListView(_detectionPeriods);
 }
 
+/// セッション開始時の選択された目標ID（study/pc/smartphone）
+ final  Map<String, String?> _selectedGoalIds;
+/// セッション開始時の選択された目標ID（study/pc/smartphone）
+@override@JsonKey() Map<String, String?> get selectedGoalIds {
+  if (_selectedGoalIds is EqualUnmodifiableMapView) return _selectedGoalIds;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_selectedGoalIds);
+}
+
 /// 最終更新日時
 @override final  DateTime lastModified;
 
@@ -543,16 +554,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TrackingSession&&(identical(other.id, id) || other.id == id)&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&const DeepCollectionEquality().equals(other._categorySeconds, _categorySeconds)&&const DeepCollectionEquality().equals(other._detectionPeriods, _detectionPeriods)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _TrackingSession&&(identical(other.id, id) || other.id == id)&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&const DeepCollectionEquality().equals(other._categorySeconds, _categorySeconds)&&const DeepCollectionEquality().equals(other._detectionPeriods, _detectionPeriods)&&const DeepCollectionEquality().equals(other._selectedGoalIds, _selectedGoalIds)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,startTime,endTime,const DeepCollectionEquality().hash(_categorySeconds),const DeepCollectionEquality().hash(_detectionPeriods),lastModified);
+int get hashCode => Object.hash(runtimeType,id,startTime,endTime,const DeepCollectionEquality().hash(_categorySeconds),const DeepCollectionEquality().hash(_detectionPeriods),const DeepCollectionEquality().hash(_selectedGoalIds),lastModified);
 
 @override
 String toString() {
-  return 'TrackingSession(id: $id, startTime: $startTime, endTime: $endTime, categorySeconds: $categorySeconds, detectionPeriods: $detectionPeriods, lastModified: $lastModified)';
+  return 'TrackingSession(id: $id, startTime: $startTime, endTime: $endTime, categorySeconds: $categorySeconds, detectionPeriods: $detectionPeriods, selectedGoalIds: $selectedGoalIds, lastModified: $lastModified)';
 }
 
 
@@ -563,7 +574,7 @@ abstract mixin class _$TrackingSessionCopyWith<$Res> implements $TrackingSession
   factory _$TrackingSessionCopyWith(_TrackingSession value, $Res Function(_TrackingSession) _then) = __$TrackingSessionCopyWithImpl;
 @override @useResult
 $Res call({
- String id, DateTime startTime, DateTime endTime, Map<String, int> categorySeconds, List<DetectionPeriod> detectionPeriods, DateTime lastModified
+ String id, DateTime startTime, DateTime endTime, Map<String, int> categorySeconds, List<DetectionPeriod> detectionPeriods, Map<String, String?> selectedGoalIds, DateTime lastModified
 });
 
 
@@ -580,14 +591,15 @@ class __$TrackingSessionCopyWithImpl<$Res>
 
 /// Create a copy of TrackingSession
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? startTime = null,Object? endTime = null,Object? categorySeconds = null,Object? detectionPeriods = null,Object? lastModified = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? startTime = null,Object? endTime = null,Object? categorySeconds = null,Object? detectionPeriods = null,Object? selectedGoalIds = null,Object? lastModified = null,}) {
   return _then(_TrackingSession(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,startTime: null == startTime ? _self.startTime : startTime // ignore: cast_nullable_to_non_nullable
 as DateTime,endTime: null == endTime ? _self.endTime : endTime // ignore: cast_nullable_to_non_nullable
 as DateTime,categorySeconds: null == categorySeconds ? _self._categorySeconds : categorySeconds // ignore: cast_nullable_to_non_nullable
 as Map<String, int>,detectionPeriods: null == detectionPeriods ? _self._detectionPeriods : detectionPeriods // ignore: cast_nullable_to_non_nullable
-as List<DetectionPeriod>,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
+as List<DetectionPeriod>,selectedGoalIds: null == selectedGoalIds ? _self._selectedGoalIds : selectedGoalIds // ignore: cast_nullable_to_non_nullable
+as Map<String, String?>,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
 }

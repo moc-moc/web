@@ -27,6 +27,9 @@ abstract class SessionInfo with _$SessionInfo {
     /// 検出期間のリスト（時系列データ）
     @Default([]) List<DetectionPeriod> detectionPeriods,
     
+    /// セッション開始時の選択された目標ID（study/pc/smartphone）
+    @Default({}) Map<String, String?> selectedGoalIds,
+    
     /// 最終更新日時
     required DateTime lastModified,
   }) = _SessionInfo;
@@ -39,17 +42,35 @@ abstract class SessionInfo with _$SessionInfo {
       _$SessionInfoFromJson(json);
 
   /// FirestoreデータからSessionInfoを生成
+  /// 
+  /// Timestamp型と文字列形式（ISO8601）の両方の日時形式に対応しています。
   factory SessionInfo.fromFirestore(Map<String, dynamic> data) {
+    // 日時フィールドの変換ヘルパー関数
+    DateTime _parseDateTime(dynamic value) {
+      if (value is Timestamp) {
+        return value.toDate();
+      } else if (value is String) {
+        return DateTime.parse(value);
+      } else if (value is DateTime) {
+        return value;
+      } else {
+        throw FormatException('日時形式が不正です: $value');
+      }
+    }
+
     return SessionInfo(
       id: data['id'] as String,
-      startTime: (data['startTime'] as Timestamp).toDate(),
-      endTime: (data['endTime'] as Timestamp).toDate(),
+      startTime: _parseDateTime(data['startTime']),
+      endTime: _parseDateTime(data['endTime']),
       categorySeconds: Map<String, int>.from(data['categorySeconds'] as Map),
       detectionPeriods: (data['detectionPeriods'] as List<dynamic>?)
               ?.map((e) => DetectionPeriod.fromFirestore(e as Map<String, dynamic>))
               .toList() ??
           [],
-      lastModified: (data['lastModified'] as Timestamp).toDate(),
+      selectedGoalIds: data['selectedGoalIds'] != null
+          ? Map<String, String?>.from(data['selectedGoalIds'] as Map)
+          : {},
+      lastModified: _parseDateTime(data['lastModified']),
     );
   }
 
@@ -61,6 +82,7 @@ abstract class SessionInfo with _$SessionInfo {
       'endTime': Timestamp.fromDate(endTime),
       'categorySeconds': categorySeconds,
       'detectionPeriods': detectionPeriods.map((e) => e.toFirestore()).toList(),
+      'selectedGoalIds': selectedGoalIds,
       'lastModified': Timestamp.fromDate(lastModified),
     };
   }
@@ -73,6 +95,7 @@ abstract class SessionInfo with _$SessionInfo {
       endTime: session.endTime,
       categorySeconds: Map<String, int>.from(session.categorySeconds),
       detectionPeriods: List<DetectionPeriod>.from(session.detectionPeriods),
+      selectedGoalIds: Map<String, String?>.from(session.selectedGoalIds),
       lastModified: session.lastModified,
     );
   }

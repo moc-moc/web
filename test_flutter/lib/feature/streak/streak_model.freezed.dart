@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$StreakData {
 
- String get id; int get currentStreak; int get longestStreak; DateTime get lastTrackedDate; DateTime get lastModified;
+ String get id; int get currentStreak; int get longestStreak; DateTime get lastTrackedDate; DateTime get lastModified; List<int> get milestoneList; int? get lastAchievedMilestone;
 /// Create a copy of StreakData
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $StreakDataCopyWith<StreakData> get copyWith => _$StreakDataCopyWithImpl<StreakD
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is StreakData&&(identical(other.id, id) || other.id == id)&&(identical(other.currentStreak, currentStreak) || other.currentStreak == currentStreak)&&(identical(other.longestStreak, longestStreak) || other.longestStreak == longestStreak)&&(identical(other.lastTrackedDate, lastTrackedDate) || other.lastTrackedDate == lastTrackedDate)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is StreakData&&(identical(other.id, id) || other.id == id)&&(identical(other.currentStreak, currentStreak) || other.currentStreak == currentStreak)&&(identical(other.longestStreak, longestStreak) || other.longestStreak == longestStreak)&&(identical(other.lastTrackedDate, lastTrackedDate) || other.lastTrackedDate == lastTrackedDate)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified)&&const DeepCollectionEquality().equals(other.milestoneList, milestoneList)&&(identical(other.lastAchievedMilestone, lastAchievedMilestone) || other.lastAchievedMilestone == lastAchievedMilestone));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,currentStreak,longestStreak,lastTrackedDate,lastModified);
+int get hashCode => Object.hash(runtimeType,id,currentStreak,longestStreak,lastTrackedDate,lastModified,const DeepCollectionEquality().hash(milestoneList),lastAchievedMilestone);
 
 @override
 String toString() {
-  return 'StreakData(id: $id, currentStreak: $currentStreak, longestStreak: $longestStreak, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified)';
+  return 'StreakData(id: $id, currentStreak: $currentStreak, longestStreak: $longestStreak, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified, milestoneList: $milestoneList, lastAchievedMilestone: $lastAchievedMilestone)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $StreakDataCopyWith<$Res>  {
   factory $StreakDataCopyWith(StreakData value, $Res Function(StreakData) _then) = _$StreakDataCopyWithImpl;
 @useResult
 $Res call({
- String id, int currentStreak, int longestStreak, DateTime lastTrackedDate, DateTime lastModified
+ String id, int currentStreak, int longestStreak, DateTime lastTrackedDate, DateTime lastModified, List<int> milestoneList, int? lastAchievedMilestone
 });
 
 
@@ -65,14 +65,16 @@ class _$StreakDataCopyWithImpl<$Res>
 
 /// Create a copy of StreakData
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? currentStreak = null,Object? longestStreak = null,Object? lastTrackedDate = null,Object? lastModified = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? currentStreak = null,Object? longestStreak = null,Object? lastTrackedDate = null,Object? lastModified = null,Object? milestoneList = null,Object? lastAchievedMilestone = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,currentStreak: null == currentStreak ? _self.currentStreak : currentStreak // ignore: cast_nullable_to_non_nullable
 as int,longestStreak: null == longestStreak ? _self.longestStreak : longestStreak // ignore: cast_nullable_to_non_nullable
 as int,lastTrackedDate: null == lastTrackedDate ? _self.lastTrackedDate : lastTrackedDate // ignore: cast_nullable_to_non_nullable
 as DateTime,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as DateTime,milestoneList: null == milestoneList ? _self.milestoneList : milestoneList // ignore: cast_nullable_to_non_nullable
+as List<int>,lastAchievedMilestone: freezed == lastAchievedMilestone ? _self.lastAchievedMilestone : lastAchievedMilestone // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 
@@ -157,10 +159,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  int currentStreak,  int longestStreak,  DateTime lastTrackedDate,  DateTime lastModified)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  int currentStreak,  int longestStreak,  DateTime lastTrackedDate,  DateTime lastModified,  List<int> milestoneList,  int? lastAchievedMilestone)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _StreakData() when $default != null:
-return $default(_that.id,_that.currentStreak,_that.longestStreak,_that.lastTrackedDate,_that.lastModified);case _:
+return $default(_that.id,_that.currentStreak,_that.longestStreak,_that.lastTrackedDate,_that.lastModified,_that.milestoneList,_that.lastAchievedMilestone);case _:
   return orElse();
 
 }
@@ -178,10 +180,10 @@ return $default(_that.id,_that.currentStreak,_that.longestStreak,_that.lastTrack
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  int currentStreak,  int longestStreak,  DateTime lastTrackedDate,  DateTime lastModified)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  int currentStreak,  int longestStreak,  DateTime lastTrackedDate,  DateTime lastModified,  List<int> milestoneList,  int? lastAchievedMilestone)  $default,) {final _that = this;
 switch (_that) {
 case _StreakData():
-return $default(_that.id,_that.currentStreak,_that.longestStreak,_that.lastTrackedDate,_that.lastModified);case _:
+return $default(_that.id,_that.currentStreak,_that.longestStreak,_that.lastTrackedDate,_that.lastModified,_that.milestoneList,_that.lastAchievedMilestone);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -198,10 +200,10 @@ return $default(_that.id,_that.currentStreak,_that.longestStreak,_that.lastTrack
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  int currentStreak,  int longestStreak,  DateTime lastTrackedDate,  DateTime lastModified)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  int currentStreak,  int longestStreak,  DateTime lastTrackedDate,  DateTime lastModified,  List<int> milestoneList,  int? lastAchievedMilestone)?  $default,) {final _that = this;
 switch (_that) {
 case _StreakData() when $default != null:
-return $default(_that.id,_that.currentStreak,_that.longestStreak,_that.lastTrackedDate,_that.lastModified);case _:
+return $default(_that.id,_that.currentStreak,_that.longestStreak,_that.lastTrackedDate,_that.lastModified,_that.milestoneList,_that.lastAchievedMilestone);case _:
   return null;
 
 }
@@ -213,7 +215,7 @@ return $default(_that.id,_that.currentStreak,_that.longestStreak,_that.lastTrack
 @JsonSerializable()
 
 class _StreakData implements StreakData {
-  const _StreakData({required this.id, required this.currentStreak, required this.longestStreak, required this.lastTrackedDate, required this.lastModified});
+  const _StreakData({required this.id, required this.currentStreak, required this.longestStreak, required this.lastTrackedDate, required this.lastModified, final  List<int> milestoneList = const [], this.lastAchievedMilestone}): _milestoneList = milestoneList;
   factory _StreakData.fromJson(Map<String, dynamic> json) => _$StreakDataFromJson(json);
 
 @override final  String id;
@@ -221,6 +223,14 @@ class _StreakData implements StreakData {
 @override final  int longestStreak;
 @override final  DateTime lastTrackedDate;
 @override final  DateTime lastModified;
+ final  List<int> _milestoneList;
+@override@JsonKey() List<int> get milestoneList {
+  if (_milestoneList is EqualUnmodifiableListView) return _milestoneList;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_milestoneList);
+}
+
+@override final  int? lastAchievedMilestone;
 
 /// Create a copy of StreakData
 /// with the given fields replaced by the non-null parameter values.
@@ -235,16 +245,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _StreakData&&(identical(other.id, id) || other.id == id)&&(identical(other.currentStreak, currentStreak) || other.currentStreak == currentStreak)&&(identical(other.longestStreak, longestStreak) || other.longestStreak == longestStreak)&&(identical(other.lastTrackedDate, lastTrackedDate) || other.lastTrackedDate == lastTrackedDate)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _StreakData&&(identical(other.id, id) || other.id == id)&&(identical(other.currentStreak, currentStreak) || other.currentStreak == currentStreak)&&(identical(other.longestStreak, longestStreak) || other.longestStreak == longestStreak)&&(identical(other.lastTrackedDate, lastTrackedDate) || other.lastTrackedDate == lastTrackedDate)&&(identical(other.lastModified, lastModified) || other.lastModified == lastModified)&&const DeepCollectionEquality().equals(other._milestoneList, _milestoneList)&&(identical(other.lastAchievedMilestone, lastAchievedMilestone) || other.lastAchievedMilestone == lastAchievedMilestone));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,currentStreak,longestStreak,lastTrackedDate,lastModified);
+int get hashCode => Object.hash(runtimeType,id,currentStreak,longestStreak,lastTrackedDate,lastModified,const DeepCollectionEquality().hash(_milestoneList),lastAchievedMilestone);
 
 @override
 String toString() {
-  return 'StreakData(id: $id, currentStreak: $currentStreak, longestStreak: $longestStreak, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified)';
+  return 'StreakData(id: $id, currentStreak: $currentStreak, longestStreak: $longestStreak, lastTrackedDate: $lastTrackedDate, lastModified: $lastModified, milestoneList: $milestoneList, lastAchievedMilestone: $lastAchievedMilestone)';
 }
 
 
@@ -255,7 +265,7 @@ abstract mixin class _$StreakDataCopyWith<$Res> implements $StreakDataCopyWith<$
   factory _$StreakDataCopyWith(_StreakData value, $Res Function(_StreakData) _then) = __$StreakDataCopyWithImpl;
 @override @useResult
 $Res call({
- String id, int currentStreak, int longestStreak, DateTime lastTrackedDate, DateTime lastModified
+ String id, int currentStreak, int longestStreak, DateTime lastTrackedDate, DateTime lastModified, List<int> milestoneList, int? lastAchievedMilestone
 });
 
 
@@ -272,14 +282,16 @@ class __$StreakDataCopyWithImpl<$Res>
 
 /// Create a copy of StreakData
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? currentStreak = null,Object? longestStreak = null,Object? lastTrackedDate = null,Object? lastModified = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? currentStreak = null,Object? longestStreak = null,Object? lastTrackedDate = null,Object? lastModified = null,Object? milestoneList = null,Object? lastAchievedMilestone = freezed,}) {
   return _then(_StreakData(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,currentStreak: null == currentStreak ? _self.currentStreak : currentStreak // ignore: cast_nullable_to_non_nullable
 as int,longestStreak: null == longestStreak ? _self.longestStreak : longestStreak // ignore: cast_nullable_to_non_nullable
 as int,lastTrackedDate: null == lastTrackedDate ? _self.lastTrackedDate : lastTrackedDate // ignore: cast_nullable_to_non_nullable
 as DateTime,lastModified: null == lastModified ? _self.lastModified : lastModified // ignore: cast_nullable_to_non_nullable
-as DateTime,
+as DateTime,milestoneList: null == milestoneList ? _self._milestoneList : milestoneList // ignore: cast_nullable_to_non_nullable
+as List<int>,lastAchievedMilestone: freezed == lastAchievedMilestone ? _self.lastAchievedMilestone : lastAchievedMilestone // ignore: cast_nullable_to_non_nullable
+as int?,
   ));
 }
 

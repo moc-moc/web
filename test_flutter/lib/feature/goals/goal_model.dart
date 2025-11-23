@@ -38,9 +38,14 @@ abstract class Goal with _$Goal {
     required DetectionItem detectionItem,
     required DateTime startDate,
     required int durationDays,
+    DateTime? periodEndDate, // 期間終了日
     @Default(0) int targetSecondsPerDay,
     @Default(0) int consecutiveAchievements,
+    @Default(0) int consecutivePeriodAchievements, // 期間内に連続で目標を達成した回数
     int? achievedTime,
+    int? todayAchievedTime, // その日の達成時間（秒単位、1日ごとにリセット）
+    DateTime? lastResetDate, // 最後にリセットされた日付
+    DateTime? lastAchievedEventShownAt, // 最後に目標達成イベントが表示された日時
     @Default(false) bool isDeleted,
     required DateTime lastModified,
   }) = _Goal;

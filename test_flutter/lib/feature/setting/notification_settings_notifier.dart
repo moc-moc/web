@@ -40,6 +40,7 @@ class NotificationSettingsNotifier extends _$NotificationSettingsNotifier {
 /// **戻り値**: 読み込んだ通知設定（ローカルまたはデフォルト値）
 Future<NotificationSettings> loadNotificationSettingsWithBackgroundRefreshHelper(dynamic ref) async {
   final dummyManager = Object(); // マネージャーは使用しないためダミー
+  final notificationNotifier = ref.read(notificationSettingsProvider.notifier);
 
   return await loadSingleDataWithBackgroundRefreshHelper<NotificationSettings>(
     ref: ref,
@@ -71,7 +72,7 @@ Future<NotificationSettings> loadNotificationSettingsWithBackgroundRefreshHelper
         await notificationSettingsManager.updateLocal(settings);
       }
     },
-    updateProvider: (settings) => ref.read(notificationSettingsProvider.notifier).updateSettings(settings),
+    updateProvider: notificationNotifier.updateSettings,
     functionName: 'loadNotificationSettingsWithBackgroundRefreshHelper',
   );
 }
@@ -79,40 +80,28 @@ Future<NotificationSettings> loadNotificationSettingsWithBackgroundRefreshHelper
 /// 通知設定を同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、Providerを更新します。
+/// 共通ヘルパー関数を使用してタイムアウト処理とエラーハンドリングを統一します。
 /// 
 /// **パラメータ**:
 /// - `ref`: dynamic（Provider操作用）
 /// 
 /// **戻り値**: 同期された通知設定
 Future<NotificationSettings> syncNotificationSettingsHelper(dynamic ref) async {
-  try {
-    final userId = AuthMk.getCurrentUserId();
-    
-    // データマネージャーで同期
-    final settingsList = await notificationSettingsManager.sync(userId);
-    
-    // IDが 'notification_settings' のものを探す
-    NotificationSettings settings;
-    try {
-      settings = settingsList.firstWhere((s) => s.id == 'notification_settings');
-    } catch (e) {
-      // データがない場合はデフォルト値を作成して保存
-      settings = NotificationSettings.defaultSettings();
-      await notificationSettingsManager.saveWithRetry(userId, settings);
-    }
-    
-    // Notifierを使用してProviderを更新
-    ref.read(notificationSettingsProvider.notifier).updateSettings(settings);
-    
-    return settings;
-  } catch (e) {
-    debugPrint('❌ [syncNotificationSettingsHelper] エラー: $e');
-    
-    // エラー時はデフォルト値を返す
-    final defaultSettings = NotificationSettings.defaultSettings();
-    ref.read(notificationSettingsProvider.notifier).updateSettings(defaultSettings);
-    return defaultSettings;
-  }
+  final manager = notificationSettingsManager;
+  final notificationNotifier = ref.read(notificationSettingsProvider.notifier);
+
+  return await syncSingleDataHelper<NotificationSettings>(
+    ref: ref,
+    manager: manager,
+    syncWithAuth: () async {
+      final userId = AuthMk.getCurrentUserId();
+      final settingsList = await manager.sync(userId);
+      return settingsList;
+    },
+    getDefault: () async => NotificationSettings.defaultSettings(),
+    updateProvider: notificationNotifier.updateSettings,
+    functionName: 'syncNotificationSettingsHelper',
+  );
 }
 
 /// 通知設定を保存するヘルパー関数
@@ -127,6 +116,7 @@ Future<NotificationSettings> syncNotificationSettingsHelper(dynamic ref) async {
 Future<bool> saveNotificationSettingsHelper(dynamic ref, NotificationSettings settings) async {
   try {
     final userId = AuthMk.getCurrentUserId();
+    final notificationNotifier = ref.read(notificationSettingsProvider.notifier);
     
     // 最終更新日時を更新
     final updatedSettings = settings.copyWith(lastModified: DateTime.now());
@@ -136,7 +126,7 @@ Future<bool> saveNotificationSettingsHelper(dynamic ref, NotificationSettings se
     
     if (success) {
       // Notifierを使用してProviderを更新
-      ref.read(notificationSettingsProvider.notifier).updateSettings(updatedSettings);
+      notificationNotifier.updateSettings(updatedSettings);
     }
     
     return success;

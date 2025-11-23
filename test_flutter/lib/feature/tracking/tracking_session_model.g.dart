@@ -33,6 +33,11 @@ _TrackingSession _$TrackingSessionFromJson(Map<String, dynamic> json) =>
               ?.map((e) => DetectionPeriod.fromJson(e as Map<String, dynamic>))
               .toList() ??
           const [],
+      selectedGoalIds:
+          (json['selectedGoalIds'] as Map<String, dynamic>?)?.map(
+            (k, e) => MapEntry(k, e as String?),
+          ) ??
+          const {},
       lastModified: DateTime.parse(json['lastModified'] as String),
     );
 
@@ -43,5 +48,6 @@ Map<String, dynamic> _$TrackingSessionToJson(_TrackingSession instance) =>
       'endTime': instance.endTime.toIso8601String(),
       'categorySeconds': instance.categorySeconds,
       'detectionPeriods': instance.detectionPeriods,
+      'selectedGoalIds': instance.selectedGoalIds,
       'lastModified': instance.lastModified.toIso8601String(),
     };

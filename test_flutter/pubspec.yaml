@@ -19,6 +19,7 @@ dependencies:
   google_sign_in_web: ^1.1.0
   # 状態管理関連
   hooks_riverpod: ^3.0.3  # flutter_riverpodとflutter_hooksの機能を含む
+  riverpod: ^3.0.3
   riverpod_annotation: ^3.0.3
   
   # UIデザイン関連 

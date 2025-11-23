@@ -77,7 +77,22 @@ abstract class DailyStatistics with _$DailyStatistics {
       _$DailyStatisticsFromJson(json);
 
   /// FirestoreデータからDailyStatisticsモデルを生成
+  /// 
+  /// Timestamp型と文字列形式（ISO8601）の両方の日時形式に対応しています。
   factory DailyStatistics.fromFirestore(Map<String, dynamic> data) {
+    // 日時フィールドの変換ヘルパー関数
+    DateTime _parseDateTime(dynamic value) {
+      if (value is Timestamp) {
+        return value.toDate();
+      } else if (value is String) {
+        return DateTime.parse(value);
+      } else if (value is DateTime) {
+        return value;
+      } else {
+        throw FormatException('日時形式が不正です: $value');
+      }
+    }
+
     PieChartDataModel? pieChartDataModel;
     if (data['pieChartData'] != null) {
       pieChartDataModel = PieChartDataModel.fromJson(
@@ -108,13 +123,13 @@ abstract class DailyStatistics with _$DailyStatistics {
 
     return DailyStatistics(
       id: data['id'] as String,
-      date: (data['date'] as Timestamp).toDate(),
+      date: _parseDateTime(data['date']),
       categorySeconds: Map<String, int>.from(data['categorySeconds'] as Map),
       totalWorkTimeSeconds: data['totalWorkTimeSeconds'] as int,
       pieChartData: pieChartDataModel,
       hourlyCategorySeconds: hourlyCategorySeconds,
       sessions: sessions,
-      lastModified: (data['lastModified'] as Timestamp).toDate(),
+      lastModified: _parseDateTime(data['lastModified']),
     );
   }
 
@@ -151,7 +166,7 @@ List<Map<String, dynamic>> _sessionsToJson(List<SessionInfo> sessions) =>
 List<SessionInfo> _sessionsFromJson(List<dynamic>? json) {
   if (json == null) return [];
   return json
-      .map((e) => SessionInfo.fromFirestore(e as Map<String, dynamic>))
+      .map((e) => SessionInfo.fromJson(e as Map<String, dynamic>))
       .toList();
 }
 

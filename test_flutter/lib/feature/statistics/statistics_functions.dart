@@ -127,6 +127,7 @@ Future<List<YearlyStatistics>> loadYearlyStatisticsWithBackgroundRefreshHelper()
 /// 
 /// FirestoreとSharedPreferencesを同期し、
 /// 最新の状態に更新します。
+/// 共通ヘルパー関数を使用してタイムアウト処理とエラーハンドリングを統一します。
 /// 
 /// **戻り値**: 同期された日次統計データのリスト
 /// 
@@ -136,22 +137,24 @@ Future<List<YearlyStatistics>> loadYearlyStatisticsWithBackgroundRefreshHelper()
 /// ```
 Future<List<DailyStatistics>> syncDailyStatisticsHelper() async {
   final manager = DailyStatisticsDataManager();
-  
-  try {
-    // Firestoreと同期（認証自動取得版）
-    final items = await manager.syncWithAuth();
-    return items;
-  } catch (e) {
-    debugPrint('❌ [syncDailyStatisticsHelper] エラー: $e');
-    // エラー時はローカルデータを返す
-    return await manager.getLocalAll();
-  }
+  final dummyRef = Object(); // Provider更新不要のためダミーRef
+
+  return await syncListDataHelper<DailyStatistics>(
+    ref: dummyRef,
+    manager: manager,
+    syncWithAuth: () => manager.syncWithAuth(),
+    getLocalAll: () => manager.getLocalAll(),
+    updateProvider: (_) {}, // 統計データはProviderを使用しないため空関数
+    filter: (_) => true, // フィルタリング不要
+    functionName: 'syncDailyStatisticsHelper',
+  );
 }
 
 /// 週次統計データを同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、
 /// 最新の状態に更新します。
+/// 共通ヘルパー関数を使用してタイムアウト処理とエラーハンドリングを統一します。
 /// 
 /// **戻り値**: 同期された週次統計データのリスト
 /// 
@@ -161,22 +164,24 @@ Future<List<DailyStatistics>> syncDailyStatisticsHelper() async {
 /// ```
 Future<List<WeeklyStatistics>> syncWeeklyStatisticsHelper() async {
   final manager = WeeklyStatisticsDataManager();
-  
-  try {
-    // Firestoreと同期（認証自動取得版）
-    final items = await manager.syncWithAuth();
-    return items;
-  } catch (e) {
-    debugPrint('❌ [syncWeeklyStatisticsHelper] エラー: $e');
-    // エラー時はローカルデータを返す
-    return await manager.getLocalAll();
-  }
+  final dummyRef = Object(); // Provider更新不要のためダミーRef
+
+  return await syncListDataHelper<WeeklyStatistics>(
+    ref: dummyRef,
+    manager: manager,
+    syncWithAuth: () => manager.syncWithAuth(),
+    getLocalAll: () => manager.getLocalAll(),
+    updateProvider: (_) {}, // 統計データはProviderを使用しないため空関数
+    filter: (_) => true, // フィルタリング不要
+    functionName: 'syncWeeklyStatisticsHelper',
+  );
 }
 
 /// 月次統計データを同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、
 /// 最新の状態に更新します。
+/// 共通ヘルパー関数を使用してタイムアウト処理とエラーハンドリングを統一します。
 /// 
 /// **戻り値**: 同期された月次統計データのリスト
 /// 
@@ -186,22 +191,24 @@ Future<List<WeeklyStatistics>> syncWeeklyStatisticsHelper() async {
 /// ```
 Future<List<MonthlyStatistics>> syncMonthlyStatisticsHelper() async {
   final manager = MonthlyStatisticsDataManager();
-  
-  try {
-    // Firestoreと同期（認証自動取得版）
-    final items = await manager.syncWithAuth();
-    return items;
-  } catch (e) {
-    debugPrint('❌ [syncMonthlyStatisticsHelper] エラー: $e');
-    // エラー時はローカルデータを返す
-    return await manager.getLocalAll();
-  }
+  final dummyRef = Object(); // Provider更新不要のためダミーRef
+
+  return await syncListDataHelper<MonthlyStatistics>(
+    ref: dummyRef,
+    manager: manager,
+    syncWithAuth: () => manager.syncWithAuth(),
+    getLocalAll: () => manager.getLocalAll(),
+    updateProvider: (_) {}, // 統計データはProviderを使用しないため空関数
+    filter: (_) => true, // フィルタリング不要
+    functionName: 'syncMonthlyStatisticsHelper',
+  );
 }
 
 /// 年次統計データを同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、
 /// 最新の状態に更新します。
+/// 共通ヘルパー関数を使用してタイムアウト処理とエラーハンドリングを統一します。
 /// 
 /// **戻り値**: 同期された年次統計データのリスト
 /// 
@@ -211,16 +218,17 @@ Future<List<MonthlyStatistics>> syncMonthlyStatisticsHelper() async {
 /// ```
 Future<List<YearlyStatistics>> syncYearlyStatisticsHelper() async {
   final manager = YearlyStatisticsDataManager();
-  
-  try {
-    // Firestoreと同期（認証自動取得版）
-    final items = await manager.syncWithAuth();
-    return items;
-  } catch (e) {
-    debugPrint('❌ [syncYearlyStatisticsHelper] エラー: $e');
-    // エラー時はローカルデータを返す
-    return await manager.getLocalAll();
-  }
+  final dummyRef = Object(); // Provider更新不要のためダミーRef
+
+  return await syncListDataHelper<YearlyStatistics>(
+    ref: dummyRef,
+    manager: manager,
+    syncWithAuth: () => manager.syncWithAuth(),
+    getLocalAll: () => manager.getLocalAll(),
+    updateProvider: (_) {}, // 統計データはProviderを使用しないため空関数
+    filter: (_) => true, // フィルタリング不要
+    functionName: 'syncYearlyStatisticsHelper',
+  );
 }
 
 /// すべての統計データを同期するヘルパー関数
@@ -267,6 +275,52 @@ Future<Map<String, bool>> syncAllStatisticsHelper() async {
     debugPrint('❌ 年次統計の同期に失敗: $e');
     results['yearly'] = false;
   }
+  
+  return results;
+}
+
+/// 古い統計データを削除するヘルパー関数
+/// 
+/// 各統計データの古いデータを削除します。
+/// - daily_statistics: 90日以上経過したデータを削除
+/// - weekly_statistics: 6ヶ月（約26週）以上経過したデータを削除
+/// - monthly_statistics: 3年（36ヶ月）以上経過したデータを削除
+/// - yearly_statistics: 永久保持（削除しない）
+/// 
+/// **戻り値**: 削除結果のマップ
+/// 
+/// **使用例**:
+/// ```dart
+/// await deleteOldStatisticsDataHelper();
+/// ```
+Future<Map<String, int>> deleteOldStatisticsDataHelper() async {
+  final results = <String, int>{};
+  
+  try {
+    final dailyManager = DailyStatisticsDataManager();
+    results['daily'] = await dailyManager.deleteOldData();
+  } catch (e) {
+    debugPrint('❌ 日次統計の古いデータ削除に失敗: $e');
+    results['daily'] = 0;
+  }
+  
+  try {
+    final weeklyManager = WeeklyStatisticsDataManager();
+    results['weekly'] = await weeklyManager.deleteOldData();
+  } catch (e) {
+    debugPrint('❌ 週次統計の古いデータ削除に失敗: $e');
+    results['weekly'] = 0;
+  }
+  
+  try {
+    final monthlyManager = MonthlyStatisticsDataManager();
+    results['monthly'] = await monthlyManager.deleteOldData();
+  } catch (e) {
+    debugPrint('❌ 月次統計の古いデータ削除に失敗: $e');
+    results['monthly'] = 0;
+  }
+  
+  // yearly_statisticsは永久保持のため削除しない
   
   return results;
 }

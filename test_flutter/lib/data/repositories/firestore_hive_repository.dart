@@ -96,7 +96,6 @@ class FirestoreHiveDataManager<T> {
       );
       
       if (success) {
-        await LogMk.logInfo('アイテム追加完了: $itemId', tag: 'DataManager');
       } else {
         await LogMk.logWarning('アイテム追加失敗: $itemId', tag: 'DataManager');
       }
@@ -192,7 +191,6 @@ class FirestoreHiveDataManager<T> {
       );
       
       if (success) {
-        await LogMk.logInfo('✅ アイテム更新完了: $itemId');
       } else {
         await LogMk.logError(' アイテム更新失敗: $itemId');
       }
@@ -218,9 +216,8 @@ class FirestoreHiveDataManager<T> {
         // 2. 成功したらローカルからも削除
         final localDeleteSuccess = await deleteLocal(id);
         if (localDeleteSuccess) {
-          await LogMk.logInfo('✅ アイテム削除完了: $id');
         } else {
-          await LogMk.logWarning('⚠️ Firestore削除成功、ローカル削除失敗: $id');
+          // ローカルに存在しない場合でも、Firestoreから削除できたので成功として扱う
         }
       } else {
         await LogMk.logError(' アイテム削除失敗: $id');
@@ -273,7 +270,6 @@ class FirestoreHiveDataManager<T> {
       );
       
       if (data == null) {
-        await LogMk.logInfo('ℹ️ ローカルアイテムが見つかりません: $id');
         return null;
       }
       
@@ -320,7 +316,6 @@ class FirestoreHiveDataManager<T> {
         idField,
       );
       
-      await LogMk.logInfo('✅ ローカルアイテム追加完了: ${_getItemId(item)}');
     } catch (e) {
       await LogMk.logError(' ローカルアイテム追加エラー: $e');
     }
@@ -340,7 +335,6 @@ class FirestoreHiveDataManager<T> {
         idField,
       );
       
-      await LogMk.logInfo('✅ ローカルアイテム更新完了: ${_getItemId(item)}');
     } catch (e) {
       await LogMk.logError(' ローカルアイテム更新エラー: $e');
     }
@@ -358,11 +352,7 @@ class FirestoreHiveDataManager<T> {
         idField,
       );
       
-      if (success) {
-        await LogMk.logInfo('✅ ローカルアイテム削除完了: $id');
-      } else {
-        await LogMk.logWarning('⚠️ ローカルアイテムが見つかりません: $id');
-      }
+      // 成功・失敗に関わらずログは出力しない（正常な状態の可能性があるため）
       
       return success;
     } catch (e) {
@@ -391,7 +381,6 @@ class FirestoreHiveDataManager<T> {
       // 1. ローカルのアイテム数を取得
       final count = await HiveMk.getListCount(hiveBoxName);
       
-      await LogMk.logInfo('✅ ローカルアイテム数取得完了: $count件');
       return count;
     } catch (e) {
       await LogMk.logError(' ローカルアイテム数取得エラー: $e');
@@ -419,17 +408,14 @@ class FirestoreHiveDataManager<T> {
               collectionPathBuilder(userId),
               lastSyncTime,
             );
-            await LogMk.logInfo('📥 差分データ取得成功: ${remoteDataList.length}件');
           } catch (e) {
             // 差分同期が失敗した場合は全データ取得にフォールバック
             await LogMk.logWarning('差分同期失敗、全データ取得にフォールバック: $e');
             remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
-            await LogMk.logInfo('📥 全データ取得: ${remoteDataList.length}件');
           }
         } else {
           // 初回同期の場合は全データを取得
           remoteDataList = await FirestoreMk.fetchCollection(collectionPathBuilder(userId));
-          await LogMk.logInfo('📥 初回同期: 全データ取得 ${remoteDataList.length}件');
         }
         
         // 3. ローカルデータを取得
@@ -448,22 +434,13 @@ class FirestoreHiveDataManager<T> {
         
         // ローカルに存在するが、リモートに存在しないアイテムを削除
         final deletedIds = localIds.difference(remoteIds);
-        int deletedCount = 0;
         for (final deletedId in deletedIds) {
           if (deletedId == null || deletedId.isEmpty) continue;
-          final success = await HiveMk.removeItemFromHive(
+          await HiveMk.removeItemFromHive(
             hiveBoxName,
             deletedId,
             idField,
           );
-          if (success) {
-            deletedCount++;
-            await LogMk.logInfo('🗑️ 同期時にローカルアイテム削除: $deletedId');
-          }
-        }
-        
-        if (deletedCount > 0) {
-          await LogMk.logInfo('🗑️ 同期時に削除されたアイテム: $deletedCount件');
         }
         
         // 5. ローカルデータを再取得（削除後の最新状態）
@@ -774,7 +751,7 @@ class FirestoreHiveDataManager<T> {
         if (localDeleteSuccess) {
           await LogMk.logInfo('✅ リトライ付き削除成功: $id');
         } else {
-          await LogMk.logWarning('⚠️ Firestore削除成功、ローカル削除失敗: $id');
+          // ローカルに存在しない場合でも、Firestoreから削除できたので成功として扱う
         }
         return true;
       } else {
@@ -983,7 +960,8 @@ class FirestoreHiveDataManager<T> {
           idField,
         );
         if (!localDeleteSuccess) {
-          await LogMk.logWarning('⚠️ Firestore削除成功、ローカル削除失敗: $itemId');
+          // ローカルに存在しない場合でも、Firestoreから削除できたので成功として扱う
+          await LogMk.logInfo('ℹ️ Firestore削除成功（ローカルには既に存在しません）: $itemId');
         }
         return true;
       }

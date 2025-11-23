@@ -14,15 +14,16 @@ class EventContentBuilder {
   }) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Icon(icon, size: iconSize, color: AppColors.textPrimary),
-        SizedBox(height: AppSpacing.xl),
+        SizedBox(height: AppSpacing.md),
         Text(
           title,
           style: AppTextStyles.h1.copyWith(fontSize: titleFontSize),
           textAlign: TextAlign.center,
         ),
-        SizedBox(height: AppSpacing.md),
+        SizedBox(height: AppSpacing.sm),
         Text(
           message,
           style: AppTextStyles.h3.copyWith(fontWeight: FontWeight.normal),
@@ -43,6 +44,7 @@ class EventContentBuilder {
   }) {
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
           number,
@@ -53,22 +55,22 @@ class EventContentBuilder {
             height: 1.0,
           ),
         ),
-        SizedBox(height: AppSpacing.md),
+        SizedBox(height: AppSpacing.xs),
         Text(
           label,
-          style: AppTextStyles.h2,
+          style: AppTextStyles.h3,
           textAlign: TextAlign.center,
         ),
-        SizedBox(height: AppSpacing.xl),
+        SizedBox(height: AppSpacing.sm),
         Text(
           title,
-          style: AppTextStyles.h1.copyWith(fontSize: titleFontSize),
+          style: AppTextStyles.h2.copyWith(fontSize: titleFontSize),
           textAlign: TextAlign.center,
         ),
-        SizedBox(height: AppSpacing.md),
+        SizedBox(height: AppSpacing.xs),
         Text(
           message,
-          style: AppTextStyles.body1,
+          style: AppTextStyles.body2,
           textAlign: TextAlign.center,
         ),
       ],
@@ -81,23 +83,25 @@ class EventContentBuilder {
     IconData? icon,
   }) {
     return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(AppRadius.medium),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (icon != null) ...[
-            Icon(icon, color: AppColors.textPrimary),
-            SizedBox(width: AppSpacing.sm),
+            Icon(icon, color: AppColors.textPrimary, size: 18),
+            SizedBox(width: AppSpacing.xs),
           ],
           Flexible(
             child: Text(
               nextMilestoneText,
-              style: AppTextStyles.body1.copyWith(
+              style: AppTextStyles.body2.copyWith(
                 fontWeight: FontWeight.w600,
+                fontSize: 14,
               ),
               textAlign: TextAlign.center,
             ),
@@ -116,29 +120,31 @@ class EventContentBuilder {
   }) {
     final percentage = (achievedHours / targetHours * 100).toStringAsFixed(0);
     return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(AppRadius.medium),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Row(
+            mainAxisSize: MainAxisSize.min,
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.timer, color: AppColors.textPrimary),
-              SizedBox(width: AppSpacing.sm),
+              Icon(Icons.timer, color: AppColors.textPrimary, size: 18),
+              SizedBox(width: AppSpacing.xs),
               Text(
                 '${achievedHours.toStringAsFixed(1)}h / ${targetHours.toStringAsFixed(1)}h',
-                style: AppTextStyles.h2,
+                style: AppTextStyles.h3,
                 textAlign: TextAlign.center,
               ),
             ],
           ),
-          SizedBox(height: AppSpacing.sm),
+          SizedBox(height: AppSpacing.xs),
           Text(
             'Achieved $percentage%',
-            style: AppTextStyles.body1.copyWith(
+            style: AppTextStyles.body2.copyWith(
               fontWeight: FontWeight.w600,
             ),
             textAlign: TextAlign.center,
@@ -155,20 +161,23 @@ class EventContentBuilder {
     Widget? additionalContent,
   }) {
     return Container(
-      padding: EdgeInsets.all(AppSpacing.xl),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
       ),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             eventName,
-            style: AppTextStyles.h1.copyWith(fontSize: fontSize),
+            style: AppTextStyles.h2.copyWith(fontSize: fontSize),
             textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           if (additionalContent != null) ...[
-            SizedBox(height: AppSpacing.md),
+            SizedBox(height: AppSpacing.sm),
             additionalContent,
           ],
         ],

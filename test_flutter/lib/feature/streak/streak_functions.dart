@@ -1,5 +1,6 @@
 // 外部パッケージ
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 // 内部パッケージ（プロジェクト内）
 import 'package:test_flutter/feature/base/data_helper_functions.dart';
@@ -83,13 +84,14 @@ class StreakDataNotifier extends _$StreakDataNotifier {
 /// ```
 Future<StreakData> loadStreakDataHelper(dynamic ref) async {
   final manager = StreakDataManager();
+  final streakNotifier = ref.read(streakDataProvider.notifier);
 
   return await loadSingleDataHelper<StreakData>(
     ref: ref,
     manager: manager,
     getWithAuth: () => manager.getStreakDataWithAuth(),
     getDefault: () => manager.getStreakDataOrDefault(),
-    updateProvider: (data) => ref.read(streakDataProvider.notifier).updateStreak(data),
+    updateProvider: streakNotifier.updateStreak,
     functionName: 'loadStreakDataHelper',
   );
 }
@@ -116,6 +118,7 @@ Future<StreakData> loadStreakDataHelper(dynamic ref) async {
 /// ```
 Future<StreakData> loadStreakDataWithBackgroundRefreshHelper(dynamic ref) async {
   final manager = StreakDataManager();
+  final streakNotifier = ref.read(streakDataProvider.notifier);
 
   return await loadSingleDataWithBackgroundRefreshHelper<StreakData>(
     ref: ref,
@@ -124,7 +127,7 @@ Future<StreakData> loadStreakDataWithBackgroundRefreshHelper(dynamic ref) async 
     getLocal: () => manager.getLocalStreakData(),
     getDefault: () => manager.getStreakDataOrDefault(),
     saveLocal: (data) => manager.saveLocalStreakData(data),
-    updateProvider: (data) => ref.read(streakDataProvider.notifier).updateStreak(data),
+    updateProvider: streakNotifier.updateStreak,
     functionName: 'loadStreakDataWithBackgroundRefreshHelper',
   );
 }
@@ -145,13 +148,14 @@ Future<StreakData> loadStreakDataWithBackgroundRefreshHelper(dynamic ref) async 
 /// ```
 Future<StreakData> syncStreakDataHelper(dynamic ref) async {
   final manager = StreakDataManager();
+  final streakNotifier = ref.read(streakDataProvider.notifier);
 
   return await syncSingleDataHelper<StreakData>(
     ref: ref,
     manager: manager,
     syncWithAuth: () => manager.syncStreakDataWithAuth(),
     getDefault: () => manager.getStreakDataOrDefault(),
-    updateProvider: (data) => ref.read(streakDataProvider.notifier).updateStreak(data),
+    updateProvider: streakNotifier.updateStreak,
     functionName: 'syncStreakDataHelper',
   );
 }

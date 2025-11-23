@@ -40,6 +40,7 @@ class TrackingSettingsNotifier extends _$TrackingSettingsNotifier {
 /// **戻り値**: 読み込んだトラッキング設定（ローカルまたはデフォルト値）
 Future<TrackingSettings> loadTrackingSettingsWithBackgroundRefreshHelper(dynamic ref) async {
   final dummyManager = Object(); // マネージャーは使用しないためダミー
+  final trackingNotifier = ref.read(trackingSettingsProvider.notifier);
 
   return await loadSingleDataWithBackgroundRefreshHelper<TrackingSettings>(
     ref: ref,
@@ -71,7 +72,7 @@ Future<TrackingSettings> loadTrackingSettingsWithBackgroundRefreshHelper(dynamic
         await trackingSettingsManager.updateLocal(settings);
       }
     },
-    updateProvider: (settings) => ref.read(trackingSettingsProvider.notifier).updateSettings(settings),
+    updateProvider: trackingNotifier.updateSettings,
     functionName: 'loadTrackingSettingsWithBackgroundRefreshHelper',
   );
 }
@@ -79,40 +80,28 @@ Future<TrackingSettings> loadTrackingSettingsWithBackgroundRefreshHelper(dynamic
 /// トラッキング設定を同期するヘルパー関数
 /// 
 /// FirestoreとSharedPreferencesを同期し、Providerを更新します。
+/// 共通ヘルパー関数を使用してタイムアウト処理とエラーハンドリングを統一します。
 /// 
 /// **パラメータ**:
 /// - `ref`: dynamic（Provider操作用）
 /// 
 /// **戻り値**: 同期されたトラッキング設定
 Future<TrackingSettings> syncTrackingSettingsHelper(dynamic ref) async {
-  try {
-    final userId = AuthMk.getCurrentUserId();
-    
-    // データマネージャーで同期
-    final settingsList = await trackingSettingsManager.sync(userId);
-    
-    // IDが 'tracking_settings' のものを探す
-    TrackingSettings settings;
-    try {
-      settings = settingsList.firstWhere((s) => s.id == 'tracking_settings');
-    } catch (e) {
-      // データがない場合はデフォルト値を作成して保存
-      settings = TrackingSettings.defaultSettings();
-      await trackingSettingsManager.saveWithRetry(userId, settings);
-    }
-    
-    // Notifierを使用してProviderを更新
-    ref.read(trackingSettingsProvider.notifier).updateSettings(settings);
-    
-    return settings;
-  } catch (e) {
-    debugPrint('❌ [syncTrackingSettingsHelper] エラー: $e');
-    
-    // エラー時はデフォルト値を返す
-    final defaultSettings = TrackingSettings.defaultSettings();
-    ref.read(trackingSettingsProvider.notifier).updateSettings(defaultSettings);
-    return defaultSettings;
-  }
+  final manager = trackingSettingsManager;
+  final trackingNotifier = ref.read(trackingSettingsProvider.notifier);
+
+  return await syncSingleDataHelper<TrackingSettings>(
+    ref: ref,
+    manager: manager,
+    syncWithAuth: () async {
+      final userId = AuthMk.getCurrentUserId();
+      final settingsList = await manager.sync(userId);
+      return settingsList;
+    },
+    getDefault: () async => TrackingSettings.defaultSettings(),
+    updateProvider: trackingNotifier.updateSettings,
+    functionName: 'syncTrackingSettingsHelper',
+  );
 }
 
 /// トラッキング設定を保存するヘルパー関数
@@ -127,6 +116,7 @@ Future<TrackingSettings> syncTrackingSettingsHelper(dynamic ref) async {
 Future<bool> saveTrackingSettingsHelper(dynamic ref, TrackingSettings settings) async {
   try {
     final userId = AuthMk.getCurrentUserId();
+    final trackingNotifier = ref.read(trackingSettingsProvider.notifier);
     
     // 最終更新日時を更新
     final updatedSettings = settings.copyWith(lastModified: DateTime.now());
@@ -136,7 +126,7 @@ Future<bool> saveTrackingSettingsHelper(dynamic ref, TrackingSettings settings) 
     
     if (success) {
       // Notifierを使用してProviderを更新
-      ref.read(trackingSettingsProvider.notifier).updateSettings(updatedSettings);
+      trackingNotifier.updateSettings(updatedSettings);
     }
     
     return success;

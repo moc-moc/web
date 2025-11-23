@@ -10,9 +10,13 @@ import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.d
 import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_data_manager.dart';
+import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/weekly_statistics_data_manager.dart';
+import 'package:test_flutter/feature/statistics/weekly_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/monthly_statistics_data_manager.dart';
+import 'package:test_flutter/feature/statistics/monthly_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/yearly_statistics_data_manager.dart';
+import 'package:test_flutter/feature/statistics/yearly_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/category_data_point.dart';
 
 /// レポート画面（新デザインシステム版）
@@ -30,20 +34,7 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
   @override
   void initState() {
     super.initState();
-    // 画面が開かれた時にデータをバックグラウンド更新で読み込む
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadData();
-    });
-  }
-
-  /// データを読み込む
-  Future<void> _loadData() async {
-    try {
-      // トラッキングセッションデータをバックグラウンド更新で読み込む
-      await loadTrackingSessionsWithBackgroundRefreshHelper(ref);
-    } catch (e) {
-      debugPrint('❌ [ReportScreen] データ読み込みエラー: $e');
-    }
+    // Firestore取得はアプリ起動時のみ（画面を開くたびには取得しない）
   }
 
   @override
@@ -687,230 +678,198 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     return 0.0;
   }
 
-  List<CategoryDataPoint> _getDataPointsForCurrentPeriod({
-    bool forChart = false,
-    bool useRead = false,
-  }) {
-    // 同期処理のため、まずローカルのセッションデータから計算
-    // 統計データは非同期で取得する必要があるため、後で最適化
-    final sessions = useRead 
-        ? ref.read(trackingSessionsProvider)
-        : ref.watch(trackingSessionsProvider);
-    
-    if (sessions.isNotEmpty) {
-      switch (_selectedPeriodIndex) {
-        case 0:
-          return _generateDailyData(sessions, _selectedDate);
-        case 1:
-          return _generateWeeklyData(sessions, _selectedDate);
-        case 2:
-          return _generateMonthlyData(sessions, _selectedDate);
-        case 3:
-          return _generateYearlyData(sessions, _selectedDate);
-        default:
-          return _generateWeeklyData(sessions, _selectedDate);
-      }
+  /// 現在の期間のデータポイントを取得（統計データベースから）
+  Future<List<CategoryDataPoint>> _getDataPointsForCurrentPeriod() async {
+    switch (_selectedPeriodIndex) {
+      case 0:
+        return await _getDataPointsFromDailyStatistics(_selectedDate);
+      case 1:
+        return await _getDataPointsFromWeeklyStatistics(_selectedDate);
+      case 2:
+        return await _getDataPointsFromMonthlyStatistics(_selectedDate);
+      case 3:
+        return await _getDataPointsFromYearlyStatistics(_selectedDate);
+      default:
+        return await _getDataPointsFromWeeklyStatistics(_selectedDate);
     }
-    
-    return [];
   }
 
-  /// 日次データを生成（セッションデータから）
-  List<CategoryDataPoint> _generateDailyData(List<TrackingSession> sessions, DateTime date) {
-    final dayStart = DateTime(date.year, date.month, date.day);
-    final dayEnd = dayStart.add(const Duration(days: 1));
-    
-    // 該当日のセッションをフィルタ
-    final daySessions = sessions.where((s) =>
-      s.startTime.isAfter(dayStart.subtract(const Duration(seconds: 1))) &&
-      s.startTime.isBefore(dayEnd)
-    ).toList();
-    
-    // 24時間分のデータポイントを生成
-    final dataPoints = <CategoryDataPoint>[];
-    for (int hour = 0; hour < 24; hour++) {
-      final hourStart = dayStart.add(Duration(hours: hour));
-      final hourEnd = hourStart.add(const Duration(hours: 1));
+  /// 日次統計からグラフデータを生成
+  Future<List<CategoryDataPoint>> _getDataPointsFromDailyStatistics(DateTime date) async {
+    try {
+      // 1. Firestoreから取得を試みる
+      final dailyManager = DailyStatisticsDataManager();
+      final dateOnly = DateTime(date.year, date.month, date.day);
+      DailyStatistics? stats = await dailyManager.getByDateWithAuth(dateOnly);
       
-      final hourValues = <String, double>{
-        'study': 0.0,
-        'pc': 0.0,
-        'smartphone': 0.0,
-        'personOnly': 0.0,
-        'nothingDetected': 0.0,
-      };
+      // 2. 取得できない場合はローカルから取得
+      stats ??= await dailyManager.getByDateLocal(dateOnly);
       
-      // この時間帯に該当するセッションの時間を集計
-      for (final session in daySessions) {
-        for (final period in session.detectionPeriods) {
-          final periodStart = period.startTime.isAfter(hourStart) ? period.startTime : hourStart;
-          final periodEnd = period.endTime.isBefore(hourEnd) ? period.endTime : hourEnd;
-          
-          if (periodStart.isBefore(periodEnd)) {
-            final durationHours = periodEnd.difference(periodStart).inSeconds / 3600.0;
-            final category = period.category;
-            if (hourValues.containsKey(category)) {
-              hourValues[category] = (hourValues[category] ?? 0.0) + durationHours;
-            }
-          }
-        }
+      // 3. データがない場合は空のリストを返す
+      if (stats == null || stats.hourlyCategorySeconds.isEmpty) {
+        return [];
       }
       
-      dataPoints.add(CategoryDataPoint(
-        label: '$hour:00',
-        values: hourValues,
-      ));
+      // 4. hourlyCategorySecondsからCategoryDataPointリストを生成
+      final dataPoints = <CategoryDataPoint>[];
+      for (int hour = 0; hour < 24; hour++) {
+        final hourKey = hour.toString();
+        final hourData = stats.hourlyCategorySeconds[hourKey] ?? {};
+        final values = <String, double>{
+          'study': (hourData['study'] ?? 0) / 3600.0,
+          'pc': (hourData['pc'] ?? 0) / 3600.0,
+          'smartphone': (hourData['smartphone'] ?? 0) / 3600.0,
+          'personOnly': (hourData['personOnly'] ?? 0) / 3600.0,
+          'nothingDetected': (hourData['nothingDetected'] ?? 0) / 3600.0,
+        };
+        dataPoints.add(CategoryDataPoint(
+          label: '$hour:00',
+          values: values,
+        ));
+      }
+      return dataPoints;
+    } catch (e) {
+      debugPrint('❌ [report.dart] 日次統計データ取得エラー: $e');
+      return [];
     }
-    
-    return dataPoints;
   }
 
-  /// 週次データを生成（セッションデータから）
-  List<CategoryDataPoint> _generateWeeklyData(List<TrackingSession> sessions, DateTime date) {
-    final weekStart = date.subtract(Duration(days: date.weekday - 1));
-    final weekEnd = weekStart.add(const Duration(days: 7));
-    
-    // 該当週のセッションをフィルタ
-    final weekSessions = sessions.where((s) =>
-      s.startTime.isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
-      s.startTime.isBefore(weekEnd)
-    ).toList();
-    
-    final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    final dataPoints = <CategoryDataPoint>[];
-    
-    for (int day = 0; day < 7; day++) {
-      final dayStart = weekStart.add(Duration(days: day));
-      final dayEnd = dayStart.add(const Duration(days: 1));
+  /// 週次統計からグラフデータを生成
+  Future<List<CategoryDataPoint>> _getDataPointsFromWeeklyStatistics(DateTime date) async {
+    try {
+      final weeklyManager = WeeklyStatisticsDataManager();
+      WeeklyStatistics? stats = await weeklyManager.getByWeekWithAuth(date);
       
-      final dayValues = <String, double>{
-        'study': 0.0,
-        'pc': 0.0,
-        'smartphone': 0.0,
-        'personOnly': 0.0,
-        'nothingDetected': 0.0,
-      };
-      
-      // この日のセッションの時間を集計
-      for (final session in weekSessions) {
-        if (session.startTime.isAfter(dayStart.subtract(const Duration(seconds: 1))) &&
-            session.startTime.isBefore(dayEnd)) {
-          for (final period in session.detectionPeriods) {
-            final category = period.category;
-            final durationHours = period.endTime.difference(period.startTime).inSeconds / 3600.0;
-            if (dayValues.containsKey(category)) {
-              dayValues[category] = (dayValues[category] ?? 0.0) + durationHours;
-            }
-          }
-        }
+      // Firestoreから取得できない場合はローカルから取得
+      if (stats == null) {
+        final weekStart = date.subtract(Duration(days: date.weekday - 1));
+        final allLocal = await weeklyManager.getLocalAll();
+        stats = allLocal.where((w) => 
+          w.weekStart.year == weekStart.year &&
+          w.weekStart.month == weekStart.month &&
+          w.weekStart.day == weekStart.day
+        ).firstOrNull;
       }
       
-      dataPoints.add(CategoryDataPoint(
-        label: weekDays[day],
-        values: dayValues,
-      ));
+      if (stats == null || stats.dailyCategorySeconds.isEmpty) {
+        return [];
+      }
+      
+      final weekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      final dataPoints = <CategoryDataPoint>[];
+      
+      for (int day = 0; day < 7; day++) {
+        final dayKey = day.toString();
+        final dayData = stats.dailyCategorySeconds[dayKey] ?? {};
+        final values = <String, double>{
+          'study': (dayData['study'] ?? 0) / 3600.0,
+          'pc': (dayData['pc'] ?? 0) / 3600.0,
+          'smartphone': (dayData['smartphone'] ?? 0) / 3600.0,
+          'personOnly': (dayData['personOnly'] ?? 0) / 3600.0,
+          'nothingDetected': (dayData['nothingDetected'] ?? 0) / 3600.0,
+        };
+        dataPoints.add(CategoryDataPoint(
+          label: weekDays[day],
+          values: values,
+        ));
+      }
+      return dataPoints;
+    } catch (e) {
+      debugPrint('❌ [report.dart] 週次統計データ取得エラー: $e');
+      return [];
     }
-    
-    return dataPoints;
   }
 
-  /// 月次データを生成（セッションデータから）
-  List<CategoryDataPoint> _generateMonthlyData(List<TrackingSession> sessions, DateTime date) {
-    final monthStart = DateTime(date.year, date.month, 1);
-    final monthEnd = DateTime(date.year, date.month + 1, 1);
-    final daysInMonth = monthEnd.difference(monthStart).inDays;
-    
-    // 該当月のセッションをフィルタ
-    final monthSessions = sessions.where((s) =>
-      s.startTime.isAfter(monthStart.subtract(const Duration(seconds: 1))) &&
-      s.startTime.isBefore(monthEnd)
-    ).toList();
-    
-    final dataPoints = <CategoryDataPoint>[];
-    
-    for (int day = 1; day <= daysInMonth; day++) {
-      final dayStart = DateTime(date.year, date.month, day);
-      final dayEnd = dayStart.add(const Duration(days: 1));
+  /// 月次統計からグラフデータを生成
+  Future<List<CategoryDataPoint>> _getDataPointsFromMonthlyStatistics(DateTime date) async {
+    try {
+      final monthlyManager = MonthlyStatisticsDataManager();
+      MonthlyStatistics? stats = await monthlyManager.getByMonthWithAuth(
+        date.year,
+        date.month,
+      );
       
-      final dayValues = <String, double>{
-        'study': 0.0,
-        'pc': 0.0,
-        'smartphone': 0.0,
-        'personOnly': 0.0,
-        'nothingDetected': 0.0,
-      };
-      
-      // この日のセッションの時間を集計
-      for (final session in monthSessions) {
-        if (session.startTime.isAfter(dayStart.subtract(const Duration(seconds: 1))) &&
-            session.startTime.isBefore(dayEnd)) {
-          for (final period in session.detectionPeriods) {
-            final category = period.category;
-            final durationHours = period.endTime.difference(period.startTime).inSeconds / 3600.0;
-            if (dayValues.containsKey(category)) {
-              dayValues[category] = (dayValues[category] ?? 0.0) + durationHours;
-            }
-          }
-        }
+      // Firestoreから取得できない場合はローカルから取得
+      if (stats == null) {
+        final allLocal = await monthlyManager.getLocalAll();
+        stats = allLocal.where((m) => 
+          m.year == date.year && m.month == date.month
+        ).firstOrNull;
       }
       
-      dataPoints.add(CategoryDataPoint(
-        label: '$day',
-        values: dayValues,
-      ));
+      if (stats == null || stats.dailyCategorySeconds.isEmpty) {
+        return [];
+      }
+      
+      final monthStart = DateTime(date.year, date.month, 1);
+      final monthEnd = DateTime(date.year, date.month + 1, 1);
+      final daysInMonth = monthEnd.difference(monthStart).inDays;
+      
+      final dataPoints = <CategoryDataPoint>[];
+      
+      for (int day = 1; day <= daysInMonth; day++) {
+        final dayKey = day.toString();
+        final dayData = stats.dailyCategorySeconds[dayKey] ?? {};
+        final values = <String, double>{
+          'study': (dayData['study'] ?? 0) / 3600.0,
+          'pc': (dayData['pc'] ?? 0) / 3600.0,
+          'smartphone': (dayData['smartphone'] ?? 0) / 3600.0,
+          'personOnly': 0.0, // 月次ではpersonOnlyとnothingDetectedは含まれない
+          'nothingDetected': 0.0,
+        };
+        dataPoints.add(CategoryDataPoint(
+          label: '$day',
+          values: values,
+        ));
+      }
+      return dataPoints;
+    } catch (e) {
+      debugPrint('❌ [report.dart] 月次統計データ取得エラー: $e');
+      return [];
     }
-    
-    return dataPoints;
   }
 
-  /// 年次データを生成（セッションデータから）
-  List<CategoryDataPoint> _generateYearlyData(List<TrackingSession> sessions, DateTime date) {
-    final yearStart = DateTime(date.year, 1, 1);
-    final yearEnd = DateTime(date.year + 1, 1, 1);
-    
-    // 該当年のセッションをフィルタ
-    final yearSessions = sessions.where((s) =>
-      s.startTime.isAfter(yearStart.subtract(const Duration(seconds: 1))) &&
-      s.startTime.isBefore(yearEnd)
-    ).toList();
-    
-    final monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    final dataPoints = <CategoryDataPoint>[];
-    
-    for (int month = 1; month <= 12; month++) {
-      final monthStart = DateTime(date.year, month, 1);
-      final monthEnd = DateTime(date.year, month + 1, 1);
+  /// 年次統計からグラフデータを生成
+  Future<List<CategoryDataPoint>> _getDataPointsFromYearlyStatistics(DateTime date) async {
+    try {
+      final yearlyManager = YearlyStatisticsDataManager();
+      YearlyStatistics? stats = await yearlyManager.getByYearWithAuth(date.year);
       
-      final monthValues = <String, double>{
-        'study': 0.0,
-        'pc': 0.0,
-        'smartphone': 0.0,
-        'personOnly': 0.0,
-        'nothingDetected': 0.0,
-      };
-      
-      // この月のセッションの時間を集計
-      for (final session in yearSessions) {
-        if (session.startTime.isAfter(monthStart.subtract(const Duration(seconds: 1))) &&
-            session.startTime.isBefore(monthEnd)) {
-          for (final period in session.detectionPeriods) {
-            final category = period.category;
-            final durationHours = period.endTime.difference(period.startTime).inSeconds / 3600.0;
-            if (monthValues.containsKey(category)) {
-              monthValues[category] = (monthValues[category] ?? 0.0) + durationHours;
-            }
-          }
-        }
+      // Firestoreから取得できない場合はローカルから取得
+      if (stats == null) {
+        final allLocal = await yearlyManager.getLocalAll();
+        stats = allLocal.where((y) => y.year == date.year).firstOrNull;
       }
       
-      dataPoints.add(CategoryDataPoint(
-        label: monthLabels[month - 1],
-        values: monthValues,
-      ));
+      if (stats == null || stats.monthlyCategorySeconds.isEmpty) {
+        return [];
+      }
+      
+      final monthLabels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      final dataPoints = <CategoryDataPoint>[];
+      
+      for (int month = 1; month <= 12; month++) {
+        final monthKey = month.toString();
+        final monthData = stats.monthlyCategorySeconds[monthKey] ?? {};
+        final values = <String, double>{
+          'study': (monthData['study'] ?? 0) / 3600.0,
+          'pc': (monthData['pc'] ?? 0) / 3600.0,
+          'smartphone': (monthData['smartphone'] ?? 0) / 3600.0,
+          'personOnly': 0.0, // 年次ではpersonOnlyとnothingDetectedは含まれない
+          'nothingDetected': 0.0,
+        };
+        dataPoints.add(CategoryDataPoint(
+          label: monthLabels[month - 1],
+          values: values,
+        ));
+      }
+      return dataPoints;
+    } catch (e) {
+      debugPrint('❌ [report.dart] 年次統計データ取得エラー: $e');
+      return [];
     }
-    
-    return dataPoints;
   }
+
 
 
   String _getPeriodDescriptor() {
@@ -977,8 +936,6 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
   }
 
   Widget _buildActivityChartCard() {
-    final data = _getChartData();
-    final maxY = _getMaxY();
     final titleStyle = AppTextStyles.body1.copyWith(
       color: AppColors.textSecondary,
       fontWeight: FontWeight.w600,
@@ -1019,54 +976,126 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
             ],
           ),
           SizedBox(height: AppSpacing.lg),
-          AppBarChart(
-            height: 220,
-            barGroups: data,
-            maxY: maxY,
-            getBottomTitles: (value, meta) {
-              final index = value.toInt();
-              if (_selectedPeriodIndex == 0 && index % 3 != 0) {
-                return const SizedBox.shrink();
-              }
-              final label = _getBottomLabel(index);
-              if (label.isEmpty) return const SizedBox.shrink();
-              final isDense =
-                  _selectedPeriodIndex == 0 || _selectedPeriodIndex == 2;
-              final style = isDense
-                  ? AppTextStyles.caption.copyWith(fontSize: 10)
-                  : AppTextStyles.caption;
-              return Padding(
-                padding: EdgeInsets.only(top: AppSpacing.xs),
-                child: Text(label, style: style),
-              );
-            },
-            getLeftTitles: (value, meta) {
-              if (value == 0 || value == maxY) {
-                final minutes = (value * 60).round();
-                String label;
-                if (minutes < 60) {
-                  label = '${minutes}m';
-                } else {
-                  final h = minutes ~/ 60;
-                  final m = minutes % 60;
-                  if (m == 0) {
-                    label = '${h}h';
-                  } else {
-                    label = '${h}h ${m}m';
-                  }
-                }
-                return Padding(
-                  padding: EdgeInsets.only(
-                    bottom: value == 0 ? AppSpacing.xs : 0,
-                    top: value == maxY ? AppSpacing.sm : 0,
-                  ),
-                  child: Text(
-                    label,
-                    style: AppTextStyles.caption,
+          FutureBuilder<List<CategoryDataPoint>>(
+            future: _getDataPointsForCurrentPeriod(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return SizedBox(
+                  height: 220,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: AppColors.blue,
+                    ),
                   ),
                 );
               }
-              return const SizedBox.shrink();
+
+              if (snapshot.hasError) {
+                return SizedBox(
+                  height: 220,
+                  child: Center(
+                    child: Text(
+                      'データの読み込みに失敗しました',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              final dataPoints = snapshot.data ?? [];
+              if (dataPoints.isEmpty) {
+                return SizedBox(
+                  height: 220,
+                  child: Center(
+                    child: Text(
+                      'データがありません',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                  ),
+                );
+              }
+
+              return FutureBuilder<List<BarChartGroupData>>(
+                future: _getChartData(),
+                builder: (context, chartSnapshot) {
+                  if (chartSnapshot.connectionState == ConnectionState.waiting) {
+                    return SizedBox(
+                      height: 220,
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AppColors.blue,
+                        ),
+                      ),
+                    );
+                  }
+
+                  final barGroups = chartSnapshot.data ?? [];
+                  return FutureBuilder<double>(
+                    future: _getMaxY(),
+                    builder: (context, maxYSnapshot) {
+                      final maxY = maxYSnapshot.data ?? 10.0;
+                      
+                      return AppBarChart(
+                        height: 220,
+                        barGroups: barGroups,
+                        maxY: maxY,
+                        getBottomTitles: (value, meta) {
+                          final index = value.toInt();
+                          if (_selectedPeriodIndex == 0 && index % 3 != 0) {
+                            return const SizedBox.shrink();
+                          }
+                          if (index >= 0 && index < dataPoints.length) {
+                            final label = dataPoints[index].label;
+                            if (label.isEmpty) return const SizedBox.shrink();
+                            final isDense =
+                                _selectedPeriodIndex == 0 || _selectedPeriodIndex == 2;
+                            final style = isDense
+                                ? AppTextStyles.caption.copyWith(fontSize: 10)
+                                : AppTextStyles.caption;
+                            return Padding(
+                              padding: EdgeInsets.only(top: AppSpacing.xs),
+                              child: Text(label, style: style),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                        getLeftTitles: (value, meta) {
+                          if (value == 0 || value == maxY) {
+                            final minutes = (value * 60).round();
+                            String label;
+                            if (minutes < 60) {
+                              label = '${minutes}m';
+                            } else {
+                              final h = minutes ~/ 60;
+                              final m = minutes % 60;
+                              if (m == 0) {
+                                label = '${h}h';
+                              } else {
+                                label = '${h}h ${m}m';
+                              }
+                            }
+                            return Padding(
+                              padding: EdgeInsets.only(
+                                bottom: value == 0 ? AppSpacing.xs : 0,
+                                top: value == maxY ? AppSpacing.sm : 0,
+                              ),
+                              child: Text(
+                                label,
+                                style: AppTextStyles.caption,
+                              ),
+                            );
+                          }
+                          return const SizedBox.shrink();
+                        },
+                      );
+                    },
+                  );
+                },
+              );
             },
           ),
         ],
@@ -1236,8 +1265,8 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     return '${h}h ${m.toString().padLeft(2, '0')}m';
   }
 
-  List<BarChartGroupData> _getChartData() {
-    final data = _getDataPointsForCurrentPeriod(forChart: true);
+  Future<List<BarChartGroupData>> _getChartData() async {
+    final data = await _getDataPointsForCurrentPeriod();
     final isDay = _selectedPeriodIndex == 0;
     final isWeek = _selectedPeriodIndex == 1;
     final isMonth = _selectedPeriodIndex == 2;
@@ -1289,8 +1318,8 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     }).toList();
   }
 
-  double _getMaxY() {
-    final data = _getChartData();
+  Future<double> _getMaxY() async {
+    final data = await _getChartData();
     if (data.isEmpty) {
       // デフォルト値
       switch (_selectedPeriodIndex) {
@@ -1338,14 +1367,6 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     return maxValue * 1.1;
   }
 
-  String _getBottomLabel(int index) {
-    final data = _getDataPointsForCurrentPeriod(forChart: true);
-
-    if (index >= 0 && index < data.length) {
-      return data[index].label;
-    }
-    return '';
-  }
 
   List<PieChartSectionData> _getPieChartSectionsFromSummary(Map<String, double> summary) {
     final isMonthOrYear = _selectedPeriodIndex == 2 || _selectedPeriodIndex == 3;
@@ -1462,31 +1483,7 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
       debugPrint('❌ [report.dart] Firestore統計データ取得エラー: $e');
     }
     
-    // Firestoreから取得できない場合は、ローカルのデータから計算
-    final sessions = ref.read(trackingSessionsProvider);
-    
-    if (sessions.isNotEmpty) {
-      final dataPoints = _getDataPointsForCurrentPeriod(useRead: true);
-      final summary = <String, double>{
-        'study': 0.0,
-        'pc': 0.0,
-        'smartphone': 0.0,
-        'personOnly': 0.0,
-        'nothingDetected': 0.0,
-      };
-      
-      for (final point in dataPoints) {
-        summary['study'] = (summary['study'] ?? 0.0) + (point.values['study'] ?? 0.0);
-        summary['pc'] = (summary['pc'] ?? 0.0) + (point.values['pc'] ?? 0.0);
-        summary['smartphone'] = (summary['smartphone'] ?? 0.0) + (point.values['smartphone'] ?? 0.0);
-        summary['personOnly'] = (summary['personOnly'] ?? 0.0) + (point.values['personOnly'] ?? 0.0);
-        summary['nothingDetected'] = (summary['nothingDetected'] ?? 0.0) + (point.values['nothingDetected'] ?? 0.0);
-      }
-      
-      return summary;
-    }
-    
-    // ローカルにデータがない場合は、空のサマリーを返す
+    // 統計データが取得できない場合は、空のサマリーを返す
     return <String, double>{
       'study': 0.0,
       'pc': 0.0,

@@ -6,12 +6,16 @@ import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/presentation/widgets/progress_bars.dart';
+import 'package:test_flutter/feature/countdown/countdown_functions.dart';
 import 'package:test_flutter/feature/streak/streak_functions.dart';
 import 'package:test_flutter/feature/total/total_functions.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
-import 'package:test_flutter/feature/statistics/daily_statistics_data_manager.dart';
+import 'package:test_flutter/feature/setting/goal_memo_notifier.dart';
+import 'package:test_flutter/presentation/widgets/dialogs.dart';
+import 'package:test_flutter/presentation/widgets/buttons.dart';
+import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
 
 /// ホーム画面（新デザインシステム版）
 class HomeScreenNew extends ConsumerStatefulWidget {
@@ -23,53 +27,131 @@ class HomeScreenNew extends ConsumerStatefulWidget {
 
 class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   static const double _statCardMinHeight = 160;
-
-  // 今日の日次統計データ（ローカルから取得）
-  Map<String, int> _todayCategorySeconds = {};
+  bool _isLoading = false; // 初期値はfalse（データ更新が必要な場合のみtrueになる）
+  bool _hasError = false;
+  String? _errorMessage;
+  bool _isGoalMemoLoading = false;
+  bool _goalMemoLoadFailed = false;
+  int? _pendingHomeToken;
+  bool _hasInitialized = false; // 初期化済みフラグ
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    // 初期状態をチェック（最初のフレーム後）
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_hasInitialized) {
+        _hasInitialized = true;
+        _handleHomeRefreshTrigger(ref.read(dataRefreshProvider));
+      }
+    });
   }
 
-  /// データを読み込む
+  /// Firestoreからデータを取得してProviderを更新
+  /// 
+  /// アプリ起動時に`loadCriticalData()`でデータが取得されている可能性がありますが、
+  /// 確実にデータを取得するために、ここでもデータを取得します。
   Future<void> _loadData() async {
+    if (!mounted) return;
+    
+    setState(() {
+      _isLoading = true;
+      _hasError = false;
+      _errorMessage = null;
+    });
+
     try {
-      // 累計データ、ストリークデータ、トラッキング設定を並行して読み込む（バックグラウンド更新）
+      // 並列でデータを同期（Firestoreとローカルを同期してからProviderを更新）
       await Future.wait([
-        loadTotalDataWithBackgroundRefreshHelper(ref),
-        loadStreakDataWithBackgroundRefreshHelper(ref),
-        loadTrackingSettingsWithBackgroundRefreshHelper(ref),
-        _loadTodayStatistics(),
-      ]);
-    } catch (e) {
-      debugPrint('❌ [HomeScreen] データ読み込みエラー: $e');
-    }
-  }
-  
-  /// 今日の日次統計をローカルから読み込む
-  Future<void> _loadTodayStatistics() async {
-    try {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final manager = DailyStatisticsDataManager();
-      final dailyStats = await manager.getByDateLocal(today);
-      
+        loadTotalDataWithBackgroundRefreshHelper(ref).catchError((e) {
+          debugPrint('❌ [HomeScreen] TotalData取得エラー: $e');
+          return loadTotalDataHelper(ref);
+        }),
+        loadStreakDataWithBackgroundRefreshHelper(ref).catchError((e) {
+          debugPrint('❌ [HomeScreen] StreakData取得エラー: $e');
+          return loadStreakDataHelper(ref);
+        }),
+        loadGoalsWithBackgroundRefreshHelper(ref).catchError((e) {
+          debugPrint('❌ [HomeScreen] Goals取得エラー: $e');
+          return loadGoalsHelper(ref);
+        }),
+        loadCountdownsWithBackgroundRefreshHelper(ref).catchError((e) {
+          debugPrint('❌ [HomeScreen] Countdown取得エラー: $e');
+          return loadCountdownsHelper(ref);
+        }),
+        _loadGoalMemo(),
+      ], eagerError: false);
+
       if (mounted) {
         setState(() {
-          if (dailyStats != null) {
-            _todayCategorySeconds = Map<String, int>.from(dailyStats.categorySeconds);
-          } else {
-            _todayCategorySeconds = {};
-          }
+          _isLoading = false;
         });
       }
-    } catch (e) {
-      debugPrint('❌ [HomeScreen] 日次統計の読み込みエラー: $e');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [HomeScreen] データ取得エラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
       if (mounted) {
         setState(() {
-          _todayCategorySeconds = {};
+          _isLoading = false;
+          _hasError = true;
+          _errorMessage = 'データの取得に失敗しました。オフラインの可能性があります。';
+        });
+      }
+    }
+  }
+
+  void _handleHomeRefreshTrigger(DataRefreshState state) {
+    final token = state.homeToken;
+    final ack = state.homeAckToken;
+    
+    // tokenが0または既に処理済みの場合は何もしない
+    if (token == 0 || token == ack) {
+      return;
+    }
+    
+    // 既に同じtokenを処理中または処理済みの場合は何もしない
+    if (_pendingHomeToken == token) {
+      return;
+    }
+    
+    // 他のtokenを処理中の場合は待つ
+    if (_pendingHomeToken != null) {
+      return;
+    }
+    
+    // データ読み込みを開始
+    _pendingHomeToken = token;
+    _loadData().whenComplete(() {
+      if (!mounted) return;
+      markHomeHandled(ref, token);
+      _pendingHomeToken = null;
+      
+      // 処理完了後、新しい更新がないか確認（再帰呼び出しを削除）
+      // 新しい更新はref.listenで検知されるため、再帰呼び出しは不要
+    });
+  }
+
+  Future<void> _loadGoalMemo() async {
+    if (!mounted) return;
+    setState(() {
+      _isGoalMemoLoading = true;
+      _goalMemoLoadFailed = false;
+    });
+
+    try {
+      await loadGoalMemoWithBackgroundRefreshHelper(ref);
+    } catch (e, stackTrace) {
+      debugPrint('❌ [HomeScreen] GoalMemo取得エラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
+      if (mounted) {
+        setState(() {
+          _goalMemoLoadFailed = true;
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGoalMemoLoading = false;
         });
       }
     }
@@ -77,6 +159,85 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
 
   @override
   Widget build(BuildContext context) {
+    // データ更新のリスナーを設定（build内でのみ使用可能）
+    ref.listen<DataRefreshState>(
+      dataRefreshProvider,
+      (previous, next) {
+        // 初回呼び出し（previous == null）はinitStateで処理済みなのでスキップ
+        if (previous == null) {
+          return;
+        }
+
+        // homeTokenに変化がなければ何もしない
+        if (previous.homeToken == next.homeToken) {
+          return;
+        }
+
+        _handleHomeRefreshTrigger(next);
+      },
+    );
+    
+    // ローディング中はローディング表示
+    if (_isLoading) {
+      return AppScaffold(
+        backgroundColor: AppColors.black,
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(color: AppColors.blue),
+                SizedBox(height: AppSpacing.md),
+                Text(
+                  'データを読み込んでいます...',
+                  style: AppTextStyles.body1.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // エラー時はエラーメッセージとリトライボタンを表示
+    if (_hasError) {
+      return AppScaffold(
+        backgroundColor: AppColors.black,
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(AppSpacing.lg),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    color: AppColors.error,
+                    size: 64,
+                  ),
+                  SizedBox(height: AppSpacing.md),
+                  Text(
+                    _errorMessage ?? 'データの取得に失敗しました',
+                    style: AppTextStyles.body1.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: AppSpacing.lg),
+                  PrimaryButton(
+                    text: '再試行',
+                    onPressed: () => _loadData(),
+                    size: ButtonSize.medium,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return AppScaffold(
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
@@ -85,6 +246,11 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // 目標メモセクション
+              _buildGoalMemoSection(),
+
+              SizedBox(height: AppSpacing.md),
+
               // 統計表示セクション
               _buildStatsSection(),
 
@@ -137,6 +303,11 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   Widget _buildTotalFocusedTimeCard() {
     final totalData = ref.watch(totalDataProvider);
     final totalMinutes = totalData.totalWorkTimeMinutes;
+    final totalHours = totalMinutes ~/ 60;
+    final remainingMinutes = totalMinutes % 60;
+    final totalTimeDisplay = totalHours > 0
+        ? '${totalHours}h ${remainingMinutes.toString().padLeft(2, '0')}m'
+        : '${remainingMinutes}m';
     const accentColor = AppColors.blue;
     return Container(
       padding: EdgeInsets.all(AppSpacing.lg),
@@ -175,31 +346,17 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
           ),
           SizedBox(height: AppSpacing.sm),
           Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '$totalMinutes',
-                  style: AppTextStyles.h1.copyWith(
-                    fontSize: 48,
-                    color: accentColor,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w800,
-                  ),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Text(
+                totalTimeDisplay,
+                style: AppTextStyles.h1.copyWith(
+                  fontSize: 48,
+                  color: accentColor,
+                  letterSpacing: 1.2,
+                  fontWeight: FontWeight.w800,
                 ),
-                Padding(
-                  padding: EdgeInsets.only(left: 4, bottom: 6),
-                  child: Text(
-                    'min',
-                    style: AppTextStyles.h1.copyWith(
-                      fontSize: 48 * 0.8,
-                      color: accentColor,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
           SizedBox(height: AppSpacing.xs),
@@ -254,31 +411,34 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
           ),
           SizedBox(height: AppSpacing.sm),
           Center(
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  '${streakData.currentStreak}',
-                  style: AppTextStyles.h1.copyWith(
-                    fontSize: 48,
-                    color: accentColor,
-                    letterSpacing: 1.2,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-                Padding(
-                  padding: EdgeInsets.only(left: 4, bottom: 6),
-                  child: Text(
-                    'days',
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '${streakData.currentStreak}',
                     style: AppTextStyles.h1.copyWith(
-                      fontSize: 48 * 0.8,
+                      fontSize: 48,
                       color: accentColor,
-                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                ),
-              ],
+                  Padding(
+                    padding: EdgeInsets.only(left: 4, bottom: 6),
+                    child: Text(
+                      'days',
+                      style: AppTextStyles.h1.copyWith(
+                        fontSize: 48 * 0.8,
+                        color: accentColor,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
           SizedBox(height: AppSpacing.xs),
@@ -325,7 +485,8 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
       }
       
       // 期間が今日を含むかチェック
-      final endDate = studyGoal.startDate.add(Duration(days: studyGoal.durationDays));
+      final endDate = studyGoal.periodEndDate ??
+          studyGoal.startDate.add(Duration(days: studyGoal.durationDays));
       if (now.isAfter(studyGoal.startDate.subtract(const Duration(days: 1))) &&
           now.isBefore(endDate.add(const Duration(days: 1)))) {
         todaysGoals.add(studyGoal);
@@ -345,7 +506,8 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
       }
       
       // 期間が今日を含むかチェック
-      final endDate = pcGoal.startDate.add(Duration(days: pcGoal.durationDays));
+      final endDate = pcGoal.periodEndDate ??
+          pcGoal.startDate.add(Duration(days: pcGoal.durationDays));
       if (now.isAfter(pcGoal.startDate.subtract(const Duration(days: 1))) &&
           now.isBefore(endDate.add(const Duration(days: 1)))) {
         todaysGoals.add(pcGoal);
@@ -365,7 +527,8 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
       }
       
       // 期間が今日を含むかチェック
-      final endDate = smartphoneGoal.startDate.add(Duration(days: smartphoneGoal.durationDays));
+      final endDate = smartphoneGoal.periodEndDate ??
+          smartphoneGoal.startDate.add(Duration(days: smartphoneGoal.durationDays));
       if (now.isAfter(smartphoneGoal.startDate.subtract(const Duration(days: 1))) &&
           now.isBefore(endDate.add(const Duration(days: 1)))) {
         todaysGoals.add(smartphoneGoal);
@@ -404,22 +567,20 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
     );
   }
   
-  /// 目標カードを構築（その日の時間をローカルの日次統計から取得）
+  /// 目標カードを構築（その日の達成時間を目標のtodayAchievedTimeから取得）
   Widget _buildGoalCard(Goal goal) {
     final category = _getCategoryFromDetectionItem(goal.detectionItem);
     final color = _getGoalColor(category);
     
-    // その日の時間（秒単位）を状態変数から取得
-    final todaySeconds = _getTodayCategorySeconds(category);
+    // その日の達成時間（秒単位）を目標のtodayAchievedTimeから取得
+    final todaySeconds = goal.todayAchievedTime ?? 0;
         
         // 目標時間は1日換算データを使用（goal.targetSecondsPerDay）
         final targetSecondsPerDay = goal.targetSecondsPerDay;
         
-        // 時間フォーマット（表示時に変換）
-        final currentMinutes = todaySeconds ~/ 60;
-        final targetMinutes = targetSecondsPerDay ~/ 60;
-        final currentValue = _formatMinutes(currentMinutes);
-        final targetValue = _formatMinutes(targetMinutes);
+        // 時間フォーマット（表示時に変換、秒単位で処理）
+        final currentValue = _formatSecondsToDisplay(todaySeconds);
+        final targetValue = _formatSecondsToDisplay(targetSecondsPerDay);
         
         // 進捗率の計算（秒単位で計算）
         final percentage = targetSecondsPerDay > 0 
@@ -442,33 +603,22 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         );
   }
   
-  /// その日のカテゴリ別時間を状態変数から取得（秒単位）
-  int _getTodayCategorySeconds(String category) {
-      switch (category) {
-        case 'study':
-        return _todayCategorySeconds['study'] ?? 0;
-        case 'pc':
-        return _todayCategorySeconds['pc'] ?? 0;
-        case 'smartphone':
-        return _todayCategorySeconds['smartphone'] ?? 0;
-        default:
-      return 0;
+  /// 秒単位の値を表示用の文字列に変換（秒/分/時間単位）
+  String _formatSecondsToDisplay(int seconds) {
+    if (seconds < 60) {
+      // 1分未満は秒単位で表示
+      return '${seconds}s';
     }
-  }
-  
-  /// 分を時間フォーマットに変換（メモ化対応）
-  String _formatMinutes(int minutes) {
+    
+    final minutes = seconds ~/ 60;
     if (minutes < 60) {
       return '${minutes}m';
-    } else {
-      final h = minutes ~/ 60;
-      final m = minutes % 60;
-      if (m == 0) {
-        return '${h}h';
-      } else {
-        return '${h}h ${m}m';
-      }
     }
+
+    final h = minutes ~/ 60;
+    final m = minutes % 60;
+    final minuteText = m.toString().padLeft(2, '0');
+    return '${h}h ${minuteText}m';
   }
   
   String _getCategoryFromDetectionItem(DetectionItem item) {
@@ -615,6 +765,178 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   }
 
 
+  /// 目標メモセクション
+  Widget _buildGoalMemoSection() {
+    final memo = ref.watch(goalMemoProvider);
+    final hasContent = memo.content.isNotEmpty;
+
+    if (_isGoalMemoLoading) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: Container(
+          padding: EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.purple.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppRadius.large),
+            border: Border.all(
+              color: AppColors.purple.withValues(alpha: 0.4),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            children: [
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(AppColors.purple),
+              ),
+              SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Text(
+                  '目標メモを読み込んでいます...',
+                  style: AppTextStyles.body2.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    if (_goalMemoLoadFailed) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: Container(
+          padding: EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.error.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppRadius.large),
+            border: Border.all(
+              color: AppColors.error.withValues(alpha: 0.4),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '目標メモの取得に失敗しました',
+                style: AppTextStyles.body2.copyWith(
+                  color: AppColors.error,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              SizedBox(height: AppSpacing.sm),
+              SecondaryButton(
+                text: '再試行',
+                size: ButtonSize.small,
+                onPressed: _loadGoalMemo,
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: GestureDetector(
+        onTap: () => _showGoalMemoDialog(),
+        child: Container(
+          padding: EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.purple.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppRadius.large),
+            border: Border.all(
+              color: AppColors.purple.withValues(alpha: 0.4),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.lightbulb_outline,
+                color: AppColors.purple,
+                size: 24,
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '目標メモ',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.purple,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: AppSpacing.xs),
+                    if (hasContent)
+                      Text(
+                        memo.content,
+                        style: AppTextStyles.body1.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    else
+                      Text(
+                        'タップして目標メモを追加',
+                        style: AppTextStyles.body2.copyWith(
+                          color: AppColors.textSecondary,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Icon(
+                Icons.edit_outlined,
+                color: AppColors.purple.withValues(alpha: 0.6),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 目標メモ編集ダイアログを表示
+  Future<void> _showGoalMemoDialog() async {
+    final currentMemo = ref.read(goalMemoProvider);
+    final controller = TextEditingController(text: currentMemo.content);
+    
+    // ダイアログを開く前に、メッセージ表示用のScaffoldMessengerを取得
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
+    await showDialog(
+      context: context,
+      builder: (context) => _GoalMemoEditDialog(
+        controller: controller,
+        currentMemo: currentMemo,
+        ref: ref,
+        onSave: (success) {
+          // 保存完了後にメッセージを表示
+          if (mounted) {
+            scaffoldMessenger.showSnackBar(
+              SnackBar(
+                content: Text(success ? '目標メモを保存しました' : '保存に失敗しました'),
+                backgroundColor: success ? AppColors.success : AppColors.error,
+              ),
+            );
+          }
+        },
+      ),
+    );
+    
+    controller.dispose();
+  }
+
   Widget _buildBottomNavigationBar(BuildContext context) {
     return AppBottomNavigationBar(
       currentIndex: 0,
@@ -636,5 +958,141 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         NavigationHelper.pushReplacement(context, AppRoutes.settings);
         break;
     }
+  }
+}
+
+/// 目標メモ編集ダイアログ
+class _GoalMemoEditDialog extends StatefulWidget {
+  final TextEditingController controller;
+  final dynamic currentMemo;
+  final dynamic ref;
+  final Function(bool) onSave;
+
+  const _GoalMemoEditDialog({
+    required this.controller,
+    required this.currentMemo,
+    required this.ref,
+    required this.onSave,
+  });
+
+  @override
+  State<_GoalMemoEditDialog> createState() => _GoalMemoEditDialogState();
+}
+
+class _GoalMemoEditDialogState extends State<_GoalMemoEditDialog> {
+  static const int maxLength = 200;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_updateCounter);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_updateCounter);
+    super.dispose();
+  }
+
+  void _updateCounter() {
+    setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppDialogBase(
+      title: '目標メモ',
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            '自分を鼓舞するためのメモを書いてください',
+            style: AppTextStyles.body2.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          Text(
+            'メモ',
+            style: AppTextStyles.body2.copyWith(
+              color: AppColors.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          SizedBox(height: AppSpacing.sm),
+          TextField(
+            controller: widget.controller,
+            maxLines: 5,
+            maxLength: maxLength,
+            style: AppTextStyles.body1,
+            decoration: InputDecoration(
+              hintText: '例: 今日も頑張ろう！毎日少しずつ進歩していく...',
+              hintStyle: AppTextStyles.body1.copyWith(
+                color: AppColors.textDisabled,
+              ),
+              filled: true,
+              fillColor: AppColors.lightblackgray,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.medium),
+                borderSide: BorderSide.none,
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.medium),
+                borderSide: BorderSide.none,
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(AppRadius.medium),
+                borderSide: const BorderSide(color: AppColors.blue, width: 2),
+              ),
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.md,
+                vertical: AppSpacing.md,
+              ),
+              counterText: '',
+            ),
+          ),
+          SizedBox(height: AppSpacing.xs),
+          Text(
+            '${widget.controller.text.length} / $maxLength',
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        SecondaryButton(
+          text: 'キャンセル',
+          onPressed: () => Navigator.of(context).pop(),
+          size: ButtonSize.small,
+          borderRadius: 30,
+        ),
+        SizedBox(width: AppSpacing.sm),
+        PrimaryButton(
+          text: '保存',
+          onPressed: () async {
+            final content = widget.controller.text.trim();
+            
+            // 目標メモを更新
+            final updatedMemo = widget.currentMemo.copyWith(
+              content: content,
+              lastModified: DateTime.now(),
+            );
+            
+            // 保存処理を実行
+            final success = await saveGoalMemoHelper(widget.ref, updatedMemo);
+            
+            // 保存が完了してからダイアログを閉じる
+            if (mounted) {
+              Navigator.of(context).pop();
+              widget.onSave(success);
+            }
+          },
+          size: ButtonSize.small,
+          borderRadius: 30,
+        ),
+      ],
+    );
   }
 }

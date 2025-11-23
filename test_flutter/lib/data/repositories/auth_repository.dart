@@ -1,13 +1,28 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:test_flutter/data/sources/auth_source.dart';
 import 'package:test_flutter/data/sources/secure_storage_source.dart';
+import 'package:test_flutter/data/sources/hive_source.dart';
+import 'package:test_flutter/data/sources/local_storage_source.dart';
+import 'package:test_flutter/data/repositories/initialization_repository.dart';
+import 'package:test_flutter/data/models/settings_models.dart';
+import 'package:test_flutter/feature/setting/settings_data_manager.dart';
+import 'package:test_flutter/feature/total/total_functions.dart';
+import 'package:test_flutter/feature/streak/streak_functions.dart';
+import 'package:test_flutter/feature/countdown/countdown_functions.dart';
+import 'package:test_flutter/feature/goals/goal_functions.dart';
+import 'package:test_flutter/feature/setting/account_settings_notifier.dart';
 
 /// 認証サービス統合クラス
 class AuthServiceUN {
   /// Googleでサインイン
   static Future<AuthResult> signInWithGoogle() async {
     try {
+      // 現在のユーザーIDを取得（ユーザー切り替え検知のため）
+      final currentUser = AuthMk.getCurrentUser();
+      final currentUserId = currentUser?.uid;
+      
       final user = await AuthMk.signInWithGoogle();
       
       if (user == null) {
@@ -15,6 +30,13 @@ class AuthServiceUN {
           success: false,
           message: '認証がキャンセルされました',
         );
+      }
+
+      // ユーザー切り替えを検知
+      if (currentUserId != null && currentUserId != user.uid) {
+        debugPrint('🔄 [AuthServiceUN] ユーザー切り替えを検知: $currentUserId -> ${user.uid}');
+        // 前のユーザーのローカルデータをクリア
+        await _clearPreviousUserData();
       }
 
       final token = await AuthMk.getUserIdToken();
@@ -26,6 +48,9 @@ class AuthServiceUN {
         token: token,
         photoUrl: user.photoURL,
       );
+      
+      // メールアドレスをFirestoreのAccountSettingsに保存
+      await _saveEmailToAccountSettings(user.uid, user.email);
       
       debugPrint('✅ [AuthServiceUN] Google認証成功: ${user.email}');
       
@@ -54,6 +79,10 @@ class AuthServiceUN {
   @Deprecated('Popup方式に変更したため、この関数は不要です。signInWithGoogle()を使用してください。')
   static Future<AuthResult> handleRedirectResult() async {
     try {
+      // 現在のユーザーIDを取得（ユーザー切り替え検知のため）
+      final currentUser = AuthMk.getCurrentUser();
+      final currentUserId = currentUser?.uid;
+      
       final user = await AuthMk.getRedirectResult();
       
       if (user == null) {
@@ -61,6 +90,13 @@ class AuthServiceUN {
           success: false,
           message: 'リダイレクト認証なし',
         );
+      }
+
+      // ユーザー切り替えを検知
+      if (currentUserId != null && currentUserId != user.uid) {
+        debugPrint('🔄 [AuthServiceUN] Redirect認証: ユーザー切り替えを検知: $currentUserId -> ${user.uid}');
+        // 前のユーザーのローカルデータをクリア
+        await _clearPreviousUserData();
       }
 
       final token = await AuthMk.getUserIdToken();
@@ -72,6 +108,9 @@ class AuthServiceUN {
         token: token,
         photoUrl: user.photoURL,
       );
+      
+      // メールアドレスをFirestoreのAccountSettingsに保存
+      await _saveEmailToAccountSettings(user.uid, user.email);
       
       debugPrint('✅ Redirect認証成功 & データ保存完了: ${user.email}');
       
@@ -96,16 +135,124 @@ class AuthServiceUN {
     }
   }
 
+  /// 全ローカルデータを削除
+  /// 
+  /// SecureStorage、Hive、SharedPreferencesの全データを削除する
+  static Future<void> clearAllLocalData() async {
+    try {
+      // 1. SecureStorageを削除
+      await SecureStorageMk.deleteAllSecureStorage();
+      debugPrint('✅ SecureStorage削除完了');
+
+      // 2. Hiveの全ボックスを削除
+      try {
+        final boxNames = await HiveMk.getAllBoxNames();
+        for (final boxName in boxNames) {
+          await HiveMk.removeFromHive(boxName);
+        }
+        debugPrint('✅ Hive全ボックス削除完了: ${boxNames.length}件');
+      } catch (e) {
+        debugPrint('⚠️ Hive削除エラー: $e');
+      }
+
+      // 3. SharedPreferencesの全キーを削除
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear();
+        debugPrint('✅ SharedPreferences削除完了');
+      } catch (e) {
+        debugPrint('⚠️ SharedPreferences削除エラー: $e');
+      }
+
+      debugPrint('✅ 全ローカルデータ削除完了');
+    } catch (e) {
+      debugPrint('❌ 全ローカルデータ削除エラー: $e');
+      rethrow;
+    }
+  }
+
   /// サインアウト
+  /// 
+  /// Firebaseからサインアウトし、Providerの状態をクリアします。
+  /// ローカルデータ（SecureStorage、Hive、SharedPreferences）は保持されます。
+  /// これにより、次回サインイン時にデータを復元できます。
   static Future<void> signOut() async {
     try {
-      await AuthMk.signOutFromFirebase();
-      await SecureStorageMk.deleteAllSecureStorage();
+      // 初期化フラグをリセット
+      AppInitUN.resetInitializationFlags();
       
-      debugPrint('✅ サインアウト & データ削除完了');
+      // Providerの状態をクリア
+      await _clearProviderStates();
+      
+      // Firebaseからサインアウト（ローカルデータは保持）
+      await AuthMk.signOutFromFirebase();
+      
+      debugPrint('✅ サインアウト完了（ローカルデータは保持、Provider状態はクリア）');
     } catch (e) {
       debugPrint('❌ サインアウトエラー: $e');
       rethrow;
+    }
+  }
+
+  /// Providerの状態をクリアするヘルパーメソッド
+  /// 
+  /// サインアウト時に、各Providerの状態をデフォルト値にリセットします。
+  static Future<void> _clearProviderStates() async {
+    try {
+      final container = AppInitUN.getGlobalContainer();
+      if (container == null) {
+        debugPrint('⚠️ [AuthServiceUN] ProviderContainerが設定されていないため、Provider状態のクリアをスキップ');
+        return;
+      }
+
+      debugPrint('🔄 [AuthServiceUN] Provider状態のクリア開始');
+
+      // 各ProviderのNotifierをリセット
+      try {
+        // TotalDataProvider
+        container.read(totalDataProvider.notifier).reset();
+        debugPrint('✅ [AuthServiceUN] TotalDataProviderをリセット');
+      } catch (e) {
+        debugPrint('⚠️ [AuthServiceUN] TotalDataProviderリセットエラー: $e');
+      }
+
+      try {
+        // StreakDataProvider
+        container.read(streakDataProvider.notifier).reset();
+        debugPrint('✅ [AuthServiceUN] StreakDataProviderをリセット');
+      } catch (e) {
+        debugPrint('⚠️ [AuthServiceUN] StreakDataProviderリセットエラー: $e');
+      }
+
+      try {
+        // CountdownsListProvider
+        container.read(countdownsListProvider.notifier).clear();
+        debugPrint('✅ [AuthServiceUN] CountdownsListProviderをクリア');
+      } catch (e) {
+        debugPrint('⚠️ [AuthServiceUN] CountdownsListProviderクリアエラー: $e');
+      }
+
+      try {
+        // GoalsListProvider
+        container.read(goalsListProvider.notifier).clear();
+        debugPrint('✅ [AuthServiceUN] GoalsListProviderをクリア');
+      } catch (e) {
+        debugPrint('⚠️ [AuthServiceUN] GoalsListProviderクリアエラー: $e');
+      }
+
+      try {
+        // AccountSettingsProvider
+        container.read(accountSettingsProvider.notifier).updateSettings(AccountSettings.defaultSettings());
+        debugPrint('✅ [AuthServiceUN] AccountSettingsProviderをリセット');
+      } catch (e) {
+        debugPrint('⚠️ [AuthServiceUN] AccountSettingsProviderリセットエラー: $e');
+      }
+
+      debugPrint('✅ [AuthServiceUN] Provider状態のクリア完了');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [AuthServiceUN] Provider状態のクリアエラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
+      // エラーが発生してもサインアウト処理は続行する
     }
   }
 
@@ -195,6 +342,155 @@ class AuthServiceUN {
   /// 認証状態の変更を監視
   static Stream<User?> watchAuthStateChanges() {
     return AuthMk.watchAuthStateChanges();
+  }
+
+  /// 前のユーザーのローカルデータをクリアするヘルパーメソッド
+  /// 
+  /// ユーザー切り替え時に、前のユーザーのProvider状態、SharedPreferences、Hiveデータをクリアします。
+  static Future<void> _clearPreviousUserData() async {
+    try {
+      debugPrint('🔄 [AuthServiceUN] 前のユーザーのローカルデータをクリア開始');
+      
+      // まずProviderの状態をクリア
+      await _clearProviderStates();
+      
+      // すべてのデータマネージャーのストレージキーをクリア
+      final storageKeys = [
+        'account_settings',
+        'notification_settings',
+        'display_settings',
+        'time_settings',
+        'tracking_settings',
+        'goal_memo',
+        'goals',
+        'streak_data',
+        'total_data',
+        'countdowns',
+        'tracking_sessions',
+        'daily_statistics',
+        'weekly_statistics',
+        'monthly_statistics',
+        'yearly_statistics',
+      ];
+      
+      // SharedPreferencesから各ストレージキーをクリア
+      for (final key in storageKeys) {
+        try {
+          await SharedMk.removeFromSharedPrefs(key);
+          // 最終同期時刻もクリア
+          await SharedMk.removeFromSharedPrefs('${key}_last_sync');
+          debugPrint('✅ [AuthServiceUN] SharedPreferencesクリア完了: $key');
+        } catch (e) {
+          debugPrint('⚠️ [AuthServiceUN] SharedPreferencesクリアエラー ($key): $e');
+        }
+      }
+      
+      // Hiveの全ボックスをクリア
+      try {
+        final boxNames = await HiveMk.getAllBoxNames();
+        for (final boxName in boxNames) {
+          try {
+            await HiveMk.removeFromHive(boxName);
+            debugPrint('✅ [AuthServiceUN] Hiveクリア完了: $boxName');
+          } catch (e) {
+            debugPrint('⚠️ [AuthServiceUN] Hiveクリアエラー ($boxName): $e');
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ [AuthServiceUN] Hive全ボックスクリアエラー: $e');
+      }
+      
+      // SecureStorageも明示的にクリア（新しいユーザーの情報で即座に上書きされるが、整合性のため）
+      try {
+        await SecureStorageMk.deleteAllSecureStorage();
+        debugPrint('✅ [AuthServiceUN] SecureStorageクリア完了');
+      } catch (e) {
+        debugPrint('⚠️ [AuthServiceUN] SecureStorageクリアエラー: $e');
+      }
+      
+      debugPrint('✅ [AuthServiceUN] 前のユーザーのローカルデータクリア完了');
+    } catch (e, stackTrace) {
+      debugPrint('❌ [AuthServiceUN] 前のユーザーのローカルデータクリアエラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
+      // エラーが発生しても認証処理は続行する
+    }
+  }
+
+  /// メールアドレスをAccountSettingsに保存するヘルパーメソッド
+  /// 
+  /// 既存のAccountSettingsがある場合はemailのみ更新し、
+  /// ない場合は新規作成します。
+  /// 保存後、Providerも更新して、`syncAccountSettingsHelper()`での補完処理を避けます。
+  static Future<void> _saveEmailToAccountSettings(String userId, String? email) async {
+    if (email == null || email.isEmpty) {
+      debugPrint('⚠️ [AuthServiceUN] メールアドレスが空のため、AccountSettingsに保存しません');
+      return;
+    }
+
+    try {
+      // 既存のAccountSettingsを取得（Firestore優先、なければローカル）
+      AccountSettings? existingSettings;
+      try {
+        existingSettings = await accountSettingsManager.getById(userId, 'account_settings');
+      } catch (e) {
+        debugPrint('⚠️ [AuthServiceUN] FirestoreからAccountSettings取得エラー: $e');
+      }
+      
+      // Firestoreにない場合はローカルデータを取得
+      if (existingSettings == null) {
+        try {
+          existingSettings = await accountSettingsManager.getLocalById('account_settings');
+          debugPrint('✅ [AuthServiceUN] ローカルからAccountSettingsを取得しました');
+        } catch (e) {
+          debugPrint('⚠️ [AuthServiceUN] ローカルからAccountSettings取得エラー: $e');
+        }
+      }
+      
+      // 既存の設定がある場合はemailのみ更新、ない場合は既存のローカルデータまたはデフォルト値を使用
+      final updatedSettings = existingSettings != null
+          ? existingSettings.copyWith(
+              email: email,
+              lastModified: DateTime.now(),
+            )
+          : AccountSettings(
+              id: 'account_settings',
+              accountName: 'ユーザー',
+              avatarColor: 'blue',
+              email: email,
+              lastModified: DateTime.now(),
+            );
+      
+      final success = await accountSettingsManager.saveWithRetry(userId, updatedSettings);
+      if (success) {
+        if (existingSettings != null) {
+          debugPrint('✅ [AuthServiceUN] AccountSettingsのメールアドレスを更新しました');
+        } else {
+          debugPrint('✅ [AuthServiceUN] AccountSettingsを新規作成しました（メールアドレス含む）');
+        }
+      } else {
+        if (existingSettings != null) {
+          debugPrint('⚠️ [AuthServiceUN] AccountSettingsのメールアドレス更新に失敗しました');
+        } else {
+          debugPrint('⚠️ [AuthServiceUN] AccountSettingsの新規作成に失敗しました');
+        }
+      }
+      
+      // Providerも更新して、`syncAccountSettingsHelper()`での補完処理を避ける
+      try {
+        final container = AppInitUN.getGlobalContainer();
+        if (container != null) {
+          container.read(accountSettingsProvider.notifier).updateSettings(updatedSettings);
+          debugPrint('✅ [AuthServiceUN] AccountSettingsProviderを更新しました');
+        }
+      } catch (e) {
+        debugPrint('⚠️ [AuthServiceUN] AccountSettingsProvider更新エラー: $e');
+        // Provider更新が失敗しても続行
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ [AuthServiceUN] AccountSettingsへのメールアドレス保存エラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
+      // エラーが発生しても認証処理は続行する（Firestoreへの保存は失敗してもSecureStorageには保存済み）
+    }
   }
 }
 

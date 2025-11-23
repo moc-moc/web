@@ -682,6 +682,7 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
                       comparisonType: comparisonType,
                       detectionItem: detectionItem,
                       durationDays: durationDays,
+                      periodEndDate: existingGoal.startDate.add(Duration(days: durationDays)),
                       startDate: existingGoal.startDate, // 開始日は変更しない
                       lastModified: now,
                     );
@@ -709,6 +710,7 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
                       detectionItem: detectionItem,
                       startDate: now,
                       durationDays: durationDays,
+                      periodEndDate: now.add(Duration(days: durationDays)),
                       lastModified: now,
                     );
 
@@ -1023,6 +1025,7 @@ class _CountdownSettingDialogState extends ConsumerState<CountdownSettingDialog>
                   );
 
                   if (success && mounted) {
+                    // ダイアログを閉じる（イベント画面はaddCountdownHelper内で表示される）
                     Navigator.of(context).pop();
                     widget.onSave?.call();
                   }

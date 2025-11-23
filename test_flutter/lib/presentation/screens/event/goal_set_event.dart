@@ -1,39 +1,102 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
+import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/screens/event/event_screen_base.dart';
 import 'package:test_flutter/presentation/widgets/event_content_builder.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 
 /// 目標設定完了イベント画面
 class GoalSetEventScreen extends StatelessWidget {
   final String? goalTitle;
-  final int? dayNumber;
+  final int? targetTime; // 目標時間（秒）
+  final int? consecutiveDays; // 連続日数
+  final int? durationDays; // 期間（日数）
+  final int? consecutivePeriodAchievements; // 期間内に連続で目標を達成した回数
 
   const GoalSetEventScreen({
     super.key,
     this.goalTitle,
-    this.dayNumber,
+    this.targetTime,
+    this.consecutiveDays,
+    this.durationDays,
+    this.consecutivePeriodAchievements,
   });
 
   @override
   Widget build(BuildContext context) {
+    // 目標時間を時間単位に変換
+    final targetHours = targetTime != null ? targetTime! / 3600.0 : null;
+    
     return EventScreenBase(
       gradientColors: const [Color(0xFF3B82F6), Color(0xFF1E40AF)], // Blue
       content: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          EventContentBuilder.buildIconContent(
-            icon: Icons.flag,
-            title: goalTitle ?? 'Goal Set!',
-            message: 'Your new goal has been set successfully',
-            titleFontSize: 36,
+          // アイコンとタイトルを横並びに
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.flag,
+                size: 40,
+                color: AppColors.textPrimary,
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Text(
+                'Goal Set!',
+                style: AppTextStyles.h2.copyWith(fontSize: 28),
+                textAlign: TextAlign.center,
+              ),
+            ],
           ),
-          SizedBox(height: AppSpacing.lg),
+          SizedBox(height: AppSpacing.xs),
+          Text(
+            'Your new goal has been set successfully',
+            style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.normal),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.sm),
           EventContentBuilder.buildEventNameCard(
-            eventName: 'Today is Day ${dayNumber ?? 0}',
-            fontSize: 24,
+            eventName: goalTitle ?? 'New Goal',
+            fontSize: 20,
+            additionalContent: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: AppSpacing.sm),
+                if (targetHours != null)
+                  EventContentBuilder.buildDetailRow(
+                    'Target Time',
+                    '${targetHours.toStringAsFixed(1)}h',
+                  ),
+                if (consecutiveDays != null)
+                  EventContentBuilder.buildDetailRow(
+                    'Current Streak',
+                    '$consecutiveDays days',
+                  ),
+                if (durationDays != null)
+                  EventContentBuilder.buildDetailRow(
+                    'Duration',
+                    '$durationDays days',
+                  ),
+                if (consecutivePeriodAchievements != null)
+                  EventContentBuilder.buildDetailRow(
+                    'Consecutive Achievements',
+                    '$consecutivePeriodAchievements times',
+                  ),
+              ],
+            ),
           ),
         ],
       ),
+      onOkPressed: () {
+        // ゴール画面に遷移（カウントダウン設定イベントと同様に、現在の画面を閉じてから遷移）
+        NavigationHelper.popAndPush(
+          context,
+          AppRoutes.goal,
+        );
+      },
     );
   }
 }

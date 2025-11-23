@@ -9,31 +9,35 @@ import 'package:test_flutter/feature/setting/account_settings_notifier.dart';
 import 'package:test_flutter/presentation/widgets/settings_widgets.dart';
 
 /// メイン設定画面（新デザインシステム版）
-class SettingsScreenNew extends ConsumerWidget {
+class SettingsScreenNew extends ConsumerStatefulWidget {
   const SettingsScreenNew({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsScreenNew> createState() => _SettingsScreenNewState();
+}
+
+class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
+  @override
+  Widget build(BuildContext context) {
     return AppScaffold(
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
       body: SafeArea(
-        child: ScrollableContent(
-          child: SpacedColumn(
-            spacing: AppSpacing.lg,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // プロフィールセクション
-              _buildProfileSection(context, ref),
+        child: _buildBody(context),
+      ),
+    );
+  }
 
-              // 設定項目リスト
-              _buildSettingsSection(context),
-
-              // プレビュー / テスト用リンク
-              _buildPreviewSection(context),
-            ],
-          ),
-        ),
+  Widget _buildBody(BuildContext context) {
+    return ScrollableContent(
+      child: SpacedColumn(
+        spacing: AppSpacing.lg,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildProfileSection(context, ref),
+          _buildSettingsSection(context),
+          _buildPreviewSection(context),
+        ],
       ),
     );
   }
@@ -130,10 +134,10 @@ class SettingsScreenNew extends ConsumerWidget {
 
         _buildSettingItem(
           context,
-          icon: Icons.display_settings,
+          icon: Icons.schedule,
           iconColor: AppColors.purple,
-          title: 'Display Settings',
-          subtitle: 'Category names and reset time',
+          title: 'Reset Time Setting',
+          subtitle: 'Choose when your day resets',
           onTap: () {
             NavigationHelper.push(context, AppRoutes.displaySettingsNew);
           },

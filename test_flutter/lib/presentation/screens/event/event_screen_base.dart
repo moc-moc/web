@@ -33,14 +33,20 @@ class EventScreenBase extends StatelessWidget {
         ),
         child: SafeArea(
           child: Padding(
-            padding: EdgeInsets.all(AppSpacing.lg),
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(child: SingleChildScrollView(child: content)),
+                Expanded(
+                  child: Center(
+                    child: SingleChildScrollView(
+                      child: content,
+                    ),
+                  ),
+                ),
 
-                SizedBox(height: AppSpacing.xl),
+                SizedBox(height: AppSpacing.sm),
 
                 // SNSシェアボタン
                 if (showShareButton) ...[

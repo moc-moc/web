@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
 /// リストデータを読み込む共通ヘルパー関数
@@ -110,6 +111,8 @@ Future<List<T>> loadListDataHelper<T>({
 /// リストデータを同期する共通ヘルパー関数
 /// 
 /// Firestoreとローカルストレージを同期し、Providerを最新の状態に更新します。
+/// タイムアウト処理（20秒）とエラーハンドリングが含まれます。
+/// エラー時はローカルデータを使用します。
 /// 
 /// **型パラメータ**:
 /// - `T`: データモデルの型
@@ -118,6 +121,7 @@ Future<List<T>> loadListDataHelper<T>({
 /// - `ref`: Provider操作用のRef
 /// - `manager`: DataManagerのインスタンス
 /// - `syncWithAuth`: Firestoreと同期する関数
+/// - `getLocalAll`: ローカルから全データを取得する関数（エラー時のフォールバック用）
 /// - `updateProvider`: Providerを更新する関数（NotifierのupdateListを呼び出す）
 /// - `filter`: フィルタリング関数（デフォルト: isDeleted=falseのもののみ）
 /// - `functionName`: デバッグ用の関数名
@@ -127,64 +131,140 @@ Future<List<T>> syncListDataHelper<T>({
   required dynamic ref,
   required dynamic manager,
   required Future<List<T>> Function() syncWithAuth,
+  required Future<List<T>> Function() getLocalAll,
   required void Function(List<T>) updateProvider,
   bool Function(T)? filter,
   String functionName = 'syncListDataHelper',
 }) async {
-  // Firestoreと同期（認証自動取得版）
-  final items = await syncWithAuth();
+  const timeoutDuration = Duration(seconds: 20);
 
-  // デフォルトフィルタ: isDeleted=falseのもののみ（型チェックを事前実行）
-  bool Function(T) effectiveFilter;
-  if (filter != null) {
-    effectiveFilter = filter;
-  } else {
-    // 型チェックを1回だけ実行してフィルタ関数を決定
-    if (items.isNotEmpty) {
-      final sampleItem = items.first;
-      final dynamic itemDynamic = sampleItem;
-      if (itemDynamic is Map) {
-        // Map型の場合
-        effectiveFilter = (item) {
-          final dynamic d = item;
-          return d is Map ? (d['isDeleted'] != true) : true;
-        };
-      } else {
-        // オブジェクト型の場合、isDeletedプロパティの存在を確認
-        try {
-          final hasIsDeleted = (itemDynamic as dynamic).isDeleted != null;
-          if (hasIsDeleted) {
-            effectiveFilter = (item) {
-              try {
-                return ((item as dynamic).isDeleted as bool?) != true;
-              } catch (e) {
-                return true;
-              }
-            };
-          } else {
+  try {
+    // Firestoreと同期（認証自動取得版、タイムアウト付き）
+    final items = await syncWithAuth().timeout(
+      timeoutDuration,
+      onTimeout: () {
+        debugPrint('⏱️ [$functionName] タイムアウト（20秒）');
+        throw TimeoutException('$functionName がタイムアウトしました', timeoutDuration);
+      },
+    );
+
+    // デフォルトフィルタ: isDeleted=falseのもののみ（型チェックを事前実行）
+    bool Function(T) effectiveFilter;
+    if (filter != null) {
+      effectiveFilter = filter;
+    } else {
+      // 型チェックを1回だけ実行してフィルタ関数を決定
+      if (items.isNotEmpty) {
+        final sampleItem = items.first;
+        final dynamic itemDynamic = sampleItem;
+        if (itemDynamic is Map) {
+          // Map型の場合
+          effectiveFilter = (item) {
+            final dynamic d = item;
+            return d is Map ? (d['isDeleted'] != true) : true;
+          };
+        } else {
+          // オブジェクト型の場合、isDeletedプロパティの存在を確認
+          try {
+            final hasIsDeleted = (itemDynamic as dynamic).isDeleted != null;
+            if (hasIsDeleted) {
+              effectiveFilter = (item) {
+                try {
+                  return ((item as dynamic).isDeleted as bool?) != true;
+                } catch (e) {
+                  return true;
+                }
+              };
+            } else {
+              effectiveFilter = (_) => true;
+            }
+          } catch (e) {
             effectiveFilter = (_) => true;
           }
-        } catch (e) {
+        }
+      } else {
+        effectiveFilter = (_) => true;
+      }
+    }
+
+    // フィルタリング（1回の走査で実行）
+    final filteredItems = <T>[];
+    for (final item in items) {
+      if (effectiveFilter(item)) {
+        filteredItems.add(item);
+      }
+    }
+
+    // Providerを更新
+    updateProvider(filteredItems);
+
+    return filteredItems;
+  } catch (e, stackTrace) {
+    // エラー時はローカルデータを使用（リストデータのフォールバック）
+    debugPrint('❌ [$functionName] エラー: $e');
+    debugPrint('   - スタックトレース: $stackTrace');
+    
+    try {
+      final localItems = await getLocalAll();
+      
+      // デフォルトフィルタ: isDeleted=falseのもののみ（型チェックを事前実行）
+      bool Function(T) effectiveFilter;
+      if (filter != null) {
+        effectiveFilter = filter;
+      } else {
+        // 型チェックを1回だけ実行してフィルタ関数を決定
+        if (localItems.isNotEmpty) {
+          final sampleItem = localItems.first;
+          final dynamic itemDynamic = sampleItem;
+          if (itemDynamic is Map) {
+            // Map型の場合
+            effectiveFilter = (item) {
+              final dynamic d = item;
+              return d is Map ? (d['isDeleted'] != true) : true;
+            };
+          } else {
+            // オブジェクト型の場合、isDeletedプロパティの存在を確認
+            try {
+              final hasIsDeleted = (itemDynamic as dynamic).isDeleted != null;
+              if (hasIsDeleted) {
+                effectiveFilter = (item) {
+                  try {
+                    return ((item as dynamic).isDeleted as bool?) != true;
+                  } catch (e) {
+                    return true;
+                  }
+                };
+              } else {
+                effectiveFilter = (_) => true;
+              }
+            } catch (e) {
+              effectiveFilter = (_) => true;
+            }
+          }
+        } else {
           effectiveFilter = (_) => true;
         }
       }
-    } else {
-      effectiveFilter = (_) => true;
+
+      // フィルタリング（1回の走査で実行）
+      final filteredLocalItems = <T>[];
+      for (final item in localItems) {
+        if (effectiveFilter(item)) {
+          filteredLocalItems.add(item);
+        }
+      }
+
+      // Providerを更新（ローカルデータ）
+      updateProvider(filteredLocalItems);
+
+      return filteredLocalItems;
+    } catch (localError) {
+      debugPrint('❌ [$functionName] ローカルデータ取得エラー: $localError');
+      // ローカルデータ取得も失敗した場合は空リストを返す
+      updateProvider(<T>[]);
+      return <T>[];
     }
   }
-
-  // フィルタリング（1回の走査で実行）
-  final filteredItems = <T>[];
-  for (final item in items) {
-    if (effectiveFilter(item)) {
-      filteredItems.add(item);
-    }
-  }
-
-  // Providerを更新
-  updateProvider(filteredItems);
-
-  return filteredItems;
 }
 
 /// 単一データを読み込む共通ヘルパー関数
@@ -233,6 +313,8 @@ Future<T> loadSingleDataHelper<T>({
 /// 単一データを同期する共通ヘルパー関数
 /// 
 /// Firestoreとローカルストレージを同期し、Providerを最新の状態に更新します。
+/// タイムアウト処理（20秒）とエラーハンドリングが含まれます。
+/// エラー時はデフォルト値を使用します。
 /// 
 /// **型パラメータ**:
 /// - `T`: データモデルの型
@@ -241,7 +323,7 @@ Future<T> loadSingleDataHelper<T>({
 /// - `ref`: Provider操作用のRef
 /// - `manager`: DataManagerのインスタンス
 /// - `syncWithAuth`: Firestoreと同期する関数（リストを返す）
-/// - `getDefault`: デフォルト値を取得する関数
+/// - `getDefault`: デフォルト値を取得する関数（エラー時のフォールバック用）
 /// - `updateProvider`: Providerを更新する関数（NotifierのupdateXxxを呼び出す）
 /// - `functionName`: デバッグ用の関数名
 /// 
@@ -254,18 +336,45 @@ Future<T> syncSingleDataHelper<T>({
   required void Function(T) updateProvider,
   String functionName = 'syncSingleDataHelper',
 }) async {
-  // Firestoreと同期（認証自動取得版）
-  final syncedList = await syncWithAuth();
+  const timeoutDuration = Duration(seconds: 20);
 
-  // 単一データは1つだけなので、リストから取得またはデフォルト値
-  final data = syncedList.isNotEmpty 
-      ? syncedList.first 
-      : await getDefault();
+  try {
+    // Firestoreと同期（認証自動取得版、タイムアウト付き）
+    final syncedList = await syncWithAuth().timeout(
+      timeoutDuration,
+      onTimeout: () {
+        debugPrint('⏱️ [$functionName] タイムアウト（20秒）');
+        throw TimeoutException('$functionName がタイムアウトしました', timeoutDuration);
+      },
+    );
 
-  // Providerを更新
-  updateProvider(data);
+    // 単一データは1つだけなので、リストから取得またはデフォルト値
+    final data = syncedList.isNotEmpty 
+        ? syncedList.first 
+        : await getDefault();
 
-  return data;
+    // Providerを更新
+    updateProvider(data);
+
+    return data;
+  } catch (e, stackTrace) {
+    // エラー時はデフォルト値を使用（単一データのフォールバック）
+    debugPrint('❌ [$functionName] エラー: $e');
+    debugPrint('   - スタックトレース: $stackTrace');
+    
+    try {
+      final defaultData = await getDefault();
+      
+      // Providerを更新（デフォルト値）
+      updateProvider(defaultData);
+
+      return defaultData;
+    } catch (defaultError) {
+      debugPrint('❌ [$functionName] デフォルト値取得エラー: $defaultError');
+      // デフォルト値取得も失敗した場合は例外を再スロー
+      rethrow;
+    }
+  }
 }
 
 /// リストデータをバックグラウンド更新で読み込む共通ヘルパー関数

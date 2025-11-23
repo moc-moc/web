@@ -12,6 +12,12 @@ _StreakData _$StreakDataFromJson(Map<String, dynamic> json) => _StreakData(
   longestStreak: (json['longestStreak'] as num).toInt(),
   lastTrackedDate: DateTime.parse(json['lastTrackedDate'] as String),
   lastModified: DateTime.parse(json['lastModified'] as String),
+  milestoneList:
+      (json['milestoneList'] as List<dynamic>?)
+          ?.map((e) => (e as num).toInt())
+          .toList() ??
+      const [],
+  lastAchievedMilestone: (json['lastAchievedMilestone'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$StreakDataToJson(_StreakData instance) =>
@@ -21,4 +27,6 @@ Map<String, dynamic> _$StreakDataToJson(_StreakData instance) =>
       'longestStreak': instance.longestStreak,
       'lastTrackedDate': instance.lastTrackedDate.toIso8601String(),
       'lastModified': instance.lastModified.toIso8601String(),
+      'milestoneList': instance.milestoneList,
+      'lastAchievedMilestone': instance.lastAchievedMilestone,
     };

@@ -75,5 +75,55 @@ class MonthlyStatisticsDataManager extends BaseDataManager<MonthlyStatistics> {
     final monthStr = month.toString().padLeft(2, '0');
     return '$yearStr-$monthStr';
   }
+
+  /// 古いデータを削除（3年（36ヶ月）以上経過したデータを物理削除）
+  /// 
+  /// Firestoreとローカルストレージの両方から削除します。
+  /// 
+  /// **戻り値**: 削除されたデータの数
+  Future<int> deleteOldData() async {
+    try {
+      final now = DateTime.now();
+      final cutoffYear = now.year - 3;
+      final cutoffMonth = now.month;
+      
+      // 全データを取得
+      final allData = await getAllWithAuth();
+      
+      // 古いデータをフィルタリング（3年以上前のデータ）
+      final oldData = allData.where((item) {
+        if (item.year < cutoffYear) {
+          return true;
+        }
+        if (item.year == cutoffYear && item.month < cutoffMonth) {
+          return true;
+        }
+        return false;
+      }).toList();
+      
+      if (oldData.isEmpty) {
+        return 0;
+      }
+      
+      // Firestoreから削除
+      int deletedCount = 0;
+      for (final item in oldData) {
+        try {
+          final success = await deleteWithAuth(item.id);
+          if (success) {
+            deletedCount++;
+          }
+        } catch (e) {
+          debugPrint('❌ [deleteOldData] 削除エラー: $e');
+        }
+      }
+      
+      debugPrint('✅ [deleteOldData] $deletedCount件の古い月次統計データを削除しました');
+      return deletedCount;
+    } catch (e) {
+      debugPrint('❌ [deleteOldData] エラー: $e');
+      return 0;
+    }
+  }
 }
 

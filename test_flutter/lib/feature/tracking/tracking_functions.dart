@@ -11,6 +11,9 @@ import 'package:test_flutter/feature/tracking/detection/onnx_detection_service.d
 import 'package:test_flutter/feature/tracking/detection/tfjs_detection_service.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 
+DetectionService? _cachedDetectionService;
+bool _cachedDetectionServiceInitialized = false;
+
 /// 検出サービスの種類
 enum DetectionServiceType {
   /// TensorFlow Lite（モバイル用）
@@ -113,23 +116,45 @@ Future<DetectionController?> initializeDetection({
       return null;
     }
 
-    // 検出サービスの初期化
-    final service = detectionService ?? createDetectionService(type: serviceType);
-    
-    LogMk.logDebug(
-      '検出サービスの初期化を開始: ${service.runtimeType}',
-      tag: 'initializeDetection',
-    );
-    
-    final serviceInitialized = await service.initialize();
-    
-    if (!serviceInitialized) {
-      LogMk.logError(
-        '検出サービスの初期化に失敗',
+    // 検出サービスの初期化（キャッシュ活用）
+    DetectionService service;
+    final bool shouldCacheService = detectionService == null;
+
+    if (detectionService != null) {
+      service = detectionService;
+    } else {
+      service = _cachedDetectionService ?? createDetectionService(type: serviceType);
+      if (_cachedDetectionService == null) {
+        _cachedDetectionService = service;
+        _cachedDetectionServiceInitialized = false;
+      }
+    }
+
+    if (!shouldCacheService || !_cachedDetectionServiceInitialized) {
+      LogMk.logDebug(
+        '検出サービスの初期化を開始: ${service.runtimeType}',
         tag: 'initializeDetection',
       );
-      await cameraManager.dispose();
-      return null;
+
+      final serviceInitialized = await service.initialize();
+
+      if (!serviceInitialized) {
+        LogMk.logError(
+          '検出サービスの初期化に失敗',
+          tag: 'initializeDetection',
+        );
+        await cameraManager.dispose();
+        if (shouldCacheService) {
+          await service.dispose();
+          _cachedDetectionService = null;
+          _cachedDetectionServiceInitialized = false;
+        }
+        return null;
+      }
+
+      if (shouldCacheService) {
+        _cachedDetectionServiceInitialized = true;
+      }
     }
 
     // 検出プロセッサーの作成
@@ -159,6 +184,7 @@ Future<DetectionController?> initializeDetection({
     return null;
   }
 }
+
 
 /// 時間入力値のバリデーション
 /// 

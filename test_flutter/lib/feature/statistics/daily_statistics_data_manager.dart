@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/data/repositories/base/base_data_manager.dart';
 import 'package:test_flutter/data/services/log_service.dart';
+import 'package:test_flutter/data/sources/auth_source.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/session_info_model.dart';
 
@@ -42,12 +43,29 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
   /// 
   /// **戻り値**: 該当日の統計データ、存在しない場合はnull
   Future<DailyStatistics?> getByDateWithAuth(DateTime date) async {
+    final dateOnly = DateTime(date.year, date.month, date.day);
+    final id = _formatDateId(dateOnly);
+    
     try {
-      final dateOnly = DateTime(date.year, date.month, date.day);
-      final id = _formatDateId(dateOnly);
-      
-      final allData = await getAllWithAuth();
-      return allData.where((d) => d.id == id).firstOrNull;
+      final local = await manager.getLocalById(id);
+      if (local != null) {
+        return local;
+      }
+    } catch (e) {
+      debugPrint('⚠️ [getByDateWithAuth] ローカル取得エラー: $e');
+    }
+
+    try {
+      final userId = AuthMk.getCurrentUserId();
+      final remote = await manager.getById(userId, id);
+      if (remote != null) {
+        try {
+          await manager.addLocal(remote);
+        } catch (e) {
+          debugPrint('⚠️ [getByDateWithAuth] ローカルキャッシュ保存エラー: $e');
+        }
+      }
+      return remote;
     } catch (e) {
       debugPrint('❌ [getByDateWithAuth] 取得エラー: $e');
       return null;

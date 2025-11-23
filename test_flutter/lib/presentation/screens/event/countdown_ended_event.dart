@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/screens/event/event_screen_base.dart';
@@ -64,6 +65,7 @@ class _CountdownEndedEventScreenState extends ConsumerState<CountdownEndedEventS
   @override
   Widget build(BuildContext context) {
     final effectiveEventName = _eventName ?? widget.eventName ?? 'Event';
+    final completionDate = DateFormat('yyyy/MM/dd').format(DateTime.now());
 
     return EventScreenBase(
       gradientColors: const [Color(0xFFEF4444), Color(0xFFDC2626)], // Red
@@ -75,13 +77,51 @@ class _CountdownEndedEventScreenState extends ConsumerState<CountdownEndedEventS
             icon: Icons.alarm,
             title: 'Countdown Ended!',
             message: 'The countdown has reached zero.',
-            iconSize: 70,
-            titleFontSize: 28,
+            iconSize: 76,
+            titleFontSize: 32,
           ),
           SizedBox(height: AppSpacing.sm),
           EventContentBuilder.buildEventNameCard(
             eventName: effectiveEventName,
-            fontSize: 24,
+            fontSize: 26,
+            additionalContent: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: AppSpacing.sm),
+                EventContentBuilder.buildDetailRow(
+                  'Completed on',
+                  completionDate,
+                ),
+                EventContentBuilder.buildDetailRow(
+                  'Status',
+                  'Time to celebrate and review!',
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          Container(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: AppColors.textPrimary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(AppRadius.large),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Suggested Actions',
+                  style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                Text(
+                  '• Record what you accomplished\n'
+                  '• Set a fresh countdown to keep the momentum\n'
+                  '• Share the milestone with friends',
+                  style: AppTextStyles.body2,
+                ),
+              ],
+            ),
           ),
         ],
       ),

@@ -8,18 +8,12 @@ import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.d
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
-import 'package:test_flutter/feature/goals/goal_data_manager.dart';
 import 'package:test_flutter/feature/statistics/statistics_aggregation_service.dart';
 import 'package:test_flutter/feature/tracking/state_management.dart';
 import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
 import 'package:test_flutter/feature/statistics/session_info_model.dart';
-import 'package:test_flutter/feature/streak/streak_data_manager.dart';
-import 'package:test_flutter/feature/streak/streak_functions.dart';
-import 'package:test_flutter/feature/total/total_data_manager.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/data/services/goal_event_service.dart';
-import 'package:test_flutter/data/services/streak_milestone_service.dart';
-import 'package:test_flutter/data/repositories/initialization_repository.dart';
 import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
 
 /// トラッキング終了画面（新デザインシステム版）
@@ -34,16 +28,22 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
   SessionInfo? _sessionInfo;
   bool _isLoading = true;
   final StatisticsAggregationService _aggregationService = StatisticsAggregationService();
-  final StreakDataManager _streakManager = StreakDataManager();
-  final TotalDataManager _totalManager = TotalDataManager();
   bool _isAggregating = false;
   Future<void>? _aggregationFuture;
+  Future<void>? _phase2Future;
+  bool _isPhase1Complete = false;
+  bool _isPhase2Complete = false;
+  DateTime? _phase1StartedAt;
+  DateTime? _phase1FinishedAt;
+  DateTime? _phase2StartedAt;
+  DateTime? _phase2FinishedAt;
   
   // データキャッシュ（OKボタン押下時に再利用）
   List<Goal>? _cachedGoals;
-  int? _cachedTotalHours;
-  Map<String, int?>? _pendingStreakMilestoneEvent;
+  List<_PendingUiEvent> _pendingEvents = [];
+  StreakUpdateSummary? _streakSummary;
   bool _isHandlingOkTap = false;
+  bool _hasScheduledAggregation = false;
 
   @override
   void didChangeDependencies() {
@@ -51,15 +51,22 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     // Navigator引数からSessionInfoを取得
     final arguments = ModalRoute.of(context)?.settings.arguments;
     if (arguments is SessionInfo) {
+      final isDifferentSession = _sessionInfo?.id != arguments.id;
       _sessionInfo = arguments;
+      if (isDifferentSession) {
+        _hasScheduledAggregation = false;
+      }
       if (mounted) {
         setState(() {
           _isLoading = false;
         });
         
-        // 画面表示後に集計処理を開始（バックグラウンドで実行）
-        _aggregationFuture = _aggregateSessionData(_sessionInfo!);
+        if (!_hasScheduledAggregation) {
+          _hasScheduledAggregation = true;
+          // 画面表示後に集計処理を開始（バックグラウンドで実行）
+          _aggregationFuture = _aggregateSessionData(_sessionInfo!);
         }
+      }
     } else {
       // 引数がない場合はエラー表示
       if (mounted) {
@@ -78,6 +85,13 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     
     setState(() {
       _isAggregating = true;
+      _isPhase1Complete = false;
+      _isPhase2Complete = false;
+      _phase1StartedAt = DateTime.now();
+      _phase1FinishedAt = null;
+      _phase2StartedAt = null;
+      _phase2FinishedAt = null;
+      _pendingEvents = [];
     });
 
     try {
@@ -92,144 +106,71 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
         lastModified: sessionInfo.lastModified,
       );
       
+      LogMk.logDebug(
+        '⏱️ Phase1計測開始: sessionId=${trackingSession.id}',
+        tag: 'TrackingFinishedScreen._aggregateSessionData',
+      );
+
       // 統計集計処理を実行（Phase 1のみ同期的に実行、Phase 2はバックグラウンド）
-      final success =
-          await _aggregationService.aggregateSessionData(trackingSession);
+      final aggregationResult = await _aggregationService.aggregateSessionData(trackingSession);
       triggerTrackingCompleted(ref);
-      
-      // 目標リストをキャッシュ（ローカルから取得、Firestoreからは取得しない）
-      try {
-        final manager = GoalDataManager();
-        final localGoals = await manager.getLocalGoals();
-        _cachedGoals = localGoals;
-        // Providerも更新（統計集計サービスで既に更新されている可能性があるが、念のため）
-        ref.read(goalsListProvider.notifier).updateList(localGoals);
-        LogMk.logDebug(
-          '📋 目標リストをキャッシュ（ローカルから取得）: ${_cachedGoals?.length ?? 0}件',
-          tag: 'TrackingFinishedScreen._aggregateSessionData',
-        );
-      } catch (e) {
-        LogMk.logError(
-          '❌ 目標リストのキャッシュに失敗しました: $e',
-          tag: 'TrackingFinishedScreen._aggregateSessionData',
-        );
-      }
-      
-      // Total Timeをキャッシュ
-      try {
-        final totalData = await _totalManager.getTotalDataOrDefault();
-        _cachedTotalHours = totalData.totalWorkTimeMinutes ~/ 60;
-        LogMk.logDebug(
-          '📊 Total Timeをキャッシュ: ${_cachedTotalHours}時間',
-          tag: 'TrackingFinishedScreen._aggregateSessionData',
-        );
-      } catch (e) {
-        LogMk.logError(
-          '❌ Total Timeのキャッシュに失敗しました: $e',
-          tag: 'TrackingFinishedScreen._aggregateSessionData',
-        );
-      }
-      
-      // ストリーク更新を実行
-      try {
-        LogMk.logDebug(
-          '🔍 ストリーク更新開始',
-          tag: 'TrackingFinishedScreen._aggregateSessionData',
-        );
-        
-        final streakResult = await _streakManager.trackFinished();
-        final newStreak = streakResult['streak'] as int? ?? 0;
-        
-        // ストリークデータを取得してProviderを更新
-        try {
-          final streakData = await _streakManager.getStreakDataOrDefault();
-          final container = AppInitUN.getGlobalContainer();
-          if (container != null) {
-            container.read(streakDataProvider.notifier).updateStreak(streakData);
-            LogMk.logDebug(
-              '✅ streakDataProviderを更新しました: streak=${streakData.currentStreak}',
-              tag: 'TrackingFinishedScreen._aggregateSessionData',
-            );
-          }
-        } catch (e) {
-          LogMk.logWarning(
-            '⚠️ streakDataProviderの更新に失敗: $e',
-            tag: 'TrackingFinishedScreen._aggregateSessionData',
-          );
-        }
-        
-        LogMk.logDebug(
-          '📊 ストリーク更新結果: streak=$newStreak, success=${streakResult['success']}, message=${streakResult['message']}',
-          tag: 'TrackingFinishedScreen._aggregateSessionData',
-        );
-        
-        // マイルストーンチェック
-        if (newStreak > 0 && mounted) {
-          LogMk.logDebug(
-            '🔍 マイルストーンチェック開始: currentStreak=$newStreak',
-            tag: 'TrackingFinishedScreen._aggregateSessionData',
-          );
-          
-          final achievedMilestone = await StreakMilestoneService.checkAchievedMilestone(newStreak);
-          
-          LogMk.logDebug(
-            '📊 マイルストーンチェック結果: achievedMilestone=$achievedMilestone',
-            tag: 'TrackingFinishedScreen._aggregateSessionData',
-          );
-          
-          if (achievedMilestone != null) {
-            final nextMilestone = await StreakMilestoneService.getNextMilestone();
-            LogMk.logDebug(
-              '🎉 マイルストーン達成を検出: $achievedMilestone日（次のマイルストーン: $nextMilestone日）',
-              tag: 'TrackingFinishedScreen._aggregateSessionData',
-            );
 
-            void updatePendingEvent() {
-              _pendingStreakMilestoneEvent = {
-                'days': achievedMilestone,
-                'nextMilestone': nextMilestone,
-              };
-            }
+      _phase1FinishedAt = DateTime.now();
+      final phase1Duration = _phase1FinishedAt!.difference(_phase1StartedAt!);
+      LogMk.logDebug(
+        '✅ Phase1完了: duration=${phase1Duration.inMilliseconds}ms',
+        tag: 'TrackingFinishedScreen._aggregateSessionData',
+      );
 
-            if (mounted) {
-              setState(updatePendingEvent);
-            } else {
-              updatePendingEvent();
-            }
-
-            LogMk.logDebug(
-              '🕒 ストリークイベント表示をOKボタン押下後まで待機',
-              tag: 'TrackingFinishedScreen._aggregateSessionData',
-            );
-          } else {
-            LogMk.logDebug(
-              'ℹ️ マイルストーン未達成（現在のストリーク: $newStreak日）',
-              tag: 'TrackingFinishedScreen._aggregateSessionData',
-            );
-          }
-        } else {
-          LogMk.logDebug(
-            '⚠️ ストリークが0以下またはウィジェットがマウントされていないため、マイルストーンチェックをスキップ: newStreak=$newStreak, mounted=$mounted',
-            tag: 'TrackingFinishedScreen._aggregateSessionData',
-          );
-        }
-      } catch (e) {
-        LogMk.logError(
-          '❌ ストリーク更新エラー: $e',
-          tag: 'TrackingFinishedScreen._aggregateSessionData',
-        );
-      }
-      
-      
-      if (!success && mounted) {
-        // エラー時はユーザーに通知
+      if (!aggregationResult.phase1Success && mounted) {
         showSnackBarMessage(
           context,
           '統計データの更新中にエラーが発生しました',
           mounted: mounted,
         );
       }
-    } catch (e) {
+
+      if (mounted) {
+        setState(() {
+          _isPhase1Complete = true;
+        });
+      } else {
+        _isPhase1Complete = true;
+      }
+
+      _phase2StartedAt = DateTime.now();
+      LogMk.logDebug(
+        '🏃 Phase2起動: sessionId=${trackingSession.id}',
+        tag: 'TrackingFinishedScreen._aggregateSessionData',
+      );
+
+      final phase2Future = aggregationResult.phase2Future
+          .then((result) => _handlePhase2Result(result))
+          .catchError((error, stackTrace) {
+        LogMk.logError(
+          '❌ Phase2処理中にエラー: $error',
+          tag: 'TrackingFinishedScreen._aggregateSessionData',
+          stackTrace: stackTrace,
+        );
+        if (mounted) {
+          setState(() {
+            _isPhase2Complete = true;
+            _phase2FinishedAt = DateTime.now();
+          });
+        } else {
+          _isPhase2Complete = true;
+          _phase2FinishedAt = DateTime.now();
+        }
+      });
+
+      _phase2Future = phase2Future;
+      _aggregationFuture = phase2Future;
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        '❌ 統計データ処理中に例外: $e',
+        tag: 'TrackingFinishedScreen._aggregateSessionData',
+        stackTrace: stackTrace,
+      );
       if (mounted) {
         showSnackBarMessage(
           context,
@@ -242,178 +183,63 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
         setState(() {
           _isAggregating = false;
         });
+      } else {
+        _isAggregating = false;
       }
     }
   }
 
-  /// 総時間マイルストーンをチェックし、必要に応じてイベントを表示
-  /// 
-  /// OKボタンを押した後に呼び出されます。
-  /// キャッシュされたTotal Timeを使用します。
-  /// 
-  /// **戻り値**: イベントが表示された場合true、そうでない場合false
-  Future<bool> _checkAndShowTotalHoursMilestone() async {
-    try {
-      if (!mounted) return false;
-      
-      LogMk.logDebug(
-        '🔍 総時間マイルストーンチェック開始（キャッシュ使用）',
-        tag: 'TrackingFinishedScreen._checkAndShowTotalHoursMilestone',
-      );
-      
-      // キャッシュされたTotal Timeを使用（なければ再取得）
-      int totalHours;
-      if (_cachedTotalHours != null) {
-        totalHours = _cachedTotalHours!;
-        LogMk.logDebug(
-          '📊 キャッシュからTotal Timeを取得: ${totalHours}時間',
-          tag: 'TrackingFinishedScreen._checkAndShowTotalHoursMilestone',
-        );
-      } else {
-        // キャッシュがない場合は再取得
-        final totalData = await _totalManager.getTotalDataOrDefault();
-        totalHours = totalData.totalWorkTimeMinutes ~/ 60;
-        _cachedTotalHours = totalHours;
-        LogMk.logDebug(
-          '📊 Total Timeを再取得してキャッシュ: ${totalHours}時間',
-          tag: 'TrackingFinishedScreen._checkAndShowTotalHoursMilestone',
-        );
-      }
-      
-      // マイルストーンチェック（キャッシュされた値を使用）
-      final milestoneInfo = await _aggregationService.checkTotalHoursMilestoneWithCache(totalHours);
-      
-      if (milestoneInfo != null) {
-        LogMk.logDebug(
-          '🎉 マイルストーン達成を検出: ${milestoneInfo['achievedMilestone']}時間',
-          tag: 'TrackingFinishedScreen._checkAndShowTotalHoursMilestone',
-        );
-        
-        // イベント画面に遷移（画面が閉じられるまで待つ）
-        if (mounted) {
-          await Navigator.of(context).pushNamed(
-            AppRoutes.totalHoursMilestoneEvent,
-            arguments: {
-              'hours': milestoneInfo['totalHours'],
-              'nextMilestone': milestoneInfo['nextMilestone'],
-              'achievedMilestone': milestoneInfo['achievedMilestone'],
-            },
-          );
-          return true;
-        }
-      } else {
-        LogMk.logDebug(
-          'ℹ️ マイルストーン未達成',
-          tag: 'TrackingFinishedScreen._checkAndShowTotalHoursMilestone',
-        );
-      }
-      
-      return false;
-    } catch (e) {
-      LogMk.logError(
-        '❌ 総時間マイルストーンチェックエラー: $e',
-        tag: 'TrackingFinishedScreen._checkAndShowTotalHoursMilestone',
-      );
-      return false;
+  Future<void> _handlePhase2Result(AggregationPhase2Result result) async {
+    final pendingEvents = await _buildPendingUiEvents(result);
+    _phase2FinishedAt = DateTime.now();
+    final elapsed = _phase2FinishedAt!.difference(_phase2StartedAt ?? _phase2FinishedAt!);
+    LogMk.logDebug(
+      '✅ Phase2完了: duration=${elapsed.inMilliseconds}ms, pendingEvents=${pendingEvents.length}',
+      tag: 'TrackingFinishedScreen._handlePhase2Result',
+    );
+
+    void updateState() {
+      _cachedGoals = result.goalSummary?.localGoals ?? _cachedGoals;
+      _pendingEvents = pendingEvents;
+      _streakSummary = result.streakSummary;
+      _isPhase2Complete = true;
+    }
+
+    if (mounted) {
+      setState(updateState);
+    } else {
+      updateState();
     }
   }
 
-  /// ストリークマイルストーンイベントを表示（必要な場合のみ）
-  Future<bool> _showPendingStreakMilestoneEvent() async {
-    if (!mounted) return false;
-    final eventData = _pendingStreakMilestoneEvent;
-    if (eventData == null) {
-      LogMk.logDebug(
-        'ℹ️ 表示待ちのストリークイベントなし',
-        tag: 'TrackingFinishedScreen._showPendingStreakMilestoneEvent',
-      );
-      return false;
+  Future<List<_PendingUiEvent>> _buildPendingUiEvents(AggregationPhase2Result result) async {
+    final events = <_PendingUiEvent>[];
+
+    final totalMilestone = result.totalMilestone;
+    if (totalMilestone != null) {
+      events.add(_PendingUiEvent.total(totalMilestone));
     }
 
-    _pendingStreakMilestoneEvent = null;
-
-    try {
-      await Navigator.of(context).pushNamed(
-        AppRoutes.streakMilestoneEvent,
-        arguments: {
-          'days': eventData['days'],
-          'nextMilestone': eventData['nextMilestone'],
-        },
-      );
-      LogMk.logDebug(
-        '✅ ストリークイベントを表示完了',
-        tag: 'TrackingFinishedScreen._showPendingStreakMilestoneEvent',
-      );
-      return true;
-    } catch (e) {
-      LogMk.logError(
-        '❌ ストリークイベント表示エラー: $e',
-        tag: 'TrackingFinishedScreen._showPendingStreakMilestoneEvent',
-      );
-      return false;
+    final streakPayload = result.streakSummary?.milestonePayload;
+    if (streakPayload != null) {
+      events.add(_PendingUiEvent.streak(streakPayload));
     }
-  }
 
-  /// 目標達成をチェックし、必要に応じてイベントを表示
-  /// 
-  /// **重要**: このメソッドはOKボタンが押された後にのみ呼び出されます。
-  /// `tracking_finished.dart`が表示されたタイミングでは呼び出されません。
-  /// キャッシュされた目標リストを使用します。
-  /// 
-  /// **戻り値**: イベントが表示された場合true、そうでない場合false
-  Future<bool> _checkAndShowGoalAchievedEvents() async {
-    try {
-      // キャッシュされた目標リストを使用（なければ再取得）
-      List<Goal> goals;
-      if (_cachedGoals != null && _cachedGoals!.isNotEmpty) {
-        goals = _cachedGoals!;
-        LogMk.logDebug(
-          '📋 キャッシュから目標リストを取得: ${goals.length}件',
-          tag: 'TrackingFinishedScreen._checkAndShowGoalAchievedEvents',
-        );
-      } else {
-        // キャッシュがない場合は再取得
-        await syncGoalsHelper(ref);
-        goals = ref.read(goalsListProvider);
-        _cachedGoals = goals;
-        LogMk.logDebug(
-          '📋 目標リストを再取得してキャッシュ: ${goals.length}件',
-          tag: 'TrackingFinishedScreen._checkAndShowGoalAchievedEvents',
+    final goalSummary = result.goalSummary;
+    if (goalSummary != null) {
+      _cachedGoals ??= goalSummary.localGoals;
+      for (final candidate in goalSummary.achievementCandidates) {
+        events.add(
+          _PendingUiEvent.goal(
+            goal: candidate.goal,
+            achievedTime: candidate.achievedTimeSeconds,
+            consecutiveDays: result.streakSummary?.currentStreak,
+          ),
         );
       }
-      
-      // 達成した目標をチェック
-      bool hasShownEvent = false;
-      for (final goal in goals) {
-        // 目標時間より達成時間が多くなったかチェック
-        final achievedTime = goal.achievedTime ?? 0;
-        final targetTime = goal.targetTime;
-        
-        if (achievedTime >= targetTime && targetTime > 0) {
-          // イベントが既に表示されていないかチェック（達成時間も含めてチェック）
-          final hasBeenShown = await GoalEventService.hasEventBeenShown(goal.id, achievedTime);
-          
-          if (!hasBeenShown) {
-            // イベントを表示（画面が閉じられるまで待つ）
-            final eventShown = await _showGoalAchievedEvent(goal);
-            
-            if (eventShown) {
-              // イベントが表示されたことを記録（達成時間も含めて記録）
-              await GoalEventService.markEventAsShown(goal.id, achievedTime);
-              hasShownEvent = true;
-            }
-          }
-        }
-      }
-      
-      return hasShownEvent;
-    } catch (e) {
-      LogMk.logError(
-        '❌ 目標達成イベントチェックエラー: $e',
-        tag: 'TrackingFinishedScreen._checkAndShowGoalAchievedEvents',
-      );
-      return false;
     }
+
+    return events;
   }
 
   Future<void> _handleOkButtonPressed() async {
@@ -439,14 +265,12 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
         await _aggregationFuture;
       }
 
-      // 1. 総時間イベント
-      await _checkAndShowTotalHoursMilestone();
+      final waitTarget = _phase2Future ?? _aggregationFuture;
+      if (waitTarget != null) {
+        await waitTarget;
+      }
 
-      // 2. ストリークマイルストーンイベント
-      await _showPendingStreakMilestoneEvent();
-
-      // 3. 目標達成イベント（複数あっても順番に表示）
-      await _checkAndShowGoalAchievedEvents();
+      await _processPendingEvents();
 
       // すべてのイベントが閉じられた後にホームへ遷移
       if (mounted) {
@@ -468,16 +292,81 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
   /// 目標達成イベントを表示
   /// 
   /// **戻り値**: イベントが表示された場合true、そうでない場合false
-  Future<bool> _showGoalAchievedEvent(Goal goal) async {
+  Future<void> _processPendingEvents() async {
+    final events = List<_PendingUiEvent>.from(_pendingEvents);
+    for (final event in events) {
+      switch (event.type) {
+        case _PendingEventType.totalHours:
+          if (event.totalMilestonePayload != null) {
+            await _showTotalHoursEvent(event.totalMilestonePayload!);
+          }
+          break;
+        case _PendingEventType.streakMilestone:
+          if (event.streakPayload != null) {
+            await _showStreakMilestoneEvent(event.streakPayload!);
+          }
+          break;
+        case _PendingEventType.goalAchieved:
+          if (event.goal != null && event.achievedTimeSeconds != null) {
+            final shown = await _showGoalAchievedEvent(
+              event.goal!,
+              consecutiveDaysOverride: event.consecutiveDays,
+            );
+            if (shown) {
+              await GoalEventService.markEventAsShown(
+                event.goal!.id,
+                event.achievedTimeSeconds!,
+              );
+            }
+          }
+          break;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _pendingEvents = [];
+      });
+    } else {
+      _pendingEvents = [];
+    }
+  }
+
+  Future<void> _showTotalHoursEvent(Map<String, int> milestoneInfo) async {
+    if (!mounted) return;
+    await Navigator.of(context).pushNamed(
+      AppRoutes.totalHoursMilestoneEvent,
+      arguments: {
+        'hours': milestoneInfo['totalHours'],
+        'nextMilestone': milestoneInfo['nextMilestone'],
+        'achievedMilestone': milestoneInfo['achievedMilestone'],
+      },
+    );
+  }
+
+  Future<void> _showStreakMilestoneEvent(StreakMilestonePayload payload) async {
+    if (!mounted) return;
+    await Navigator.of(context).pushNamed(
+      AppRoutes.streakMilestoneEvent,
+      arguments: {
+        'days': payload.days,
+        'nextMilestone': payload.nextMilestone,
+      },
+    );
+  }
+
+  Future<bool> _showGoalAchievedEvent(
+    Goal goal, {
+    int? consecutiveDaysOverride,
+  }) async {
     if (!mounted) return false;
     
     try {
       // 期間を取得
       final period = _getPeriodLabelFromDurationDays(goal.durationDays);
       
-      // 連続日数を取得
-      final streakData = await _streakManager.getStreakDataOrDefault();
-      final consecutiveDays = streakData.currentStreak;
+      final consecutiveDays =
+          consecutiveDaysOverride ?? _streakSummary?.currentStreak ?? 0;
       
       // 目標時間と達成時間を時間単位に変換
       final targetHours = goal.targetTime / 3600.0;
@@ -1170,6 +1059,11 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
 
   Widget _buildActionButtons(BuildContext context) {
     final borderRadiusValue = BorderRadius.circular(30.0);
+    final bool isPrimaryEnabled = _isPhase1Complete && !_isHandlingOkTap;
+    final bool isBackgroundRunning = !_isPhase2Complete;
+    final String statusText = _isPhase1Complete
+        ? (isBackgroundRunning ? 'イベント準備中... 数秒お待ちください' : 'OKでホームへ戻れます')
+        : '統計データを保存しています...';
     
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
@@ -1223,52 +1117,78 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
             ),
           ),
           SizedBox(height: AppSpacing.md),
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: borderRadiusValue,
-              border: Border.all(
-                color: AppColors.blue.withValues(alpha: 0.9),
-                width: 2,
+          if (isBackgroundRunning || !_isPhase1Complete) ...[
+            Padding(
+              padding: EdgeInsets.only(bottom: AppSpacing.sm),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation(AppColors.blue),
+                    ),
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Text(
+                    statusText,
+                    style: AppTextStyles.caption.copyWith(color: AppColors.gray),
+                  ),
+                ],
               ),
-              boxShadow: [
-                BoxShadow(
-                  color: AppColors.blue.withValues(alpha: 0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
             ),
-            child: Material(
-              color: AppColors.blue.withValues(alpha: 0.5),
-              borderRadius: borderRadiusValue,
-              elevation: 4,
-              shadowColor: AppColors.blue.withValues(alpha: 0.3),
-              child: InkWell(
-                onTap: _handleOkButtonPressed,
+          ],
+          Opacity(
+            opacity: isPrimaryEnabled ? 1.0 : 0.5,
+            child: Container(
+              decoration: BoxDecoration(
                 borderRadius: borderRadiusValue,
-                child: Container(
-                  height: 60.0,
-                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                  child: Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.check,
-                          color: AppColors.white,
-                          size: 20.0,
-                        ),
-                        SizedBox(width: AppSpacing.sm),
-                        Text(
-                          'OK',
-                          style: TextStyle(
+                border: Border.all(
+                  color: AppColors.blue.withValues(alpha: 0.9),
+                  width: 2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.blue.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Material(
+                color: AppColors.blue.withValues(alpha: 0.5),
+                borderRadius: borderRadiusValue,
+                elevation: 4,
+                shadowColor: AppColors.blue.withValues(alpha: 0.3),
+                child: InkWell(
+                  onTap: isPrimaryEnabled ? _handleOkButtonPressed : null,
+                  borderRadius: borderRadiusValue,
+                  child: Container(
+                    height: 60.0,
+                    padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
+                    child: Center(
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check,
                             color: AppColors.white,
-                            fontSize: 20.0,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
+                            size: 20.0,
                           ),
-                        ),
-                      ],
+                          SizedBox(width: AppSpacing.sm),
+                          Text(
+                            _isHandlingOkTap ? 'Working...' : 'OK',
+                            style: TextStyle(
+                              color: AppColors.white,
+                              fontSize: 20.0,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -1315,6 +1235,53 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     final minute = dateTime.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
   }
+}
+
+enum _PendingEventType { totalHours, streakMilestone, goalAchieved }
+
+class _PendingUiEvent {
+  const _PendingUiEvent._({
+    required this.type,
+    this.totalMilestonePayload,
+    this.streakPayload,
+    this.goal,
+    this.achievedTimeSeconds,
+    this.consecutiveDays,
+  });
+
+  factory _PendingUiEvent.total(Map<String, int> payload) {
+    return _PendingUiEvent._(
+      type: _PendingEventType.totalHours,
+      totalMilestonePayload: payload,
+    );
+  }
+
+  factory _PendingUiEvent.streak(StreakMilestonePayload payload) {
+    return _PendingUiEvent._(
+      type: _PendingEventType.streakMilestone,
+      streakPayload: payload,
+    );
+  }
+
+  factory _PendingUiEvent.goal({
+    required Goal goal,
+    required int achievedTime,
+    int? consecutiveDays,
+  }) {
+    return _PendingUiEvent._(
+      type: _PendingEventType.goalAchieved,
+      goal: goal,
+      achievedTimeSeconds: achievedTime,
+      consecutiveDays: consecutiveDays,
+    );
+  }
+
+  final _PendingEventType type;
+  final Map<String, int>? totalMilestonePayload;
+  final StreakMilestonePayload? streakPayload;
+  final Goal? goal;
+  final int? achievedTimeSeconds;
+  final int? consecutiveDays;
 }
 
 class _CategoryStat {

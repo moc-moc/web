@@ -65,6 +65,7 @@ class _GoalAchievedEventScreenState extends State<GoalAchievedEventScreen> {
     final effectiveAchievedHours = _achievedHours ?? widget.achievedHours ?? 2.5;
     final effectiveProgressPercent = _progressPercent ?? widget.progressPercent ?? 100.0;
     final effectiveConsecutiveDays = _consecutiveDays ?? widget.consecutiveDays ?? 0;
+    final difference = effectiveAchievedHours - effectiveTargetHours;
 
     return EventScreenBase(
       gradientColors: const [Color(0xFF9E66D5), Color(0xFF7C3AED)], // Purple
@@ -76,19 +77,36 @@ class _GoalAchievedEventScreenState extends State<GoalAchievedEventScreen> {
             icon: Icons.emoji_events,
             title: 'Goal Achieved!',
             message: 'Congratulations! You have achieved your goal.',
-            iconSize: 70,
-            titleFontSize: 28,
+            iconSize: 80,
+            titleFontSize: 34,
           ),
           SizedBox(height: AppSpacing.sm),
-          Text(
-            effectiveGoalName,
-            style: AppTextStyles.h2.copyWith(fontSize: 32),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          EventContentBuilder.buildEventNameCard(
+            eventName: effectiveGoalName,
+            fontSize: 26,
+            additionalContent: Column(
+              children: [
+                SizedBox(height: AppSpacing.sm),
+                EventContentBuilder.buildDetailRow('Period', effectivePeriod),
+                EventContentBuilder.buildDetailRow(
+                  'Consecutive Days',
+                  '$effectiveConsecutiveDays days',
+                ),
+              ],
+            ),
           ),
           SizedBox(height: AppSpacing.sm),
-          EventContentBuilder.buildChip(label: effectivePeriod),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: AppSpacing.sm,
+            runSpacing: AppSpacing.sm,
+            children: [
+              EventContentBuilder.buildChip(label: 'Target ${effectiveTargetHours.toStringAsFixed(1)}h'),
+              EventContentBuilder.buildChip(
+                  label:
+                      'Achieved ${effectiveAchievedHours.toStringAsFixed(1)}h'),
+            ],
+          ),
           SizedBox(height: AppSpacing.sm),
           EventContentBuilder.buildAchievementCard(
             goalName: effectiveGoalName,
@@ -143,6 +161,31 @@ class _GoalAchievedEventScreenState extends State<GoalAchievedEventScreen> {
               ),
             ),
           ],
+          SizedBox(height: AppSpacing.md),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: AppColors.textPrimary.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(AppRadius.large),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Keep Growing',
+                  style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                Text(
+                  difference >= 0
+                      ? 'You beat the target by ${difference.toStringAsFixed(1)}h. Set a slightly higher goal to keep the momentum.'
+                      : 'You reached the target right on time. Maintain the rhythm for the next period.',
+                  style: AppTextStyles.body2,
+                ),
+              ],
+            ),
+          ),
         ],
       ),
       okButtonText: 'View Progress',

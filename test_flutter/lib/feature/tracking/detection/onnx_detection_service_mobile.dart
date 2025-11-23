@@ -1,249 +1,365 @@
-import 'dart:typed_data';
+import 'dart:async';
 import 'dart:io';
-import 'package:flutter/services.dart' show rootBundle;
-import 'package:path_provider/path_provider.dart';
-import 'package:onnxruntime/onnxruntime.dart';
+import 'dart:isolate';
+import 'dart:typed_data';
+
+import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
+import 'package:onnxruntime/onnxruntime.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_result.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_service.dart';
-import 'package:test_flutter/data/services/log_service.dart';
 
-/// ONNX Runtimeを使った物体検出サービス（モバイル版）
-/// 
-/// YOLOv11またはYOLOv8モデルを使用して物体検出を実行
+/// モバイル向けONNX検出サービス（バックグラウンドIsolate実行）
 class ONNXDetectionService implements DetectionService {
-  OrtSession? _session;
-  List<String>? _labels;
-  
-  /// モデルの入力サイズ
-  static const int _inputSize = 640; // YOLO標準サイズ
-  
-  /// 信頼度の閾値
-  static const double _confidenceThreshold = 0.7;
-  
-  /// IoU閾値（重複検出の除去用）
-  static const double _iouThreshold = 0.5;
-  
+  Isolate? _worker;
+  SendPort? _workerPort;
+  bool _isInitialized = false;
+
+  Future<void> _ensureWorker() async {
+    if (_workerPort != null) {
+      return;
+    }
+
+    final readyPort = ReceivePort();
+    final rootToken = RootIsolateToken.instance;
+
+    _worker = await Isolate.spawn<_WorkerBootstrapData>(
+      _onnxWorkerEntryPoint,
+      _WorkerBootstrapData(
+        sendPort: readyPort.sendPort,
+        rootIsolateToken: rootToken,
+      ),
+      debugName: 'onnx-detection-worker',
+      errorsAreFatal: true,
+    );
+
+    _workerPort = await readyPort.first as SendPort;
+    readyPort.close();
+  }
+
+  Future<Map<String, dynamic>> _sendRequest(
+    String type, {
+    Map<String, dynamic>? payload,
+    TransferableTypedData? data,
+  }) async {
+    final port = _workerPort;
+    if (port == null) {
+      throw StateError('ONNX detection worker is not running');
+    }
+
+    final responsePort = ReceivePort();
+    port.send(<String, dynamic>{
+      'type': type,
+      'payload': payload,
+      'data': data,
+      'replyPort': responsePort.sendPort,
+    });
+
+    final response = await responsePort.first as Map<String, dynamic>;
+    responsePort.close();
+    return response;
+  }
+
   @override
   Future<bool> initialize() async {
+    await _ensureWorker();
+    final response = await _sendRequest('init', payload: {
+      'powerSavingMode': false,
+    });
+    _isInitialized = response['success'] == true;
+    if (!_isInitialized) {
+      LogMk.logError(
+        'ONNX worker initialisation failed: ${response['error'] ?? 'unknown'}',
+        tag: 'ONNXDetectionService.initialize',
+      );
+    }
+    return _isInitialized;
+  }
+
+  @override
+  Future<List<DetectionResult>> detect(Uint8List imageBytes) async {
+    if (!_isInitialized) {
+      final ok = await initialize();
+      if (!ok) {
+        return [];
+      }
+    }
+
+    final response = await _sendRequest(
+      'detect',
+      data: TransferableTypedData.fromList([imageBytes]),
+    );
+
+    if (response['success'] != true) {
+      LogMk.logError(
+        'ONNX worker detect failed: ${response['error'] ?? 'unknown'}',
+        tag: 'ONNXDetectionService.detect',
+      );
+      return [];
+    }
+
+    final List<dynamic> rawResults = response['results'] as List<dynamic>? ?? [];
+    return rawResults
+        .whereType<Map>()
+        .map((dynamic raw) => Map<String, dynamic>.from(raw as Map))
+        .map(_deserializeDetectionResult)
+        .toList();
+  }
+
+  DetectionResult _deserializeDetectionResult(Map<String, dynamic> raw) {
+    final categoryIndex = raw['category'] as int?;
+    final category =
+        (categoryIndex != null && categoryIndex >= 0 && categoryIndex < DetectionCategory.values.length)
+            ? DetectionCategory.values[categoryIndex]
+            : null;
+    return DetectionResult(
+      category: category,
+      confidence: (raw['confidence'] as num?)?.toDouble() ?? 0.0,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(raw['timestamp'] as int? ?? DateTime.now().millisecondsSinceEpoch),
+      detectedLabels: (raw['labels'] as List<dynamic>? ?? const []).cast<String>(),
+    );
+  }
+
+  @override
+  Future<bool> switchModel({required bool powerSavingMode}) async {
+    if (_workerPort == null) {
+      return false;
+    }
+
+    final response = await _sendRequest('switchModel', payload: {
+      'powerSavingMode': powerSavingMode,
+    });
+
+    if (response['success'] != true) {
+      LogMk.logError(
+        'ONNX worker switchModel failed: ${response['error'] ?? 'unknown'}',
+        tag: 'ONNXDetectionService.switchModel',
+      );
+      return false;
+    }
+
+    return true;
+  }
+
+  @override
+  Future<void> dispose() async {
+    if (_workerPort == null) {
+      return;
+    }
+    await _sendRequest('dispose');
+    _workerPort = null;
+    _worker?.kill(priority: Isolate.immediate);
+    _worker = null;
+    _isInitialized = false;
+  }
+}
+
+class _WorkerBootstrapData {
+  final SendPort sendPort;
+  final RootIsolateToken? rootIsolateToken;
+
+  const _WorkerBootstrapData({
+    required this.sendPort,
+    required this.rootIsolateToken,
+  });
+}
+
+void _onnxWorkerEntryPoint(_WorkerBootstrapData data) async {
+  if (data.rootIsolateToken != null) {
+    BackgroundIsolateBinaryMessenger.ensureInitialized(data.rootIsolateToken!);
+  }
+
+  final receivePort = ReceivePort();
+  data.sendPort.send(receivePort.sendPort);
+
+  final worker = _OnnxRuntimeWorker();
+
+  await for (final message in receivePort) {
+    if (message is! Map<String, dynamic>) {
+      continue;
+    }
+    final type = message['type'] as String? ?? '';
+    final SendPort replyPort = message['replyPort'] as SendPort;
     try {
-      LogMk.logDebug(
-        'ONNX Runtimeモデルの初期化を開始',
-        tag: 'ONNXDetectionService.initialize',
-      );
-      
-      // ONNX Runtimeの初期化
-      OrtEnv.instance.init();
-      
-      // モデルファイルの読み込み（優先順位: medium → large → nano）
-      final modelPaths = [
-        'assets/models/yolo11m.onnx',  // YOLO11m（推奨：精度とスピードのバランス）
-        'assets/models/yolo11l.onnx',  // YOLO11l（高精度）
-        'assets/models/yolo11n.onnx',  // YOLO11n（軽量版）
-      ];
-      
-      late File modelFile;
-      bool modelLoaded = false;
-      String? loadedModelPath;
-      
-      for (final modelPath in modelPaths) {
-        try {
-          LogMk.logDebug(
-            'モデル読み込み試行: $modelPath',
-            tag: 'ONNXDetectionService.initialize',
+      switch (type) {
+        case 'init':
+          final payload = (message['payload'] as Map?)?.cast<String, dynamic>();
+          final success = await worker.initialize(
+            powerSavingMode: payload?['powerSavingMode'] as bool? ?? false,
           );
-          
-          modelFile = await _loadModelFromAsset(modelPath);
-          final sessionOptions = OrtSessionOptions();
-          _session = OrtSession.fromFile(modelFile, sessionOptions);
-          
-          loadedModelPath = modelPath;
-          modelLoaded = true;
-          
-          LogMk.logDebug(
-            'モデル読み込み成功: $modelPath',
-            tag: 'ONNXDetectionService.initialize',
-          );
+          replyPort.send({'success': success});
           break;
-        } catch (e) {
-          LogMk.logDebug(
-            'モデル読み込み失敗、次を試行: $modelPath - $e',
-            tag: 'ONNXDetectionService.initialize',
-          );
-          continue;
-        }
+        case 'detect':
+          final TransferableTypedData transferable = message['data'] as TransferableTypedData;
+          final bytes = transferable.materialize().asUint8List();
+          final results = await worker.detect(bytes);
+          replyPort.send({
+            'success': true,
+            'results': results,
+          });
+          break;
+        case 'switchModel':
+          final payload = (message['payload'] as Map?)?.cast<String, dynamic>();
+          final success = await worker.switchModel(payload?['powerSavingMode'] as bool? ?? false);
+          replyPort.send({'success': success});
+          break;
+        case 'dispose':
+          await worker.dispose();
+          replyPort.send({'success': true});
+          receivePort.close();
+          return;
+        default:
+          replyPort.send({'success': false, 'error': 'unknown_command'});
       }
-      
-      if (!modelLoaded) {
-        LogMk.logError(
-          'すべてのモデルの読み込みに失敗',
-          tag: 'ONNXDetectionService.initialize',
-        );
-        return false;
-      }
-      
-      // ラベルファイルの読み込み
-      _labels = await _loadLabels();
-      
-      if (_labels == null || _labels!.isEmpty) {
-        LogMk.logError(
-          'ラベルファイルの読み込みに失敗',
-          tag: 'ONNXDetectionService.initialize',
-        );
-        return false;
-      }
-      
-      // 使用モデル名を抽出して表示
-      final modelName = loadedModelPath?.split('/').last.replaceAll('.onnx', '') ?? 'unknown';
-      LogMk.logDebug(
-        'ONNX Runtime初期化完了 (モデル: $modelName, ラベル数: ${_labels!.length})',
-        tag: 'ONNXDetectionService.initialize',
-      );
-      
-      return true;
     } catch (e, stackTrace) {
       LogMk.logError(
-        'ONNX Runtime初期化エラー: $e',
-        tag: 'ONNXDetectionService.initialize',
+        'ONNX worker error: $e',
+        tag: 'ONNXDetectionService.worker',
+        stackTrace: stackTrace,
+      );
+      replyPort.send({'success': false, 'error': e.toString()});
+    }
+  }
+}
+
+class _OnnxRuntimeWorker {
+  OrtSession? _session;
+  List<String>? _labels;
+  bool _powerSavingMode = false;
+
+  static const int _inputSize = 640;
+  static const double _confidenceThreshold = 0.7;
+  static const double _iouThreshold = 0.5;
+
+  Future<bool> initialize({required bool powerSavingMode}) async {
+    try {
+      _powerSavingMode = powerSavingMode;
+      OrtEnv.instance.init();
+      return await _loadModel(_powerSavingMode);
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        'ONNX worker init error: $e',
+        tag: 'ONNXDetectionService.worker.init',
         stackTrace: stackTrace,
       );
       return false;
     }
   }
-  
-  /// assetからモデルファイルを一時ファイルにコピー
-  Future<File> _loadModelFromAsset(String assetPath) async {
-    try {
-      // assetからバイトデータを読み込み
-      final byteData = await rootBundle.load(assetPath);
-      
-      // 一時ディレクトリにファイルを作成
-      final tempDir = await getTemporaryDirectory();
-      final fileName = assetPath.split('/').last;
-      final file = File('${tempDir.path}/$fileName');
-      
-      // バイトデータをファイルに書き込み
-      await file.writeAsBytes(byteData.buffer.asUint8List());
-      
-      return file;
-    } catch (e) {
-      rethrow;
-    }
-  }
-  
-  /// ラベルファイルを読み込み
-  Future<List<String>> _loadLabels() async {
-    try {
-      // COCOデータセットの標準ラベル（80クラス）
-      return [
-        'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
-        'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat',
-        'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack',
-        'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
-        'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
-        'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
-        'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
-        'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse',
-        'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator',
-        'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
-      ];
-    } catch (e, stackTrace) {
-      LogMk.logError(
-        'ラベル読み込みエラー: $e',
-        tag: 'ONNXDetectionService._loadLabels',
-        stackTrace: stackTrace,
-      );
-      return [];
-    }
-  }
-  
-  @override
-  Future<List<DetectionResult>> detect(Uint8List imageBytes) async {
+
+  Future<List<Map<String, dynamic>>> detect(Uint8List imageBytes) async {
     if (_session == null || _labels == null) {
-      LogMk.logError(
-        'モデルまたはラベルが初期化されていません',
-        tag: 'ONNXDetectionService.detect',
-      );
       return [];
     }
-    
+
     try {
-      // 画像をデコード
       final image = img.decodeImage(imageBytes);
       if (image == null) {
-        LogMk.logError(
-          '画像のデコードに失敗',
-          tag: 'ONNXDetectionService.detect',
-        );
         return [];
       }
-      
-      // 画像を前処理（リサイズ＋正規化）
       final inputTensor = _preprocessImage(image);
-      
-      // 推論実行
       final outputs = _runInference(inputTensor);
-      
-      // 検出結果を解析
       final detections = _parseOutputs(outputs);
-      
-      // 検出されたラベルをカテゴリにマッピング
       final results = _mapToDetectionResults(detections);
-      
-      // 検出ログを出力（複数物体対応）
-      if (detections.isEmpty) {
-        LogMk.logDebug(
-          '🔍 [検出結果] 検出なし → 最終判定: nothingDetected',
-          tag: 'ONNXDetectionService.detect',
-        );
-      } else {
-        // 各検出物体の情報をログに出力
-        final detectionDetails = detections.map((d) => 
-          '${d.label} (信頼度: ${d.confidence.toStringAsFixed(2)})'
-        ).join(', ');
-        
-        LogMk.logDebug(
-          '🔍 [検出物体] $detectionDetails',
-          tag: 'ONNXDetectionService.detect',
-        );
-        
-        // 最終的なカテゴリ判定をログに出力
-        if (results.isNotEmpty) {
-          final result = results.first;
-          final finalCategory = result.categoryString ?? 'nothingDetected';
-          LogMk.logDebug(
-            '✅ [最終判定] $finalCategory (検出ラベル: ${result.detectedLabels.join(', ')})',
-            tag: 'ONNXDetectionService.detect',
-          );
-        }
-      }
-      
-      return results;
+      return results.map(_serializeDetectionResult).toList();
     } catch (e, stackTrace) {
       LogMk.logError(
-        '検出処理エラー: $e',
-        tag: 'ONNXDetectionService.detect',
+        'ONNX worker detect error: $e',
+        tag: 'ONNXDetectionService.worker.detect',
         stackTrace: stackTrace,
       );
       return [];
     }
   }
-  
-  /// 画像を前処理（リサイズ＋正規化）
+
+  Future<bool> switchModel(bool powerSavingMode) async {
+    _powerSavingMode = powerSavingMode;
+    return await _loadModel(powerSavingMode);
+  }
+
+  Future<void> dispose() async {
+    _session?.release();
+    _session = null;
+    _labels = null;
+  }
+
+  Future<bool> _loadModel(bool powerSavingMode) async {
+    _session?.release();
+    _session = null;
+
+    final modelCandidates = powerSavingMode
+        ? [
+            'assets/models/yolo11l.onnx',
+            'assets/models/yolo11m.onnx',
+          ]
+        : [
+            'assets/models/yolo11m.onnx',
+            'assets/models/yolo11l.onnx',
+            'assets/models/yolo11n.onnx',
+          ];
+
+    for (final modelPath in modelCandidates) {
+      try {
+        final modelFile = await _loadModelFromAsset(modelPath);
+        final sessionOptions = OrtSessionOptions();
+        _session = OrtSession.fromFile(modelFile, sessionOptions);
+        LogMk.logDebug(
+          'ONNX worker loaded model: $modelPath',
+          tag: 'ONNXDetectionService.worker',
+        );
+        _labels ??= await _loadLabels();
+        return true;
+      } catch (e) {
+        LogMk.logWarning(
+          'Failed to load model $modelPath: $e',
+          tag: 'ONNXDetectionService.worker',
+        );
+      }
+    }
+
+    LogMk.logError(
+      'All ONNX models failed to load',
+      tag: 'ONNXDetectionService.worker',
+    );
+    return false;
+  }
+
+  Future<File> _loadModelFromAsset(String assetPath) async {
+    final byteData = await rootBundle.load(assetPath);
+    final tempDir = await getTemporaryDirectory();
+    final fileName = assetPath.split('/').last;
+    final file = File('${tempDir.path}/$fileName');
+    await file.writeAsBytes(byteData.buffer.asUint8List());
+    return file;
+  }
+
+  Future<List<String>> _loadLabels() async {
+    return [
+      'person', 'bicycle', 'car', 'motorcycle', 'airplane', 'bus', 'train', 'truck', 'boat',
+      'traffic light', 'fire hydrant', 'stop sign', 'parking meter', 'bench', 'bird', 'cat',
+      'dog', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'zebra', 'giraffe', 'backpack',
+      'umbrella', 'handbag', 'tie', 'suitcase', 'frisbee', 'skis', 'snowboard', 'sports ball',
+      'kite', 'baseball bat', 'baseball glove', 'skateboard', 'surfboard', 'tennis racket',
+      'bottle', 'wine glass', 'cup', 'fork', 'knife', 'spoon', 'bowl', 'banana', 'apple',
+      'sandwich', 'orange', 'broccoli', 'carrot', 'hot dog', 'pizza', 'donut', 'cake', 'chair',
+      'couch', 'potted plant', 'bed', 'dining table', 'toilet', 'tv', 'laptop', 'mouse',
+      'remote', 'keyboard', 'cell phone', 'microwave', 'oven', 'toaster', 'sink', 'refrigerator',
+      'book', 'clock', 'vase', 'scissors', 'teddy bear', 'hair drier', 'toothbrush'
+    ];
+  }
+
   OrtValueTensor _preprocessImage(img.Image image) {
-    // 画像をリサイズ
     final resizedImage = img.copyResize(
       image,
       width: _inputSize,
       height: _inputSize,
       interpolation: img.Interpolation.linear,
     );
-    
-    // 正規化（0-255 → 0.0-1.0）してFloat32配列に変換
+
     final inputData = Float32List(_inputSize * _inputSize * 3);
     int pixelIndex = 0;
-    
-    // YOLOの入力形式: [1, 3, 640, 640] (NCHW形式)
+
     for (int c = 0; c < 3; c++) {
       for (int y = 0; y < _inputSize; y++) {
         for (int x = 0; x < _inputSize; x++) {
@@ -260,280 +376,173 @@ class ONNXDetectionService implements DetectionService {
         }
       }
     }
-    
+
     return OrtValueTensor.createTensorWithDataList(
       inputData,
       [1, 3, _inputSize, _inputSize],
     );
   }
-  
-  /// 推論を実行
+
   List<OrtValue?> _runInference(OrtValueTensor input) {
     final inputName = _session!.inputNames.first;
-    final outputs = _session!.run(
+    return _session!.run(
       OrtRunOptions(),
       {inputName: input},
     );
-    
-    return outputs;
   }
-  
-  /// 検出結果を解析
-  List<Detection> _parseOutputs(List<OrtValue?> outputs) {
+
+  List<_Detection> _parseOutputs(List<OrtValue?> outputs) {
     if (outputs.isEmpty || outputs.first == null) {
       return [];
     }
-    
+
     final output = outputs.first as OrtValueTensor;
     final outputData = output.value as List;
-    
-    final detections = <Detection>[];
-    
-    // YOLOv8/YOLOv11の出力形式を解析
-    // output shape: [1, 84, 8400]
-    // - 1: バッチサイズ
-    // - 84: [x, y, w, h, class0_conf, class1_conf, ..., class79_conf]
-    // - 8400: 検出候補数
-    
+    final detections = <_Detection>[];
     final batch = outputData[0];
-    final numDetections = batch[0].length; // 8400
-    
+    final numDetections = batch[0].length;
+
     for (int i = 0; i < numDetections; i++) {
-      // バウンディングボックス座標
       final x = batch[0][i] as double;
       final y = batch[1][i] as double;
       final w = batch[2][i] as double;
       final h = batch[3][i] as double;
-      
-      // クラススコアを取得（4番目以降の80クラス分）
-      final classScores = <double>[];
-      for (int classIdx = 0; classIdx < 80; classIdx++) {
-        classScores.add(batch[4 + classIdx][i] as double);
-      }
-      
-      // 最も高いスコアのクラスを取得
+
       double maxScore = 0.0;
       int maxClassIdx = 0;
-      for (int j = 0; j < classScores.length; j++) {
-        if (classScores[j] > maxScore) {
-          maxScore = classScores[j];
-          maxClassIdx = j;
+      for (int classIdx = 0; classIdx < 80; classIdx++) {
+        final score = batch[4 + classIdx][i] as double;
+        if (score > maxScore) {
+          maxScore = score;
+          maxClassIdx = classIdx;
         }
       }
-      
-      // 信頼度が閾値以上の場合のみ追加
+
       if (maxScore >= _confidenceThreshold) {
-        detections.add(Detection(
+        detections.add(_Detection(
           label: _labels![maxClassIdx],
           confidence: maxScore,
           boundingBox: [x, y, w, h],
         ));
       }
     }
-    
-    // NMS（Non-Maximum Suppression）で重複を除去
-    final filteredDetections = _applyNMS(detections);
-    
-    return filteredDetections;
+
+    return _applyNms(detections);
   }
-  
-  /// Non-Maximum Suppression（重複検出の除去）
-  List<Detection> _applyNMS(List<Detection> detections) {
-    if (detections.isEmpty) return [];
-    
-    // 信頼度でソート（降順）
-    detections.sort((a, b) => b.confidence.compareTo(a.confidence));
-    
-    final selected = <Detection>[];
-    final suppressed = <bool>[];
-    
-    for (int i = 0; i < detections.length; i++) {
-      suppressed.add(false);
+
+  List<_Detection> _applyNms(List<_Detection> detections) {
+    if (detections.isEmpty) {
+      return [];
     }
-    
+
+    detections.sort((a, b) => b.confidence.compareTo(a.confidence));
+    final selected = <_Detection>[];
+    final suppressed = List<bool>.filled(detections.length, false);
+
     for (int i = 0; i < detections.length; i++) {
       if (suppressed[i]) continue;
-      
       selected.add(detections[i]);
-      
+
       for (int j = i + 1; j < detections.length; j++) {
         if (suppressed[j]) continue;
-        
-        final iou = _calculateIoU(
-          detections[i].boundingBox,
-          detections[j].boundingBox,
-        );
-        
+        final iou = _calculateIoU(detections[i].boundingBox, detections[j].boundingBox);
         if (iou > _iouThreshold) {
           suppressed[j] = true;
         }
       }
     }
-    
+
     return selected;
   }
-  
-  /// IoU（Intersection over Union）を計算
+
   double _calculateIoU(List<double> box1, List<double> box2) {
     final x1 = box1[0] - box1[2] / 2;
     final y1 = box1[1] - box1[3] / 2;
     final x2 = box1[0] + box1[2] / 2;
     final y2 = box1[1] + box1[3] / 2;
-    
+
     final x1_ = box2[0] - box2[2] / 2;
     final y1_ = box2[1] - box2[3] / 2;
     final x2_ = box2[0] + box2[2] / 2;
     final y2_ = box2[1] + box2[3] / 2;
-    
+
     final intersectionX1 = x1 > x1_ ? x1 : x1_;
     final intersectionY1 = y1 > y1_ ? y1 : y1_;
     final intersectionX2 = x2 < x2_ ? x2 : x2_;
     final intersectionY2 = y2 < y2_ ? y2 : y2_;
-    
+
     final intersectionWidth = (intersectionX2 - intersectionX1).clamp(0.0, double.infinity);
     final intersectionHeight = (intersectionY2 - intersectionY1).clamp(0.0, double.infinity);
     final intersectionArea = intersectionWidth * intersectionHeight;
-    
+
     final box1Area = box1[2] * box1[3];
     final box2Area = box2[2] * box2[3];
     final unionArea = box1Area + box2Area - intersectionArea;
-    
+
+    if (unionArea == 0) {
+      return 0;
+    }
     return intersectionArea / unionArea;
   }
-  
-  /// 検出結果をDetectionResultにマッピング
-  List<DetectionResult> _mapToDetectionResults(List<Detection> detections) {
+
+  List<DetectionResult> _mapToDetectionResults(List<_Detection> detections) {
     if (detections.isEmpty) {
       return [
         DetectionResult(
           category: DetectionCategory.nothingDetected,
           confidence: 0.0,
           timestamp: DateTime.now(),
-          detectedLabels: [],
+          detectedLabels: const <String>[],
         ),
       ];
     }
-    
-    // 検出されたラベルを集約
+
+    detections.sort((a, b) => b.confidence.compareTo(a.confidence));
     final detectedLabels = detections.map((d) => d.label).toList();
-    
-    // 最も信頼度の高い検出結果を返す
-    final bestDetection = detections.first;
-    
     return [
       DetectionResult(
         category: _inferCategory(detectedLabels),
-        confidence: bestDetection.confidence,
+        confidence: detections.first.confidence,
         timestamp: DateTime.now(),
         detectedLabels: detectedLabels,
       ),
     ];
   }
-  
-  /// ラベルからカテゴリを推定
+
+  Map<String, dynamic> _serializeDetectionResult(DetectionResult result) {
+    return {
+      'category': result.category?.index,
+      'confidence': result.confidence,
+      'timestamp': result.timestamp.millisecondsSinceEpoch,
+      'labels': result.detectedLabels,
+    };
+  }
+
   DetectionCategory _inferCategory(List<String> labels) {
-    // 優先順位: 勉強 > パソコン > スマホ > 人
     const studyLabels = ['book', 'pen', 'notebook', 'paper'];
     const pcLabels = ['laptop', 'keyboard', 'mouse', 'computer', 'tv'];
     const smartphoneLabels = ['cell phone', 'phone', 'mobile'];
     const personLabels = ['person', 'human'];
-    
-    final lowerLabels = labels.map((l) => l.toLowerCase()).toList();
-    
-    if (lowerLabels.any((l) => studyLabels.contains(l))) {
-      return DetectionCategory.study;
-    }
-    if (lowerLabels.any((l) => pcLabels.contains(l))) {
-      return DetectionCategory.pc;
-    }
-    if (lowerLabels.any((l) => smartphoneLabels.contains(l))) {
-      return DetectionCategory.smartphone;
-    }
-    if (lowerLabels.any((l) => personLabels.contains(l))) {
-      return DetectionCategory.personOnly;
-    }
-    
-    return DetectionCategory.nothingDetected;
-  }
-  
-  @override
-  Future<bool> switchModel({required bool powerSavingMode}) async {
-    try {
-      // 現在のセッションを解放
-      _session?.release();
-      _session = null;
-      
-      // 省電力モードに応じてモデルを選択
-      // 省電力ON（10秒間隔）→ yolo11l（高精度、時間的余裕あり）
-      // 省電力OFF（3秒間隔）→ yolo11m（バランス、閾値0.7で高精度化）
-      final modelPaths = powerSavingMode
-          ? [
-              'assets/models/yolo11l.onnx',  // 高精度版（省電力モード用）
-              'assets/models/yolo11m.onnx',  // フォールバック
-            ]
-          : [
-              'assets/models/yolo11m.onnx',  // バランス版（通常モード用）
-              'assets/models/yolo11l.onnx',  // フォールバック
-            ];
-      
-      late File modelFile;
-      bool modelLoaded = false;
-      
-      for (final modelPath in modelPaths) {
-        try {
-          modelFile = await _loadModelFromAsset(modelPath);
-          final sessionOptions = OrtSessionOptions();
-          _session = OrtSession.fromFile(modelFile, sessionOptions);
-          
-          modelLoaded = true;
-          break;
-        } catch (e) {
-          continue;
-        }
-      }
-      
-      if (!modelLoaded) {
-        LogMk.logError(
-          'すべてのモデルの読み込みに失敗',
-          tag: 'ONNXDetectionService.switchModel',
-        );
-        return false;
-      }
-      
-      return true;
-    } catch (e, stackTrace) {
-      LogMk.logError(
-        'モデル切り替えエラー: $e',
-        tag: 'ONNXDetectionService.switchModel',
-        stackTrace: stackTrace,
-      );
-      return false;
-    }
-  }
 
-  @override
-  Future<void> dispose() async {
-    _session?.release();
-    _session = null;
-    _labels = null;
-    
-    LogMk.logDebug(
-      'ONNX Runtimeリソース解放完了',
-      tag: 'ONNXDetectionService.dispose',
-    );
+    final lowerLabels = labels.map((label) => label.toLowerCase()).toList();
+
+    if (lowerLabels.any(studyLabels.contains)) return DetectionCategory.study;
+    if (lowerLabels.any(pcLabels.contains)) return DetectionCategory.pc;
+    if (lowerLabels.any(smartphoneLabels.contains)) return DetectionCategory.smartphone;
+    if (lowerLabels.any(personLabels.contains)) return DetectionCategory.personOnly;
+
+    return DetectionCategory.nothingDetected;
   }
 }
 
-/// 検出結果（内部データ構造）
-class Detection {
+class _Detection {
   final String label;
   final double confidence;
-  final List<double> boundingBox; // [x, y, width, height]
-  
-  Detection({
+  final List<double> boundingBox;
+
+  _Detection({
     required this.label,
     required this.confidence,
     required this.boundingBox,
   });
 }
-

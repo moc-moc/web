@@ -160,7 +160,7 @@ PieChartDataModel? _pieChartDataFromJson(Map<String, dynamic>? json) =>
 
 /// SessionInfoリストをJSONに変換するヘルパー関数
 List<Map<String, dynamic>> _sessionsToJson(List<SessionInfo> sessions) =>
-    sessions.map((s) => s.toFirestore()).toList();
+    sessions.map((s) => s.toJson()).toList();
 
 /// JSONからSessionInfoリストを生成するヘルパー関数
 List<SessionInfo> _sessionsFromJson(List<dynamic>? json) {

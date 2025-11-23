@@ -39,39 +39,28 @@ class GoalMemoNotifier extends _$GoalMemoNotifier {
 /// 
 /// **戻り値**: 読み込んだ目標メモ（ローカルまたはデフォルト値）
 Future<GoalMemo> loadGoalMemoWithBackgroundRefreshHelper(dynamic ref) async {
-  final dummyManager = Object(); // マネージャーは使用しないためダミー
   final goalMemoNotifier = ref.read(goalMemoProvider.notifier);
 
   return await loadSingleDataWithBackgroundRefreshHelper<GoalMemo>(
     ref: ref,
-    manager: dummyManager,
+    manager: goalMemoManager,
     getWithAuth: () async {
       try {
-        final memoList = await goalMemoManager.getAllWithAuth();
-        try {
-          return memoList.firstWhere((m) => m.id == 'goal_memo');
-        } catch (e) {
-          return null;
-        }
-      } catch (e) {
+        return await goalMemoManager.getGoalMemoWithAuth();
+      } catch (_) {
         return null;
       }
     },
     getLocal: () async {
       try {
-        return await goalMemoManager.getLocalById('goal_memo');
-      } catch (e) {
+        return await goalMemoManager.getLocalGoalMemo();
+      } catch (_) {
         return null;
       }
     },
     getDefault: () async => GoalMemo.defaultMemo(),
     saveLocal: (memo) async {
-      try {
-        await goalMemoManager.addLocal(memo);
-      } catch (e) {
-        // 既に存在する場合は更新
-        await goalMemoManager.updateLocal(memo);
-      }
+      await goalMemoManager.saveLocalGoalMemo(memo);
     },
     updateProvider: goalMemoNotifier.updateMemo,
     functionName: 'loadGoalMemoWithBackgroundRefreshHelper',

@@ -14,12 +14,83 @@ import 'package:test_flutter/feature/statistics/yearly_statistics_data_manager.d
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/goals/goal_data_manager.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
+import 'package:test_flutter/data/services/goal_event_service.dart';
+import 'package:test_flutter/feature/streak/streak_data_manager.dart';
+import 'package:test_flutter/data/services/streak_milestone_service.dart';
 import 'package:test_flutter/feature/total/total_data_manager.dart';
 import 'package:test_flutter/feature/total/total_functions.dart';
+import 'package:test_flutter/feature/total/total_model.dart';
 import 'package:test_flutter/feature/total/total_hours_milestone_manager.dart';
 import 'package:test_flutter/feature/setting/settings_data_manager.dart';
 import 'package:test_flutter/data/models/settings_models.dart';
 import 'package:test_flutter/data/repositories/initialization_repository.dart';
+import 'package:test_flutter/feature/streak/streak_functions.dart';
+
+class AggregationPhaseResult {
+  const AggregationPhaseResult({
+    required this.phase1Success,
+    required this.phase2Future,
+  });
+
+  final bool phase1Success;
+  final Future<AggregationPhase2Result> phase2Future;
+}
+
+class AggregationPhase2Result {
+  const AggregationPhase2Result({
+    required this.goalSummary,
+    required this.totalHours,
+    required this.totalMilestone,
+    required this.streakSummary,
+  });
+
+  final GoalUpdateSummary? goalSummary;
+  final int totalHours;
+  final Map<String, int>? totalMilestone;
+  final StreakUpdateSummary? streakSummary;
+}
+
+class GoalUpdateSummary {
+  const GoalUpdateSummary({
+    required this.localGoals,
+    required this.achievementCandidates,
+  });
+
+  final List<Goal> localGoals;
+  final List<GoalAchievementCandidate> achievementCandidates;
+}
+
+class GoalAchievementCandidate {
+  const GoalAchievementCandidate({
+    required this.goal,
+    required this.achievedTimeSeconds,
+  });
+
+  final Goal goal;
+  final int achievedTimeSeconds;
+}
+
+class StreakUpdateSummary {
+  const StreakUpdateSummary({
+    required this.newStreak,
+    required this.currentStreak,
+    required this.milestonePayload,
+  });
+
+  final int newStreak;
+  final int currentStreak;
+  final StreakMilestonePayload? milestonePayload;
+}
+
+class StreakMilestonePayload {
+  const StreakMilestonePayload({
+    required this.days,
+    required this.nextMilestone,
+  });
+
+  final int days;
+  final int? nextMilestone;
+}
 
 /// 統計集計サービス
 /// 
@@ -34,6 +105,7 @@ class StatisticsAggregationService {
   static final TotalDataManager _totalManager = TotalDataManager();
   static final TotalHoursMilestoneManager _milestoneManager = TotalHoursMilestoneManager();
   static final TrackingSettingsDataManager _trackingSettingsManager = TrackingSettingsDataManager();
+  static final StreakDataManager _streakManager = StreakDataManager();
   
   // 目標キャッシュ（セッション処理中は再利用）
   List<Goal>? _cachedGoals;
@@ -53,15 +125,25 @@ class StatisticsAggregationService {
   /// **パラメータ**:
   /// - `session`: トラッキングセッション
   /// 
-  /// **戻り値**: Phase 1の処理成功時true、失敗時false（Phase 2はバックグラウンドで実行）
-  Future<bool> aggregateSessionData(TrackingSession session) async {
+  /// **戻り値**: Phase1の成否と、Phase2完了時に詳細結果を返すFuture
+  Future<AggregationPhaseResult> aggregateSessionData(TrackingSession session) async {
     try {
       if (!_markSessionAsProcessing(session.id)) {
         LogMk.logWarning(
           '⚠️ セッションID ${session.id} は既に処理済みのためスキップします',
           tag: 'StatisticsAggregationService',
         );
-        return false;
+        return AggregationPhaseResult(
+          phase1Success: false,
+          phase2Future: Future.value(
+            const AggregationPhase2Result(
+              goalSummary: null,
+              totalHours: 0,
+              totalMilestone: null,
+              streakSummary: null,
+            ),
+          ),
+        );
       }
 
       LogMk.logDebug(
@@ -103,7 +185,17 @@ class StatisticsAggregationService {
           '❌ Phase 1: 日次統計の更新に失敗しました',
           tag: 'StatisticsAggregationService',
         );
-        return false;
+        return AggregationPhaseResult(
+          phase1Success: false,
+          phase2Future: Future.value(
+            const AggregationPhase2Result(
+              goalSummary: null,
+              totalHours: 0,
+              totalMilestone: null,
+              streakSummary: null,
+            ),
+          ),
+        );
       }
       
       LogMk.logDebug(
@@ -112,17 +204,35 @@ class StatisticsAggregationService {
       );
 
       // ===== Phase 2: バックグラウンドで並列実行 =====
-      // 画面表示をブロックしないため、非同期で実行
-      _runPhase2InBackground(session, categorySecondsWithNothing, workSeconds, year, month);
+      final phase2Future = _runPhase2InBackground(
+        session,
+        categorySecondsWithNothing,
+        workSeconds,
+        year,
+        month,
+      );
 
-      return true;
+      return AggregationPhaseResult(
+        phase1Success: true,
+        phase2Future: phase2Future,
+      );
     } catch (e, stackTrace) {
       LogMk.logError(
         '❌ 統計集計処理中にエラーが発生しました: $e',
         tag: 'StatisticsAggregationService',
         stackTrace: stackTrace,
       );
-      return false;
+      return AggregationPhaseResult(
+        phase1Success: false,
+        phase2Future: Future.value(
+          const AggregationPhase2Result(
+            goalSummary: null,
+            totalHours: 0,
+            totalMilestone: null,
+            streakSummary: null,
+          ),
+        ),
+      );
     }
   }
 
@@ -144,16 +254,15 @@ class StatisticsAggregationService {
     return true;
   }
 
-  /// Phase 2をバックグラウンドで実行（非同期、エラーをログに記録するのみ）
-  void _runPhase2InBackground(
+  /// Phase 2をバックグラウンドで実行し、完了時に結果を返す
+  Future<AggregationPhase2Result> _runPhase2InBackground(
     TrackingSession session,
     Map<String, int> categorySecondsWithNothing,
     int workSeconds,
     int year,
     int month,
   ) {
-    // 非同期で実行（awaitしない）
-    Future(() async {
+    return Future(() async {
       try {
         LogMk.logDebug(
           '📊 Phase 2: バックグラウンド処理を開始',
@@ -171,7 +280,11 @@ class StatisticsAggregationService {
         final existingMonthly = existingData[1] as MonthlyStatistics?;
         final existingYearly = existingData[2] as YearlyStatistics?;
 
-        // 週次、月次、年次、目標、Total Timeを並列実行
+        GoalUpdateSummary? goalSummary;
+        TotalData? updatedTotalData;
+        StreakUpdateSummary? streakSummary;
+
+        // 週次、月次、年次、目標、Total Time、ストリークを並列実行
         await Future.wait([
           _updateWeeklyStatistics(session, categorySecondsWithNothing, workSeconds, existingWeekly)
               .catchError((e, stackTrace) {
@@ -197,18 +310,29 @@ class StatisticsAggregationService {
               stackTrace: stackTrace,
             );
           }),
-          _updateGoalProgress(session)
-              .catchError((e, stackTrace) {
+          _updateGoalProgress(session).then((value) {
+            goalSummary = value;
+          }).catchError((e, stackTrace) {
             LogMk.logError(
               '❌ 目標更新に失敗しました: $e',
               tag: 'StatisticsAggregationService',
               stackTrace: stackTrace,
             );
           }),
-          _updateTotalTime(workSeconds, session.startTime)
-              .catchError((e, stackTrace) {
+          _updateTotalTime(workSeconds, session.startTime).then((value) {
+            updatedTotalData = value;
+          }).catchError((e, stackTrace) {
             LogMk.logError(
               '❌ Total Time更新に失敗しました: $e',
+              tag: 'StatisticsAggregationService',
+              stackTrace: stackTrace,
+            );
+          }),
+          _updateStreakData().then((value) {
+            streakSummary = value;
+          }).catchError((e, stackTrace) {
+            LogMk.logError(
+              '❌ ストリーク更新に失敗しました: $e',
               tag: 'StatisticsAggregationService',
               stackTrace: stackTrace,
             );
@@ -216,21 +340,37 @@ class StatisticsAggregationService {
         ]);
 
         // 更新後の総時間を確認
-        final updatedTotalData = await _totalManager.getTotalDataOrDefault();
+        final totalDataSnapshot = updatedTotalData ?? await _totalManager.getTotalDataOrDefault();
         LogMk.logDebug(
-          '📊 Total Time更新後: ${updatedTotalData.totalWorkTimeMinutes}分（${updatedTotalData.totalWorkTimeMinutes ~/ 60}時間）',
+          '📊 Total Time更新後: ${totalDataSnapshot.totalWorkTimeMinutes}分（${totalDataSnapshot.totalWorkTimeMinutes ~/ 60}時間）',
           tag: 'StatisticsAggregationService',
         );
+
+        final totalHours = totalDataSnapshot.totalWorkTimeMinutes ~/ 60;
+        final milestoneInfo = await checkTotalHoursMilestoneWithCache(totalHours);
 
         LogMk.logDebug(
           '✅ Phase 2: バックグラウンド処理が完了しました',
           tag: 'StatisticsAggregationService',
+        );
+
+        return AggregationPhase2Result(
+          goalSummary: goalSummary,
+          totalHours: totalHours,
+          totalMilestone: milestoneInfo,
+          streakSummary: streakSummary,
         );
       } catch (e, stackTrace) {
         LogMk.logError(
           '❌ Phase 2: バックグラウンド処理中にエラーが発生しました: $e',
           tag: 'StatisticsAggregationService',
           stackTrace: stackTrace,
+        );
+        return const AggregationPhase2Result(
+          goalSummary: null,
+          totalHours: 0,
+          totalMilestone: null,
+          streakSummary: null,
         );
       }
     });
@@ -652,7 +792,7 @@ class StatisticsAggregationService {
   }
 
   /// 目標達成状況の更新
-  Future<void> _updateGoalProgress(TrackingSession session) async {
+  Future<GoalUpdateSummary?> _updateGoalProgress(TrackingSession session) async {
     try {
       // キャッシュから目標を取得（パフォーマンス最適化）
       List<Goal> goals;
@@ -730,6 +870,7 @@ class StatisticsAggregationService {
       
       // バッチ更新用のリスト
       final goalsToUpdate = <Goal>[];
+      final Map<String, GoalAchievementCandidate> achievementCandidateMap = {};
       
       for (final goal in relevantGoals) {
         // 選択された目標かどうかをチェック
@@ -783,6 +924,17 @@ class StatisticsAggregationService {
             todayAchievedTime: updatedTodayAchievedTime,
             lastModified: DateTime.now(),
           );
+
+          final targetSeconds = goal.targetTime;
+          final hasJustAchieved = targetSeconds > 0 &&
+              currentAchievedTime < targetSeconds &&
+              updatedAchievedTime >= targetSeconds;
+          if (hasJustAchieved) {
+            achievementCandidateMap[updatedGoal.id] = GoalAchievementCandidate(
+              goal: updatedGoal,
+              achievedTimeSeconds: updatedAchievedTime,
+            );
+          }
           
           goalsToUpdate.add(updatedGoal);
           
@@ -838,6 +990,34 @@ class StatisticsAggregationService {
         
         // 成功した目標のみローカルデータを更新
         if (successfulGoals.isNotEmpty) {
+          final newlyAchievedGoals = <GoalAchievementCandidate>[];
+          for (final goal in successfulGoals) {
+            final candidate = achievementCandidateMap[goal.id];
+            if (candidate != null) {
+              newlyAchievedGoals.add(candidate);
+            }
+          }
+
+          final pendingGoalEvents = <GoalAchievementCandidate>[];
+          for (final candidate in newlyAchievedGoals) {
+            try {
+              final alreadyShown = await GoalEventService.hasEventBeenShown(
+                candidate.goal.id,
+                candidate.achievedTimeSeconds,
+              );
+              if (!alreadyShown) {
+                pendingGoalEvents.add(candidate);
+              }
+            } catch (e) {
+              LogMk.logWarning(
+                '⚠️ GoalEventService既読チェックに失敗: $e',
+                tag: 'StatisticsAggregationService',
+              );
+              // 判定に失敗した場合はイベント表示対象として扱う
+              pendingGoalEvents.add(candidate);
+            }
+          }
+
           // 現在のローカル目標リストを取得
           final localGoals = await _goalManager.getLocalGoals();
           
@@ -893,6 +1073,11 @@ class StatisticsAggregationService {
             '✅ 目標をバッチ更新しました（成功: ${successfulGoals.length}件、失敗: ${failedGoals.length}件）',
             tag: 'StatisticsAggregationService',
           );
+
+          return GoalUpdateSummary(
+            localGoals: updatedLocalGoals,
+            achievementCandidates: pendingGoalEvents,
+          );
         } else {
           LogMk.logWarning(
             '⚠️ すべての目標のFirestore更新に失敗しました（リトライキューに追加済み）: ${goalsToUpdate.length}件',
@@ -900,6 +1085,8 @@ class StatisticsAggregationService {
           );
         }
       }
+
+      return null;
     } catch (e, stackTrace) {
       LogMk.logError(
         '❌ 目標更新に失敗しました: $e',
@@ -910,8 +1097,66 @@ class StatisticsAggregationService {
     }
   }
 
+  Future<StreakUpdateSummary?> _updateStreakData() async {
+    try {
+      LogMk.logDebug(
+        '🔍 ストリーク更新開始',
+        tag: 'StatisticsAggregationService',
+      );
+
+      final streakResult = await _streakManager.trackFinished();
+      final newStreak = streakResult['streak'] as int? ?? 0;
+      final streakData = await _streakManager.getStreakDataOrDefault();
+
+      final container = AppInitUN.getGlobalContainer();
+      if (container != null) {
+        try {
+          container.read(streakDataProvider.notifier).updateStreak(streakData);
+          LogMk.logDebug(
+            '✅ streakDataProviderを更新しました: streak=${streakData.currentStreak}',
+            tag: 'StatisticsAggregationService',
+          );
+        } catch (e) {
+          LogMk.logWarning(
+            '⚠️ streakDataProviderの更新に失敗: $e',
+            tag: 'StatisticsAggregationService',
+          );
+        }
+      }
+
+      StreakMilestonePayload? milestonePayload;
+      if (newStreak > 0) {
+        final achievedMilestone = await StreakMilestoneService.checkAchievedMilestone(newStreak);
+        if (achievedMilestone != null) {
+          final nextMilestone = await StreakMilestoneService.getNextMilestone();
+          milestonePayload = StreakMilestonePayload(
+            days: achievedMilestone,
+            nextMilestone: nextMilestone,
+          );
+          LogMk.logDebug(
+            '🎉 マイルストーン達成を検出: $achievedMilestone日（次: $nextMilestone日）',
+            tag: 'StatisticsAggregationService',
+          );
+        }
+      }
+
+      return StreakUpdateSummary(
+        newStreak: newStreak,
+        currentStreak: streakData.currentStreak,
+        milestonePayload: milestonePayload,
+      );
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        '❌ ストリーク更新に失敗しました: $e',
+        tag: 'StatisticsAggregationService',
+        stackTrace: stackTrace,
+      );
+      return null;
+    }
+  }
+
   /// Total Timeの更新
-  Future<void> _updateTotalTime(int workSeconds, DateTime sessionStartTime) async {
+  Future<TotalData> _updateTotalTime(int workSeconds, DateTime sessionStartTime) async {
     try {
       final workMinutes = workSeconds ~/ 60;
       
@@ -960,6 +1205,7 @@ class StatisticsAggregationService {
         '✅ Total Timeを更新しました（ローカル + Provider）: +$workMinutes分',
         tag: 'StatisticsAggregationService',
       );
+      return updatedTotalData;
     } catch (e, stackTrace) {
       LogMk.logError(
         '❌ Total Timeの更新に失敗しました: $e',
@@ -1018,6 +1264,16 @@ class StatisticsAggregationService {
           tag: 'StatisticsAggregationService',
         );
         return null;
+      }
+      
+      // マイルストーンの記録を先に実施しておく（イベント重複防止）
+      try {
+        await _milestoneManager.recordAchievedMilestone(achievedMilestone);
+      } catch (e) {
+        LogMk.logWarning(
+          '⚠️ マイルストーン記録に失敗しました（後でイベント画面側で再試行されます）: $e',
+          tag: 'StatisticsAggregationService',
+        );
       }
       
       // 次のマイルストーンを取得

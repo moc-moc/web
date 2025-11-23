@@ -60,6 +60,34 @@ class FirestoreHiveDataManager<T> {
   StreamSubscription<NetworkStatus>? _networkStatusSubscription;
   bool _isBackgroundSyncActive = false;
 
+  String? _resolveUserId(String? userId) {
+    if (userId != null && userId.isNotEmpty) {
+      _currentUserId = userId;
+      return userId;
+    }
+    if (_currentUserId != null && _currentUserId!.isNotEmpty) {
+      return _currentUserId;
+    }
+    final currentUser = AuthMk.getCurrentUser();
+    if (currentUser != null && currentUser.uid.isNotEmpty) {
+      _currentUserId = currentUser.uid;
+      return currentUser.uid;
+    }
+    return null;
+  }
+
+  String _scopedHiveBoxNameForUser(String? userId) {
+    final resolvedUserId = _resolveUserId(userId);
+    if (resolvedUserId == null || resolvedUserId.isEmpty) {
+      return hiveBoxName;
+    }
+    return 'user_${resolvedUserId}__$hiveBoxName';
+  }
+
+  String _scopedHiveBoxNameForCurrentUser() {
+    return _scopedHiveBoxNameForUser(null);
+  }
+
   /// コンストラクタ
   /// 
   FirestoreHiveDataManager({
@@ -237,7 +265,7 @@ class FirestoreHiveDataManager<T> {
   Future<List<T>> getLocalAll() async {
     try {
       // 1. ローカルデータを取得
-      final dataList = await HiveMk.getAllFromHive(hiveBoxName);
+      final dataList = await HiveMk.getAllFromHive(_scopedHiveBoxNameForCurrentUser());
       
       // 2. 各データをモデルに変換
       final items = <T>[];
@@ -264,7 +292,7 @@ class FirestoreHiveDataManager<T> {
     try {
       // 1. ローカルからデータを取得
       final data = await HiveMk.getItemFromHive(
-        hiveBoxName,
+        _scopedHiveBoxNameForCurrentUser(),
         id,
         idField,
       );
@@ -295,7 +323,7 @@ class FirestoreHiveDataManager<T> {
       }
       
       // 2. ローカルに保存
-      await HiveMk.saveAllToHive(hiveBoxName, dataList);
+      await HiveMk.saveAllToHive(_scopedHiveBoxNameForCurrentUser(), dataList);
       
     } catch (e) {
       await LogMk.logError(' ローカルアイテム保存エラー: $e');
@@ -311,7 +339,7 @@ class FirestoreHiveDataManager<T> {
       
       // 2. ローカルに追加
       await HiveMk.addItemToHive(
-        hiveBoxName,
+        _scopedHiveBoxNameForCurrentUser(),
         data,
         idField,
       );
@@ -330,7 +358,7 @@ class FirestoreHiveDataManager<T> {
       
       // 2. ローカルを更新
       await HiveMk.updateItemInHive(
-        hiveBoxName,
+        _scopedHiveBoxNameForCurrentUser(),
         data,
         idField,
       );
@@ -347,7 +375,7 @@ class FirestoreHiveDataManager<T> {
     try {
       // 1. ローカルから削除
       final success = await HiveMk.removeItemFromHive(
-        hiveBoxName,
+        _scopedHiveBoxNameForCurrentUser(),
         id,
         idField,
       );
@@ -366,9 +394,10 @@ class FirestoreHiveDataManager<T> {
   Future<void> clearLocal() async {
     try {
       // 1. ローカルデータをクリア
-      await HiveMk.removeFromHive(hiveBoxName);
+      final scopedBox = _scopedHiveBoxNameForCurrentUser();
+      await HiveMk.removeFromHive(scopedBox);
       
-      await LogMk.logInfo('✅ ローカルデータクリア完了: $hiveBoxName');
+      await LogMk.logInfo('✅ ローカルデータクリア完了: $scopedBox');
     } catch (e) {
       await LogMk.logError(' ローカルデータクリアエラー: $e');
     }
@@ -379,7 +408,7 @@ class FirestoreHiveDataManager<T> {
   Future<int> getLocalCount() async {
     try {
       // 1. ローカルのアイテム数を取得
-      final count = await HiveMk.getListCount(hiveBoxName);
+      final count = await HiveMk.getListCount(_scopedHiveBoxNameForCurrentUser());
       
       return count;
     } catch (e) {
@@ -396,8 +425,9 @@ class FirestoreHiveDataManager<T> {
     // Phase 1: 並行実行保護
     return await LockMk.withLock(_syncLock, () async {
       try {
+        final scopedBox = _scopedHiveBoxNameForUser(userId);
         // 1. 最終同期時刻を取得
-        final lastSyncTime = await HiveMk.getLastSyncTimeFromHive(hiveBoxName);
+        final lastSyncTime = await HiveMk.getLastSyncTimeFromHive(scopedBox);
         
         // 2. Firestoreから差分データを取得
         List<Map<String, dynamic>> remoteDataList;
@@ -419,7 +449,7 @@ class FirestoreHiveDataManager<T> {
         }
         
         // 3. ローカルデータを取得
-        final localDataList = await HiveMk.getAllFromHive(hiveBoxName);
+        final localDataList = await HiveMk.getAllFromHive(scopedBox);
         
         // 4. Firestoreから削除されたアイテムをローカルからも削除
         final remoteIds = remoteDataList
@@ -437,14 +467,14 @@ class FirestoreHiveDataManager<T> {
         for (final deletedId in deletedIds) {
           if (deletedId == null || deletedId.isEmpty) continue;
           await HiveMk.removeItemFromHive(
-            hiveBoxName,
+            scopedBox,
             deletedId,
             idField,
           );
         }
         
         // 5. ローカルデータを再取得（削除後の最新状態）
-        final updatedLocalDataList = await HiveMk.getAllFromHive(hiveBoxName);
+        final updatedLocalDataList = await HiveMk.getAllFromHive(scopedBox);
         
         // 6. データをマージ（競合解決）
         final mergedDataList = SyncMk.mergeData(
@@ -455,10 +485,10 @@ class FirestoreHiveDataManager<T> {
         );
         
         // 7. マージ結果をローカルに保存
-        await HiveMk.saveAllToHive(hiveBoxName, mergedDataList);
+        await HiveMk.saveAllToHive(scopedBox, mergedDataList);
         
         // 8. 最終同期時刻を更新
-        await HiveMk.setLastSyncTimeToHive(hiveBoxName, DateTime.now());
+        await HiveMk.setLastSyncTimeToHive(scopedBox, DateTime.now());
         
         // 9. マージ結果をモデルに変換して返す
         final items = <T>[];
@@ -494,9 +524,10 @@ class FirestoreHiveDataManager<T> {
   Future<List<T>> forceSync(String userId) async {
     try {
       await LogMk.logInfo('🔄 強制同期開始: $userId');
+      final scopedBox = _scopedHiveBoxNameForUser(userId);
       
       // 最終同期時刻を取得
-      final lastSyncTime = await HiveMk.getLastSyncTimeFromHive(hiveBoxName);
+      final lastSyncTime = await HiveMk.getLastSyncTimeFromHive(scopedBox);
       
       List<Map<String, dynamic>> remoteDataList;
       
@@ -522,10 +553,10 @@ class FirestoreHiveDataManager<T> {
       }
       
       // 2. ローカルに保存
-      await HiveMk.saveAllToHive(hiveBoxName, remoteDataList);
+      await HiveMk.saveAllToHive(scopedBox, remoteDataList);
       
       // 3. 最終同期時刻を更新
-      await HiveMk.setLastSyncTimeToHive(hiveBoxName, DateTime.now());
+      await HiveMk.setLastSyncTimeToHive(scopedBox, DateTime.now());
       
       // 4. データをモデルに変換して返す
       final items = <T>[];
@@ -551,9 +582,10 @@ class FirestoreHiveDataManager<T> {
   Future<int> pushLocalChanges(String userId) async {
     try {
       await LogMk.logInfo('📤 ローカル変更プッシュ開始: $userId');
+      final scopedBox = _scopedHiveBoxNameForUser(userId);
       
       // 1. ローカルデータを取得
-      final localDataList = await HiveMk.getAllFromHive(hiveBoxName);
+      final localDataList = await HiveMk.getAllFromHive(scopedBox);
       await LogMk.logInfo('📱 ローカルデータ取得: ${localDataList.length}件');
       
       int successCount = 0;
@@ -604,7 +636,7 @@ class FirestoreHiveDataManager<T> {
   /// 
   Future<DateTime?> getLastSyncTime() async {
     try {
-      final lastSyncTime = await HiveMk.getLastSyncTimeFromHive(hiveBoxName);
+      final lastSyncTime = await HiveMk.getLastSyncTimeFromHive(_scopedHiveBoxNameForCurrentUser());
       await LogMk.logInfo('📅 最終同期時刻取得: $lastSyncTime');
       return lastSyncTime;
     } catch (e) {
@@ -618,12 +650,13 @@ class FirestoreHiveDataManager<T> {
   Future<void> resetSyncState() async {
     try {
       await LogMk.logInfo('🔄 同期状態リセット開始');
+      final scopedBox = _scopedHiveBoxNameForCurrentUser();
       
       // 1. ローカルデータをクリア
-      await HiveMk.removeFromHive(hiveBoxName);
+      await HiveMk.removeFromHive(scopedBox);
       
       // 2. 最終同期時刻をクリア
-      await HiveMk.removeFromHive('${hiveBoxName}_last_sync');
+      await HiveMk.removeFromHive('${scopedBox}_last_sync');
       
       await LogMk.logInfo('✅ 同期状態リセット完了');
     } catch (e) {
@@ -638,6 +671,7 @@ class FirestoreHiveDataManager<T> {
   Future<bool> addWithRetry(String userId, T item) async {
     try {
       await LogMk.logInfo('🔄 リトライ付き追加開始: ${_getItemId(item)}');
+      final scopedBox = _scopedHiveBoxNameForUser(userId);
       
       // 1. Firestoreに追加を試行
       final data = toFirestore(item);
@@ -653,7 +687,7 @@ class FirestoreHiveDataManager<T> {
       if (success) {
         // 2. 成功したらローカルにも保存
         await HiveMk.addItemToHive(
-          hiveBoxName,
+          scopedBox,
           toJson(item),
           idField,
         );
@@ -686,6 +720,7 @@ class FirestoreHiveDataManager<T> {
   Future<bool> updateWithRetry(String userId, T item) async {
     try {
       await LogMk.logInfo('🔄 リトライ付き更新開始: ${_getItemId(item)}');
+      final scopedBox = _scopedHiveBoxNameForUser(userId);
       
       // 1. Firestoreに更新を試行
       final data = toFirestore(item);
@@ -701,7 +736,7 @@ class FirestoreHiveDataManager<T> {
       if (success) {
         // 2. 成功したらローカルにも更新
         await HiveMk.updateItemInHive(
-          hiveBoxName,
+          scopedBox,
           toJson(item),
           idField,
         );
@@ -734,6 +769,7 @@ class FirestoreHiveDataManager<T> {
   Future<bool> deleteWithRetry(String userId, String id) async {
     try {
       await LogMk.logInfo('🔄 リトライ付き削除開始: $id');
+      final scopedBox = _scopedHiveBoxNameForUser(userId);
       
       // 1. Firestoreから削除を試行
       final success = await FirestoreMk.deleteDocument(
@@ -744,7 +780,7 @@ class FirestoreHiveDataManager<T> {
       if (success) {
         // 2. 成功したらローカルからも削除
         final localDeleteSuccess = await HiveMk.removeItemFromHive(
-          hiveBoxName,
+          scopedBox,
           id,
           idField,
         );
@@ -883,6 +919,7 @@ class FirestoreHiveDataManager<T> {
   /// 
   Future<bool> _processAddItem(String userId, RetryItem item) async {
     try {
+      final scopedBox = _scopedHiveBoxNameForUser(userId);
       // Firestoreに追加
       final data = Map<String, dynamic>.from(item.data);
       data[lastModifiedField] = FirestoreMk.createTimestamp();
@@ -897,7 +934,7 @@ class FirestoreHiveDataManager<T> {
       if (success) {
         // ローカルにも保存
         await HiveMk.addItemToHive(
-          hiveBoxName,
+          scopedBox,
           item.data,
           idField,
         );
@@ -914,6 +951,7 @@ class FirestoreHiveDataManager<T> {
   /// 
   Future<bool> _processUpdateItem(String userId, RetryItem item) async {
     try {
+      final scopedBox = _scopedHiveBoxNameForUser(userId);
       // Firestoreに更新
       final data = Map<String, dynamic>.from(item.data);
       data[lastModifiedField] = FirestoreMk.createTimestamp();
@@ -928,7 +966,7 @@ class FirestoreHiveDataManager<T> {
       if (success) {
         // ローカルにも更新
         await HiveMk.updateItemInHive(
-          hiveBoxName,
+          scopedBox,
           item.data,
           idField,
         );
@@ -945,6 +983,7 @@ class FirestoreHiveDataManager<T> {
   /// 
   Future<bool> _processDeleteItem(String userId, RetryItem item) async {
     try {
+      final scopedBox = _scopedHiveBoxNameForUser(userId);
       // Firestoreから削除
       final itemId = item.data[idField] as String;
       final success = await FirestoreMk.deleteDocument(
@@ -955,7 +994,7 @@ class FirestoreHiveDataManager<T> {
       if (success) {
         // ローカルからも削除
         final localDeleteSuccess = await HiveMk.removeItemFromHive(
-          hiveBoxName,
+          scopedBox,
           itemId,
           idField,
         );
@@ -1115,6 +1154,7 @@ class FirestoreHiveDataManager<T> {
       await LogMk.logInfo('リアルタイム同期開始: $userId', tag: 'DataManager.startRealtimeSync');
       
       _currentUserId = userId;
+      final scopedBox = _scopedHiveBoxNameForUser(userId);
       _isRealtimeSyncActive = true;
 
       // ユーザーIDの変更を監視して自動停止
@@ -1135,7 +1175,7 @@ class FirestoreHiveDataManager<T> {
             for (final item in items) {
               dataList.add(toJson(item));
             }
-            await HiveMk.saveAllToHive(hiveBoxName, dataList);
+            await HiveMk.saveAllToHive(scopedBox, dataList);
             await LogMk.logDebug('リアルタイム同期: ${items.length}件保存', tag: 'DataManager.startRealtimeSync');
           } catch (e) {
             await LogMk.logError('リアルタイム同期保存エラー', tag: 'DataManager.startRealtimeSync', error: e);
@@ -1497,9 +1537,10 @@ class FirestoreHiveDataManager<T> {
   Future<int> pushLocalChangesSelective(String userId) async {
     try {
       await LogMk.logInfo('選択的プッシュ開始: $userId', tag: 'DataManager.pushLocalChangesSelective');
+      final scopedBox = _scopedHiveBoxNameForUser(userId);
       
       // 1. 変更されたアイテムのみを取得
-      final dirtyDataList = await HiveMk.getDirtyItems(hiveBoxName);
+      final dirtyDataList = await HiveMk.getDirtyItems(scopedBox);
       await LogMk.logDebug('変更アイテム取得: ${dirtyDataList.length}件', tag: 'DataManager.pushLocalChangesSelective');
       
       int successCount = 0;
@@ -1542,7 +1583,7 @@ class FirestoreHiveDataManager<T> {
       
       // 3. 成功したアイテムの変更フラグをクリア
       if (successIds.isNotEmpty) {
-        await HiveMk.clearDirtyFlags(hiveBoxName, itemIds: successIds, idField: idField);
+        await HiveMk.clearDirtyFlags(scopedBox, itemIds: successIds, idField: idField);
       }
       
       await LogMk.logInfo('選択的プッシュ完了: $successCount/${dirtyDataList.length}件', tag: 'DataManager.pushLocalChangesSelective');

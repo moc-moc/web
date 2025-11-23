@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:test_flutter/feature/tracking/detection/detection_result.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_processor.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
-import 'package:test_flutter/feature/tracking/detection/camera_image_data.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 
 /// 検出コントローラー
@@ -14,7 +13,6 @@ class DetectionController {
   final DetectionProcessor _processor;
   final CameraManager _cameraManager;
   
-  StreamSubscription<CameraImageData>? _imageSubscription;
   Timer? _detectionTimer;
   bool _isPowerSavingMode = false;
   bool _isRunning = false;
@@ -56,18 +54,6 @@ class DetectionController {
     _isPowerSavingMode = powerSavingMode;
     _isRunning = true;
 
-    final rawStream = _cameraManager.imageStream;
-    if (rawStream == null) {
-      LogMk.logError(
-        'カメラストリームが利用できません',
-        tag: 'DetectionController.start',
-      );
-      _isRunning = false;
-      return;
-    }
-    final imageStream = rawStream;
-
-
     try {
       final switched = await _processor.detectionService.switchModel(
         powerSavingMode: _isPowerSavingMode,
@@ -86,14 +72,9 @@ class DetectionController {
       );
     }
 
-    if (_isPowerSavingMode) {
-      // 省電力モード: 10秒間隔で検出
-      _startPeriodicDetection(imageStream, const Duration(seconds: 10));
-    } else {
-      // 通常モード: 3秒間隔で検出
-      _startPeriodicDetection(imageStream, const Duration(seconds: 3));
-    }
-
+    final interval =
+        _isPowerSavingMode ? const Duration(seconds: 10) : const Duration(seconds: 3);
+    _startPeriodicDetection(interval);
   }
 
   /// 定期検出を開始（通常モード・省電力モード共通）
@@ -101,56 +82,46 @@ class DetectionController {
   /// カメラストリームから指定間隔ごとに1フレームだけ取得して検出処理を実行
   /// 
   /// **パラメータ**:
-  /// - `imageStream`: カメラ画像ストリーム
   /// - `interval`: 検出間隔（通常モード: 3秒、省電力モード: 10秒）
-  void _startPeriodicDetection(Stream<CameraImageData> imageStream, Duration interval) {
+  void _startPeriodicDetection(Duration interval) {
     bool isProcessingDetection = false; // 検出処理中フラグ
 
-    // ストリームを購読するが、指定間隔ごとに1フレームだけ処理
-    // それ以外のフレームは破棄（省電力のため）
-    _imageSubscription = imageStream.listen(
-      (image) {
-        // ストリームは動作させる必要があるが、フレームは破棄
-        // タイマーで処理するため、ここでは何もしない
-      },
-      onError: (error, stackTrace) {
-        LogMk.logError(
-          '画像ストリームエラー: $error',
-          tag: 'DetectionController._startPeriodicDetection',
-          stackTrace: stackTrace,
-        );
-      },
-    );
+    Future<void> runDetection() async {
+      if (!_isRunning || isProcessingDetection) {
+        return;
+      }
+
+      isProcessingDetection = true;
+
+      try {
+        // カメラから1フレームだけ取得
+        final image = await _cameraManager.captureImage();
+
+        if (image != null) {
+          final result = await _processor.processImage(image);
+          
+          if (result != null && !_resultController.isClosed) {
+            _resultController.add(result);
+          }
+        }
+      } finally {
+        isProcessingDetection = false;
+      }
+    }
+
+    // 初回検出を即実行
+    unawaited(runDetection());
 
     // 指定間隔で検出
     _detectionTimer = Timer.periodic(
       interval,
-      (timer) async {
+      (timer) {
         if (!_isRunning) {
           timer.cancel();
           return;
         }
 
-        if (isProcessingDetection) {
-          return;
-        }
-
-        isProcessingDetection = true;
-
-        try {
-          // カメラから1フレームだけ取得
-          final image = await _cameraManager.captureImage();
-
-          if (image != null) {
-            final result = await _processor.processImage(image);
-            
-            if (result != null && !_resultController.isClosed) {
-              _resultController.add(result);
-            }
-          }
-        } finally {
-          isProcessingDetection = false;
-        }
+        unawaited(runDetection());
       },
     );
   }
@@ -205,11 +176,8 @@ class DetectionController {
     }
 
     _isRunning = false;
-    await _imageSubscription?.cancel();
-    _imageSubscription = null;
     _detectionTimer?.cancel();
     _detectionTimer = null;
-
   }
 
   /// リソースを解放

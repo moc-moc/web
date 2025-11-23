@@ -1,6 +1,8 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:test_flutter/data/repositories/initialization_repository.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/feature/total/total_data_manager.dart';
+import 'package:test_flutter/feature/total/total_functions.dart';
 import 'package:test_flutter/feature/total/total_model.dart';
 
 /// 総時間マイルストーンマネージャー
@@ -214,59 +216,56 @@ class TotalHoursMilestoneManager {
       final totalManager = TotalDataManager();
       final currentUser = FirebaseAuth.instance.currentUser;
       
-      if (currentUser == null) {
-        LogMk.logWarning(
-          '⚠️ ユーザー未認証のため、マイルストーン記録をスキップ',
-          tag: 'TotalHoursMilestoneManager',
-        );
-        return;
-      }
-      
-      // 現在のTotalDataを取得
-      TotalData? totalData = await totalManager.getTotalDataWithAuth();
+      // 現在のTotalData（ローカル優先）を取得
+      TotalData totalData = await totalManager.getTotalDataOrDefault();
       
       // マイルストーンリストを取得（なければデフォルトを生成）
-      List<int> milestoneList;
-      if (totalData != null && totalData.milestoneList.isNotEmpty) {
-        milestoneList = totalData.milestoneList;
-      } else {
-        milestoneList = List<int>.from(_defaultMilestones);
-      }
+      final milestoneList = totalData.milestoneList.isNotEmpty
+          ? totalData.milestoneList
+          : List<int>.from(_defaultMilestones);
       
-      // TotalDataが存在しない場合は初期データを作成
-      if (totalData == null) {
-        totalData = TotalData(
-          id: 'user_total',
-          totalWorkTimeMinutes: 0,
-          lastTrackedDate: DateTime.now(),
-          lastModified: DateTime.now(),
-          milestoneList: milestoneList,
-          lastAchievedMilestone: milestone,
-        );
-      } else {
-        // 既存のデータを更新
-        totalData = totalData.copyWith(
-          lastAchievedMilestone: milestone,
-          milestoneList: milestoneList,
-          lastModified: DateTime.now(),
-        );
-      }
+      // 既存のデータを更新
+      final updatedData = totalData.copyWith(
+        lastAchievedMilestone: milestone,
+        milestoneList: milestoneList,
+        lastModified: DateTime.now(),
+      );
       
       // ローカルに保存
-      await totalManager.updateLocalTotalData(totalData);
+      await totalManager.updateLocalTotalData(updatedData);
       
-      // Firestoreに保存
-      final userId = currentUser.uid;
-      final success = await totalManager.manager.saveWithRetry(userId, totalData);
+      // Providerも更新
+      final container = AppInitUN.getGlobalContainer();
+      if (container != null) {
+        try {
+          container.read(totalDataProvider.notifier).updateTotal(updatedData);
+        } catch (e) {
+          LogMk.logWarning(
+            '⚠️ totalDataProviderの更新に失敗: $e',
+            tag: 'TotalHoursMilestoneManager',
+          );
+        }
+      }
       
-      if (success) {
-        LogMk.logDebug(
-          '✅ マイルストーンを記録しました: $milestone時間',
-          tag: 'TotalHoursMilestoneManager',
-        );
+      // Firestoreに保存（ユーザー認証済みの場合のみ）
+      final userId = currentUser?.uid;
+      if (userId != null) {
+        final success = await totalManager.manager.saveWithRetry(userId, updatedData);
+        
+        if (success) {
+          LogMk.logDebug(
+            '✅ マイルストーンを記録しました: $milestone時間',
+            tag: 'TotalHoursMilestoneManager',
+          );
+        } else {
+          LogMk.logWarning(
+            '⚠️ マイルストーンのFirestore保存に失敗しました（リトライキューに追加された可能性）',
+            tag: 'TotalHoursMilestoneManager',
+          );
+        }
       } else {
         LogMk.logWarning(
-          '⚠️ マイルストーンのFirestore保存に失敗しました（リトライキューに追加された可能性）',
+          '⚠️ ユーザー未認証のため、マイルストーン記録をローカル保存のみに限定しました',
           tag: 'TotalHoursMilestoneManager',
         );
       }

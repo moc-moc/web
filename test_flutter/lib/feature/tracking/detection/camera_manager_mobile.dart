@@ -3,6 +3,7 @@ import 'package:camera/camera.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_image_data.dart';
+import 'package:test_flutter/feature/tracking/detection/camera_performance_config.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 
 /// モバイル版カメラ管理クラス
@@ -13,6 +14,8 @@ class CameraManagerMobile implements CameraManager {
   List<CameraDescription>? _cameras;
   bool _isInitialized = false;
   StreamController<CameraImageData>? _imageStreamController;
+  CameraImage? _latestCameraImage;
+  final List<Completer<CameraImageData?>> _pendingCaptureRequests = [];
 
   @override
   bool get isInitialized => _isInitialized && _controller != null;
@@ -50,10 +53,15 @@ class CameraManagerMobile implements CameraManager {
       );
 
       // カメラコントローラーの初期化
+      final resolutionPreset = CameraPerformanceConfig.isLowQuality
+          ? ResolutionPreset.low
+          : ResolutionPreset.medium;
+
       _controller = CameraController(
         camera,
-        ResolutionPreset.medium,
+        resolutionPreset,
         enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.bgra8888,
       );
 
       await _controller!.initialize();
@@ -61,10 +69,14 @@ class CameraManagerMobile implements CameraManager {
       // 映像ストリームの設定
       _imageStreamController = StreamController<CameraImageData>.broadcast();
       _controller!.startImageStream((image) {
-        if (!_imageStreamController!.isClosed) {
-          _imageStreamController!.add(
-            CameraImageData.fromMobile(image),
-          );
+        if (_imageStreamController != null && !_imageStreamController!.isClosed) {
+          final data = CameraImageData.fromMobile(image);
+          _imageStreamController!.add(data);
+          _latestCameraImage = image;
+          _completePendingCaptures(data);
+        } else {
+          _latestCameraImage = image;
+          _completePendingCaptures(CameraImageData.fromMobile(image));
         }
       });
 
@@ -132,22 +144,18 @@ class CameraManagerMobile implements CameraManager {
     }
 
     try {
-      // ストリームから最新の画像を取得するため、1フレーム待機
+      final latest = _latestCameraImage;
+      if (latest != null) {
+        return CameraImageData.fromMobile(latest);
+      }
+
       final completer = Completer<CameraImageData?>();
-      late StreamSubscription subscription;
+      _pendingCaptureRequests.add(completer);
 
-      subscription = imageStream!.listen((image) {
-        if (!completer.isCompleted) {
-          completer.complete(image);
-          subscription.cancel();
-        }
-      });
-
-      // タイムアウト設定（5秒）
       Timer(const Duration(seconds: 5), () {
         if (!completer.isCompleted) {
           completer.complete(null);
-          subscription.cancel();
+          _pendingCaptureRequests.remove(completer);
         }
       });
 
@@ -173,6 +181,13 @@ class CameraManagerMobile implements CameraManager {
       _controller = null;
 
       _isInitialized = false;
+      _latestCameraImage = null;
+      for (final completer in _pendingCaptureRequests) {
+        if (!completer.isCompleted) {
+          completer.complete(null);
+        }
+      }
+      _pendingCaptureRequests.clear();
       LogMk.logDebug(
         'カメラリソース解放完了（モバイル版）',
         tag: 'CameraManagerMobile.dispose',
@@ -183,6 +198,19 @@ class CameraManagerMobile implements CameraManager {
         tag: 'CameraManagerMobile.dispose',
         stackTrace: stackTrace,
       );
+    }
+  }
+
+  void _completePendingCaptures(CameraImageData data) {
+    if (_pendingCaptureRequests.isEmpty) {
+      return;
+    }
+    final pending = List<Completer<CameraImageData?>>.from(_pendingCaptureRequests);
+    _pendingCaptureRequests.clear();
+    for (final completer in pending) {
+      if (!completer.isCompleted) {
+        completer.complete(data);
+      }
     }
   }
 }

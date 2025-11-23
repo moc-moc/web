@@ -11,6 +11,7 @@ import 'package:test_flutter/presentation/widgets/loading/app_fullscreen_loader.
 import 'package:test_flutter/feature/tracking/tracking_functions.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_controller.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
+import 'package:test_flutter/feature/tracking/detection/camera_performance_config.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_result.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
@@ -88,9 +89,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   @override
   void initState() {
     super.initState();
-    _sessionStartTime = DateTime.now();
     _loadTrackingSettings();
-    _startTimer();
     _startAutoSaveTimer();
   }
 
@@ -105,6 +104,10 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         _isCameraOn = settings.isCameraOn;
         _isPowerSavingMode = settings.isPowerSavingMode;
       });
+
+      CameraPerformanceConfig.configure(
+        lowResolutionPreview: _isPowerSavingMode,
+      );
       
       // カメラを初期化（設定を反映した後）
       _initializeCamera();
@@ -114,6 +117,9 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         tag: 'TrackingScreen._loadTrackingSettings',
       );
       // エラー時はデフォルト値でカメラを初期化
+      CameraPerformanceConfig.configure(
+        lowResolutionPreview: _isPowerSavingMode,
+      );
       _initializeCamera();
     }
   }
@@ -143,7 +149,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   /// 一部の処理が失敗しても他の処理は実行されます。
   /// 
   /// **戻り値**: カメラ停止が完了した場合true
-  Future<bool> _forceStopCamera() async {
+  Future<bool> _forceStopCamera({bool stopTimers = true}) async {
     LogMk.logDebug(
       '🛑 カメラ強制停止処理を開始',
       tag: 'TrackingScreen._forceStopCamera',
@@ -151,22 +157,23 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     
     bool allSuccess = true;
     
-    // タイマーを停止
-    try {
-      _timer?.cancel();
-      _timer = null;
-      _autoSaveTimer?.cancel();
-      _autoSaveTimer = null;
-      LogMk.logDebug(
-        '✅ タイマーを停止しました',
-        tag: 'TrackingScreen._forceStopCamera',
-      );
-    } catch (e) {
-      LogMk.logError(
-        '❌ タイマー停止エラー: $e',
-        tag: 'TrackingScreen._forceStopCamera',
-      );
-      allSuccess = false;
+    if (stopTimers) {
+      try {
+        _timer?.cancel();
+        _timer = null;
+        _autoSaveTimer?.cancel();
+        _autoSaveTimer = null;
+        LogMk.logDebug(
+          '✅ タイマーを停止しました',
+          tag: 'TrackingScreen._forceStopCamera',
+        );
+      } catch (e) {
+        LogMk.logError(
+          '❌ タイマー停止エラー: $e',
+          tag: 'TrackingScreen._forceStopCamera',
+        );
+        allSuccess = false;
+      }
     }
     
     // ストリーム購読を停止（最優先）
@@ -314,10 +321,12 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
 
       // 検出を開始
       await controller.start(powerSavingMode: _isPowerSavingMode);
+      _ensureSessionTimingStarted();
 
       // 検出結果を直接処理
       await _detectionSubscription?.cancel();
       _detectionSubscription = controller.resultStream.listen((result) {
+        _ensureSessionTimingStarted();
         _handleDetectionResult(result);
       });
 
@@ -485,22 +494,20 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   
     // カテゴリ別の時間を加算（nothingDetectedは除外）
     if (_lastCategory != 'nothingDetected') {
-      setState(() {
-        switch (_lastCategory) {
-          case 'study':
-            _studySeconds += seconds;
-            break;
-          case 'pc':
-            _pcSeconds += seconds;
-            break;
-          case 'smartphone':
-            _smartphoneSeconds += seconds;
-            break;
-          case 'personOnly':
-            _personOnlySeconds += seconds;
-            break;
-        }
-      });
+      switch (_lastCategory) {
+        case 'study':
+          _studySeconds += seconds;
+          break;
+        case 'pc':
+          _pcSeconds += seconds;
+          break;
+        case 'smartphone':
+          _smartphoneSeconds += seconds;
+          break;
+        case 'personOnly':
+          _personOnlySeconds += seconds;
+          break;
+      }
     }
   }
 
@@ -536,9 +543,13 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   }
 
   void _startTimer() {
+    if (_timer != null) {
+      return;
+    }
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
+        _timer = null;
         return;
       }
 
@@ -664,6 +675,15 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       return '${secs}s';
     }
   }
+
+  void _ensureSessionTimingStarted() {
+    if (_sessionStartTime == null) {
+      _sessionStartTime = DateTime.now();
+    }
+    if (_timer == null) {
+      _startTimer();
+    }
+  }
   
   /// 現在のカテゴリの経過時間を含めた秒数を取得
   /// 
@@ -681,6 +701,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   void _handleStop() async {
     // 既に処理中の場合は何もしない
     if (_isStopping) return;
+    final totalStopwatch = Stopwatch()..start();
     
     // 処理中フラグを設定（全画面ローディング画面を表示）
     setState(() {
@@ -695,7 +716,9 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       );
       
       // 共通のカメラ停止処理を使用（完全に停止するまで待つ）
+      final cameraStopwatch = Stopwatch()..start();
       await _forceStopCamera();
+      cameraStopwatch.stop();
       
       // 状態をクリア
       if (mounted) {
@@ -706,7 +729,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       }
       
       LogMk.logDebug(
-        '✅ カメラ停止処理が完了しました',
+        '✅ カメラ停止処理が完了しました (${cameraStopwatch.elapsedMilliseconds}ms)',
         tag: 'TrackingScreen._handleStop',
       );
       
@@ -741,6 +764,8 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
           tag: 'TrackingScreen._handleStop',
         );
         
+        final sessionBuildStopwatch = Stopwatch()..start();
+
         // セッション開始時の選択目標IDを取得
         final settings = ref.read(trackingSettingsProvider);
         final selectedGoalIds = {
@@ -782,15 +807,24 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
           selectedGoalIds: selectedGoalIds,
           lastModified: DateTime.now(),
         );
+        sessionBuildStopwatch.stop();
+        LogMk.logDebug(
+          '⏱️ セッション生成完了: ${sessionBuildStopwatch.elapsedMilliseconds}ms',
+          tag: 'TrackingScreen._handleStop',
+        );
 
         // トラッキングセッションをローカル/Firestoreに保存し、Providerを更新
         try {
-          final saveSuccess = await _trackingSessionManager.addSessionWithAuth(trackingSession);
+          final sessionSaveStopwatch = Stopwatch()..start();
+          final saveSuccess = await _trackingSessionManager.addSessionWithAuth(
+            trackingSession,
+            awaitRemote: false,
+          );
+          sessionSaveStopwatch.stop();
           if (saveSuccess) {
-            final localSessions = await _trackingSessionManager.getLocalAll();
-            ref.read(trackingSessionsProvider.notifier).updateSessions(localSessions);
+            ref.read(trackingSessionsProvider.notifier).upsertSession(trackingSession);
             LogMk.logDebug(
-              '✅ トラッキングセッション保存完了: ${trackingSession.id}',
+              '✅ トラッキングセッション保存完了: ${trackingSession.id} (${sessionSaveStopwatch.elapsedMilliseconds}ms)',
               tag: 'TrackingScreen._handleStop',
             );
           } else {
@@ -809,59 +843,6 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
 
         // ログに出力
         _logSessionData(trackingSession);
-
-        // DailyStatisticsにセッション情報を保存
-        try {
-          final today = DateTime(sessionEndTime.year, sessionEndTime.month, sessionEndTime.day);
-          final existingDailyStats = await _dailyStatsManager.getByDateWithAuth(today);
-          
-          DailyStatistics dailyStatsToSave;
-          if (existingDailyStats != null) {
-            // 既存のセッションリストを更新（同じIDのセッションがあれば置き換え、なければ追加）
-            final updatedSessions = List<SessionInfo>.from(existingDailyStats.sessions);
-            final existingIndex = updatedSessions.indexWhere((s) => s.id == createdSessionInfo.id);
-            if (existingIndex >= 0) {
-              updatedSessions[existingIndex] = createdSessionInfo;
-            } else {
-              updatedSessions.add(createdSessionInfo);
-            }
-            
-            // 日次統計を更新（sessionsのみ更新、categorySeconds等はsaveOrUpdateWithAuth内で計算）
-            dailyStatsToSave = existingDailyStats.copyWith(
-              sessions: updatedSessions,
-              lastModified: DateTime.now(),
-            );
-          } else {
-            // 新規作成
-            final year = today.year.toString();
-            final month = today.month.toString().padLeft(2, '0');
-            final day = today.day.toString().padLeft(2, '0');
-            final id = '$year-$month-$day';
-            
-            dailyStatsToSave = DailyStatistics(
-              id: id,
-              date: today,
-              categorySeconds: {},
-              totalWorkTimeSeconds: 0,
-              sessions: [createdSessionInfo],
-              lastModified: DateTime.now(),
-            );
-          }
-          
-          // 保存（saveOrUpdateWithAuth内でupdateFromSessionsが呼ばれる）
-          await _dailyStatsManager.saveOrUpdateWithAuth(dailyStatsToSave);
-          
-          LogMk.logDebug(
-            '✅ DailyStatisticsにセッション情報を保存しました: ${createdSessionInfo.id}',
-            tag: 'TrackingScreen._handleStop',
-          );
-        } catch (e, stackTrace) {
-          LogMk.logError(
-            '❌ DailyStatisticsへのセッション保存に失敗しました: $e',
-            tag: 'TrackingScreen._handleStop',
-            stackTrace: stackTrace,
-          );
-        }
       }
       
       // 次の画面へ遷移（SessionInfoを引数として渡す）
@@ -884,6 +865,11 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         NavigationHelper.push(context, AppRoutes.trackingFinishedNew);
       }
     } finally {
+      totalStopwatch.stop();
+      LogMk.logDebug(
+        '⏱️ 停止処理全体の所要時間: ${totalStopwatch.elapsedMilliseconds}ms',
+        tag: 'TrackingScreen._handleStop',
+      );
       // 処理中フラグをリセット
       if (mounted) {
         setState(() {
@@ -1225,8 +1211,13 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
                     setState(() {
                       _isPowerSavingMode = !_isPowerSavingMode;
                     });
+                    CameraPerformanceConfig.configure(
+                      lowResolutionPreview: _isPowerSavingMode,
+                    );
                     // 省電力モードを切り替え
                     await _detectionController?.setPowerSavingMode(_isPowerSavingMode);
+                    await _forceStopCamera(stopTimers: false);
+                    await _initializeCamera();
                     // 設定を保存
                     _saveTrackingSettings();
                   },

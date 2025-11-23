@@ -56,6 +56,38 @@ class FirestoreDataManager<T> {
   bool _isRealtimeSyncActive = false;
   String? _currentUserId;
 
+  String? _resolveUserId(String? userId) {
+    if (userId != null && userId.isNotEmpty) {
+      _currentUserId = userId;
+      return userId;
+    }
+    if (_currentUserId != null && _currentUserId!.isNotEmpty) {
+      return _currentUserId;
+    }
+    final currentUser = AuthMk.getCurrentUser();
+    if (currentUser != null && currentUser.uid.isNotEmpty) {
+      _currentUserId = currentUser.uid;
+      return currentUser.uid;
+    }
+    return null;
+  }
+
+  String _scopedStorageKeyForUser(String? userId) {
+    final resolvedUserId = _resolveUserId(userId);
+    if (resolvedUserId == null || resolvedUserId.isEmpty) {
+      return storageKey;
+    }
+    return 'user_${resolvedUserId}__$storageKey';
+  }
+
+  String _scopedStorageKeyForCurrentUser() {
+    return _scopedStorageKeyForUser(null);
+  }
+
+  String _scopedLastSyncStorageKey(String? userId) {
+    return '${_scopedStorageKeyForUser(userId)}_last_sync';
+  }
+
   // Phase 5: バックグラウンド処理用
   StreamSubscription<NetworkStatus>? _networkStatusSubscription;
   bool _isBackgroundSyncActive = false;
@@ -240,7 +272,7 @@ class FirestoreDataManager<T> {
   Future<List<T>> getLocalAll() async {
     try {
       // 1. ローカルデータを取得
-      final dataList = await SharedMk.getAllFromSharedPrefs(storageKey);
+      final dataList = await SharedMk.getAllFromSharedPrefs(_scopedStorageKeyForCurrentUser());
       
       // 2. 各データをモデルに変換
       final items = <T>[];
@@ -267,7 +299,7 @@ class FirestoreDataManager<T> {
     try {
       // 1. ローカルからデータを取得
       final data = await SharedMk.getItemFromSharedPrefs(
-        storageKey,
+        _scopedStorageKeyForCurrentUser(),
         id,
         idField,
       );
@@ -294,7 +326,7 @@ class FirestoreDataManager<T> {
       final dataList = items.map((item) => toJson(item)).toList();
       
       // 2. ローカルに保存
-      await SharedMk.saveAllToSharedPrefs(storageKey, dataList);
+      await SharedMk.saveAllToSharedPrefs(_scopedStorageKeyForCurrentUser(), dataList);
       
     } catch (e) {
       await LogMk.logError(' ローカルアイテム保存エラー: $e');
@@ -310,7 +342,7 @@ class FirestoreDataManager<T> {
       
       // 2. ローカルに追加
       await SharedMk.addItemToSharedPrefs(
-        storageKey,
+        _scopedStorageKeyForCurrentUser(),
         data,
         idField,
       );
@@ -329,7 +361,7 @@ class FirestoreDataManager<T> {
       
       // 2. ローカルを更新
       await SharedMk.updateItemInSharedPrefs(
-        storageKey,
+        _scopedStorageKeyForCurrentUser(),
         data,
         idField,
       );
@@ -346,7 +378,7 @@ class FirestoreDataManager<T> {
     try {
       // 1. ローカルから削除
       final success = await SharedMk.removeItemFromSharedPrefs(
-        storageKey,
+        _scopedStorageKeyForCurrentUser(),
         id,
         idField,
       );
@@ -365,9 +397,9 @@ class FirestoreDataManager<T> {
   Future<void> clearLocal() async {
     try {
       // 1. ローカルデータをクリア
-      await SharedMk.removeFromSharedPrefs(storageKey);
+      await SharedMk.removeFromSharedPrefs(_scopedStorageKeyForCurrentUser());
       
-      await LogMk.logInfo('✅ ローカルデータクリア完了: $storageKey');
+      await LogMk.logInfo('✅ ローカルデータクリア完了: ${_scopedStorageKeyForCurrentUser()}');
     } catch (e) {
       await LogMk.logError(' ローカルデータクリアエラー: $e');
     }
@@ -378,7 +410,7 @@ class FirestoreDataManager<T> {
   Future<int> getLocalCount() async {
     try {
       // 1. ローカルのアイテム数を取得
-      final count = await SharedMk.getListCount(storageKey);
+      final count = await SharedMk.getListCount(_scopedStorageKeyForCurrentUser());
       
       return count;
     } catch (e) {
@@ -395,11 +427,12 @@ class FirestoreDataManager<T> {
     // Phase 1: 並行実行保護
     return await LockMk.withLock(_syncLock, () async {
       try {
+        final scopedKey = _scopedStorageKeyForUser(userId);
         // 1. 最終同期時刻を取得
-        final lastSyncTime = await SharedMk.getLastSyncTimeFromSharedPrefs(storageKey);
+        final lastSyncTime = await SharedMk.getLastSyncTimeFromSharedPrefs(scopedKey);
         
         // 2. ローカルデータを事前取得
-        final localDataList = await SharedMk.getAllFromSharedPrefs(storageKey);
+        final localDataList = await SharedMk.getAllFromSharedPrefs(scopedKey);
         
         // 3. Firestoreから差分データを取得
         List<Map<String, dynamic>> remoteDataList;
@@ -442,14 +475,14 @@ class FirestoreDataManager<T> {
           for (final deletedId in deletedIds) {
             if (deletedId == null || deletedId.isEmpty) continue;
             await SharedMk.removeItemFromSharedPrefs(
-              storageKey,
+              scopedKey,
               deletedId,
               idField,
             );
           }
           
           // ローカルデータを再取得（削除後の最新状態）
-          currentLocalDataList = await SharedMk.getAllFromSharedPrefs(storageKey);
+          currentLocalDataList = await SharedMk.getAllFromSharedPrefs(scopedKey);
         }
         
         // 6. データをマージ（競合解決）
@@ -469,14 +502,14 @@ class FirestoreDataManager<T> {
         );
         
         // 8. JSON形式でローカルに保存
-        await SharedMk.saveAllToSharedPrefs(storageKey, jsonDataList);
+        await SharedMk.saveAllToSharedPrefs(scopedKey, jsonDataList);
         
         // 9. ローカルの新しいデータをFirestoreにプッシュ（削除：Firestore優先のため）
         // Firestore優先にするため、この処理は削除しました。
         // tracking完了時など、明示的に保存する場合はsaveWithRetry()を使用してください。
         
         // 10. 最終同期時刻を更新
-        await SharedMk.setLastSyncTimeToSharedPrefs(storageKey, DateTime.now());
+        await SharedMk.setLastSyncTimeToSharedPrefs(scopedKey, DateTime.now());
         
         // 11. モデルに変換して返す（null安全な処理）
         final items = <T>[];
@@ -521,7 +554,8 @@ class FirestoreDataManager<T> {
       await LogMk.logInfo('🔄 強制同期開始: $userId');
       
       // 最終同期時刻を取得
-      final lastSyncTime = await SharedMk.getLastSyncTimeFromSharedPrefs(storageKey);
+      final scopedKey = _scopedStorageKeyForUser(userId);
+      final lastSyncTime = await SharedMk.getLastSyncTimeFromSharedPrefs(scopedKey);
       
       List<Map<String, dynamic>> remoteDataList;
       
@@ -555,10 +589,10 @@ class FirestoreDataManager<T> {
       );
       
       // 3. ローカルに保存
-      await SharedMk.saveAllToSharedPrefs(storageKey, jsonDataList);
+      await SharedMk.saveAllToSharedPrefs(scopedKey, jsonDataList);
       
       // 4. 最終同期時刻を更新
-      await SharedMk.setLastSyncTimeToSharedPrefs(storageKey, DateTime.now());
+      await SharedMk.setLastSyncTimeToSharedPrefs(scopedKey, DateTime.now());
       
       // 5. モデルに変換して返す（null安全な処理）
       final items = <T>[];
@@ -591,9 +625,10 @@ class FirestoreDataManager<T> {
   Future<int> pushLocalChanges(String userId) async {
     try {
       await LogMk.logInfo('📤 ローカル変更プッシュ開始: $userId');
+      final scopedKey = _scopedStorageKeyForUser(userId);
       
       // 1. ローカルデータを取得
-      final localDataList = await SharedMk.getAllFromSharedPrefs(storageKey);
+      final localDataList = await SharedMk.getAllFromSharedPrefs(scopedKey);
       await LogMk.logInfo('📱 ローカルデータ取得: ${localDataList.length}件');
       
       int successCount = 0;
@@ -644,7 +679,8 @@ class FirestoreDataManager<T> {
   /// 
   Future<DateTime?> getLastSyncTime() async {
     try {
-      final lastSyncTime = await SharedMk.getLastSyncTimeFromSharedPrefs(storageKey);
+      final scopedKey = _scopedStorageKeyForCurrentUser();
+      final lastSyncTime = await SharedMk.getLastSyncTimeFromSharedPrefs(scopedKey);
       await LogMk.logInfo('📅 最終同期時刻取得: $lastSyncTime');
       return lastSyncTime;
     } catch (e) {
@@ -658,12 +694,13 @@ class FirestoreDataManager<T> {
   Future<void> resetSyncState() async {
     try {
       await LogMk.logInfo('🔄 同期状態リセット開始');
+      final scopedKey = _scopedStorageKeyForCurrentUser();
       
       // 1. ローカルデータをクリア
-      await SharedMk.removeFromSharedPrefs(storageKey);
+      await SharedMk.removeFromSharedPrefs(scopedKey);
       
       // 2. 最終同期時刻をクリア
-      await SharedMk.removeFromSharedPrefs('${storageKey}_last_sync');
+      await SharedMk.removeFromSharedPrefs(_scopedLastSyncStorageKey(null));
       
       await LogMk.logInfo('✅ 同期状態リセット完了');
     } catch (e) {
@@ -678,6 +715,7 @@ class FirestoreDataManager<T> {
   Future<bool> addWithRetry(String userId, T item) async {
     try {
       await LogMk.logInfo('🔄 リトライ付き追加開始: ${_getItemId(item)}');
+      final scopedKey = _scopedStorageKeyForUser(userId);
       
       // 1. Firestoreに追加を試行
       final data = toFirestore(item);
@@ -693,7 +731,7 @@ class FirestoreDataManager<T> {
       if (success) {
         // 2. 成功したらローカルにも保存
         await SharedMk.addItemToSharedPrefs(
-          storageKey,
+          scopedKey,
           toJson(item),
           idField,
         );
@@ -726,6 +764,7 @@ class FirestoreDataManager<T> {
   Future<bool> updateWithRetry(String userId, T item) async {
     try {
       await LogMk.logInfo('🔄 リトライ付き更新開始: ${_getItemId(item)}');
+      final scopedKey = _scopedStorageKeyForUser(userId);
       
       // 1. Firestoreに更新を試行
       final data = toFirestore(item);
@@ -741,7 +780,7 @@ class FirestoreDataManager<T> {
       if (success) {
         // 2. 成功したらローカルにも更新
         await SharedMk.updateItemInSharedPrefs(
-          storageKey,
+          scopedKey,
           toJson(item),
           idField,
         );
@@ -774,6 +813,7 @@ class FirestoreDataManager<T> {
   Future<bool> deleteWithRetry(String userId, String id) async {
     try {
       await LogMk.logInfo('🔄 リトライ付き削除開始: $id');
+      final scopedKey = _scopedStorageKeyForUser(userId);
       
       // 1. Firestoreから削除を試行
       final success = await FirestoreMk.deleteDocument(
@@ -784,7 +824,7 @@ class FirestoreDataManager<T> {
       if (success) {
         // 2. 成功したらローカルからも削除
         final localDeleteSuccess = await SharedMk.removeItemFromSharedPrefs(
-          storageKey,
+          scopedKey,
           id,
           idField,
         );
@@ -1001,6 +1041,7 @@ class FirestoreDataManager<T> {
   /// 
   Future<bool> _processAddItem(String userId, RetryItem item) async {
     try {
+      final scopedKey = _scopedStorageKeyForUser(userId);
       // Firestoreに追加
       final data = Map<String, dynamic>.from(item.data);
       data[lastModifiedField] = FirestoreMk.createTimestamp();
@@ -1015,7 +1056,7 @@ class FirestoreDataManager<T> {
       if (success) {
         // ローカルにも保存
         await SharedMk.addItemToSharedPrefs(
-          storageKey,
+          scopedKey,
           item.data,
           idField,
         );
@@ -1032,6 +1073,7 @@ class FirestoreDataManager<T> {
   /// 
   Future<bool> _processUpdateItem(String userId, RetryItem item) async {
     try {
+      final scopedKey = _scopedStorageKeyForUser(userId);
       // Firestoreに更新
       final data = Map<String, dynamic>.from(item.data);
       data[lastModifiedField] = FirestoreMk.createTimestamp();
@@ -1046,7 +1088,7 @@ class FirestoreDataManager<T> {
       if (success) {
         // ローカルにも更新
         await SharedMk.updateItemInSharedPrefs(
-          storageKey,
+          scopedKey,
           item.data,
           idField,
         );
@@ -1063,6 +1105,7 @@ class FirestoreDataManager<T> {
   /// 
   Future<bool> _processDeleteItem(String userId, RetryItem item) async {
     try {
+      final scopedKey = _scopedStorageKeyForUser(userId);
       // Firestoreから削除
       final itemId = item.data[idField] as String;
       final success = await FirestoreMk.deleteDocument(
@@ -1073,7 +1116,7 @@ class FirestoreDataManager<T> {
       if (success) {
         // ローカルからも削除
         final localDeleteSuccess = await SharedMk.removeItemFromSharedPrefs(
-          storageKey,
+          scopedKey,
           itemId,
           idField,
         );
@@ -1232,6 +1275,7 @@ class FirestoreDataManager<T> {
       await LogMk.logInfo('リアルタイム同期開始: $userId', tag: 'DataManager.startRealtimeSync');
       
       _currentUserId = userId;
+      final scopedKey = _scopedStorageKeyForUser(userId);
       _isRealtimeSyncActive = true;
 
       // ユーザーIDの変更を監視して自動停止
@@ -1248,7 +1292,7 @@ class FirestoreDataManager<T> {
           try {
             // ローカルに保存
             final dataList = items.map((item) => toJson(item)).toList();
-            await SharedMk.saveAllToSharedPrefs(storageKey, dataList);
+            await SharedMk.saveAllToSharedPrefs(scopedKey, dataList);
             await LogMk.logDebug('リアルタイム同期: ${items.length}件保存', tag: 'DataManager.startRealtimeSync');
           } catch (e) {
             await LogMk.logError('リアルタイム同期保存エラー', tag: 'DataManager.startRealtimeSync', error: e);
@@ -1610,9 +1654,10 @@ class FirestoreDataManager<T> {
   Future<int> pushLocalChangesSelective(String userId) async {
     try {
       await LogMk.logInfo('選択的プッシュ開始: $userId', tag: 'DataManager.pushLocalChangesSelective');
+      final scopedKey = _scopedStorageKeyForUser(userId);
       
       // 1. 変更されたアイテムのみを取得
-      final dirtyDataList = await SharedMk.getDirtyItems(storageKey);
+      final dirtyDataList = await SharedMk.getDirtyItems(scopedKey);
       await LogMk.logDebug('変更アイテム取得: ${dirtyDataList.length}件', tag: 'DataManager.pushLocalChangesSelective');
       
       int successCount = 0;
@@ -1655,7 +1700,7 @@ class FirestoreDataManager<T> {
       
       // 3. 成功したアイテムの変更フラグをクリア
       if (successIds.isNotEmpty) {
-        await SharedMk.clearDirtyFlags(storageKey, itemIds: successIds, idField: idField);
+        await SharedMk.clearDirtyFlags(scopedKey, itemIds: successIds, idField: idField);
       }
       
       await LogMk.logInfo('選択的プッシュ完了: $successCount/${dirtyDataList.length}件', tag: 'DataManager.pushLocalChangesSelective');
@@ -1671,7 +1716,7 @@ class FirestoreDataManager<T> {
   /// 
   Future<List<T>> getDirtyItems() async {
     try {
-      final dirtyDataList = await SharedMk.getDirtyItems(storageKey);
+      final dirtyDataList = await SharedMk.getDirtyItems(_scopedStorageKeyForCurrentUser());
       
       final items = <T>[];
       for (final data in dirtyDataList) {
@@ -1705,9 +1750,10 @@ class FirestoreDataManager<T> {
   ) async {
     try {
       await LogMk.logInfo('スキーマバージョンチェック開始: 目標v$targetVersion', tag: 'DataManager.checkAndMigrateSchema');
+      final scopedKey = _scopedStorageKeyForCurrentUser();
       
       final migrated = await SharedMk.migrateData(
-        storageKey,
+        scopedKey,
         targetVersion,
         migrationFunction,
       );
@@ -1730,7 +1776,7 @@ class FirestoreDataManager<T> {
   /// 
   Future<int> getSchemaVersion() async {
     try {
-      final version = await SharedMk.getSchemaVersion(storageKey);
+      final version = await SharedMk.getSchemaVersion(_scopedStorageKeyForCurrentUser());
       await LogMk.logDebug('スキーマバージョン: v$version', tag: 'DataManager.getSchemaVersion');
       return version;
     } catch (e) {
@@ -1874,8 +1920,9 @@ class FirestoreDataManager<T> {
     String? timestampField,
   }) async {
     try {
+      final scopedKey = _scopedStorageKeyForCurrentUser();
       final removed = await SharedMk.clearOldData(
-        storageKey,
+        scopedKey,
         ttl,
         timestampField: timestampField ?? lastModifiedField,
       );

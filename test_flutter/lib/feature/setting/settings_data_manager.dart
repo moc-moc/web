@@ -1,5 +1,6 @@
 import 'package:test_flutter/data/models/settings_models.dart';
 import 'package:test_flutter/data/repositories/base/base_data_manager.dart';
+import 'package:test_flutter/data/sources/auth_source.dart';
 
 /// アカウント設定データマネージャー
 /// 
@@ -185,6 +186,31 @@ class GoalMemoDataManager extends BaseDataManager<GoalMemo> {
 
   @override
   String get storageKey => 'goal_memo';
+
+  Future<GoalMemo?> getGoalMemoWithAuth() async {
+    try {
+      final userId = AuthMk.getCurrentUserId();
+      return await manager.getById(userId, 'goal_memo');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<GoalMemo?> getLocalGoalMemo() async {
+    try {
+      return await manager.getLocalById('goal_memo');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> saveLocalGoalMemo(GoalMemo memo) async {
+    try {
+      await manager.updateLocal(memo);
+    } catch (_) {
+      await manager.addLocal(memo);
+    }
+  }
 }
 
 // ===== 後方互換性のためのグローバルインスタンス =====

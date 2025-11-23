@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/screens/event/event_screen_base.dart';
@@ -20,6 +21,9 @@ class CountdownSetEventScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final effectiveEventName = eventName ?? 'Event';
     final effectiveRemainingDays = remainingDays ?? 15;
+    final estimatedEndDate =
+        DateTime.now().add(Duration(days: effectiveRemainingDays.clamp(0, 3650)));
+    final formattedEndDate = DateFormat('yyyy/MM/dd').format(estimatedEndDate);
 
     return EventScreenBase(
       gradientColors: const [Color(0xFF06B6D4), Color(0xFF0891B2)], // Cyan
@@ -31,22 +35,49 @@ class CountdownSetEventScreen extends StatelessWidget {
             icon: Icons.alarm_add,
             title: 'Countdown Set!',
             message: 'Keep it up!',
-            iconSize: 50,
-            titleFontSize: 24,
+            iconSize: 72,
+            titleFontSize: 30,
           ),
           SizedBox(height: AppSpacing.xs),
           EventContentBuilder.buildEventNameCard(
             eventName: effectiveEventName,
-            fontSize: 18,
-            additionalContent: Row(
+            fontSize: 22,
+            additionalContent: Column(
               mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.calendar_today, color: AppColors.textPrimary, size: 16),
-                SizedBox(width: AppSpacing.xs),
+                SizedBox(height: AppSpacing.sm),
+                EventContentBuilder.buildDetailRow(
+                  'Days Remaining',
+                  '$effectiveRemainingDays days',
+                ),
+                EventContentBuilder.buildDetailRow(
+                  'Finish Date',
+                  formattedEndDate,
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          Container(
+            width: double.infinity,
+            padding: EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: AppColors.textPrimary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(AppRadius.large),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Text(
-                  '$effectiveRemainingDays days remaining',
-                  style: AppTextStyles.body2.copyWith(fontSize: 12),
+                  'Next Step',
+                  style: AppTextStyles.body1.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                Text(
+                  'Add reminders and plan checkpoints before $formattedEndDate.',
+                  style: AppTextStyles.body2,
                 ),
               ],
             ),

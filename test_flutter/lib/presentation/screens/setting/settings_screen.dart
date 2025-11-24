@@ -7,6 +7,9 @@ import 'package:test_flutter/presentation/widgets/navigation.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/feature/setting/account_settings_notifier.dart';
 import 'package:test_flutter/presentation/widgets/settings_widgets.dart';
+import 'package:test_flutter/presentation/widgets/dialogs.dart';
+import 'package:test_flutter/data/repositories/auth_repository.dart';
+import 'package:test_flutter/feature/auth/auth_controller.dart';
 
 /// メイン設定画面（新デザインシステム版）
 class SettingsScreenNew extends ConsumerStatefulWidget {
@@ -175,6 +178,8 @@ class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
             NavigationHelper.push(context, AppRoutes.eventPreviewNew);
           },
         ),
+        SizedBox(height: AppSpacing.lg),
+        _buildSignOutItem(context),
       ],
     );
   }
@@ -238,6 +243,51 @@ class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
         ),
       ),
     );
+  }
+
+  Widget _buildSignOutItem(BuildContext context) {
+    return _buildSettingItem(
+      context,
+      icon: Icons.logout,
+      iconColor: AppColors.error,
+      title: 'Sign Out',
+      subtitle: 'Log out from this device',
+      onTap: () => _handleSignOut(context),
+    );
+  }
+
+  Future<void> _handleSignOut(BuildContext context) async {
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: 'サインアウト',
+      message: '本当にサインアウトしますか？',
+      confirmText: 'サインアウト',
+      cancelText: 'キャンセル',
+      confirmColor: AppColors.error,
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      await AuthServiceUN.signOut();
+      await ref.read(authControllerProvider.notifier).signOut();
+
+      if (!mounted) return;
+      await NavigationHelper.pushAndRemoveUntil(
+        context,
+        AppRoutes.signupLogin,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('サインアウト中にエラーが発生しました ($e)'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Widget _buildPreviewSection(BuildContext context) {
@@ -393,14 +443,14 @@ class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
 
   Widget _buildBottomNavigationBar(BuildContext context) {
     return AppBottomNavigationBar(
-      currentIndex: 3,
+      currentIndex: 4,
       items: AppBottomNavigationBar.defaultItems,
       onTap: (index) => _handleNavigationTap(context, index),
     );
   }
 
   void _handleNavigationTap(BuildContext context, int index) {
-    if (index == 3) return;
+    if (index == 4) return;
     switch (index) {
       case 0:
         NavigationHelper.pushReplacement(context, AppRoutes.home);
@@ -410,6 +460,9 @@ class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
         break;
       case 2:
         NavigationHelper.pushReplacement(context, AppRoutes.report);
+        break;
+      case 3:
+        NavigationHelper.pushReplacement(context, AppRoutes.friend);
         break;
     }
   }

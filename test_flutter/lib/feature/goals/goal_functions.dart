@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 
 // 外部パッケージ
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 // 内部パッケージ（プロジェクト内）
@@ -21,13 +20,13 @@ import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
 part 'goal_functions.g.dart';
 
 /// 目標機能用の関数群
-/// 
+///
 /// Riverpod Generatorを使用して目標機能に特化した実装を提供します。
-/// 
+///
 // ===== Providers (Riverpod Generator) =====
 
 /// 目標リストを管理するNotifier
-/// 
+///
 /// Riverpod Generatorを使用してGoalモデルのリストを管理します。
 @Riverpod(keepAlive: true)
 class GoalsList extends _$GoalsList {
@@ -60,10 +59,10 @@ class GoalsList extends _$GoalsList {
 // ===== ヘルパー関数 =====
 
 /// 目標リストを読み込むヘルパー関数（Firestore優先）
-/// 
+///
 /// Firestoreから最新の目標リストを取得し、Providerに設定します。
 /// Firestoreから取得できない場合はローカルを使用します。
-/// 
+///
 /// **動作フロー**:
 /// 1. Firestoreから取得を試みる（getAllGoalsWithAuth使用）
 /// 2. 取得成功時はローカルにも保存してProviderに反映
@@ -86,7 +85,7 @@ Future<List<Goal>> loadGoalsHelper(dynamic ref) async {
 
   // リセットチェックを実行（内部でローカルデータも更新される）
   await manager.resetTodayAchievedTimeIfNeeded(goals);
-  
+
   // リセット後のローカルデータを取得してProviderを更新
   // （Firestoreへの更新は非同期で実行されるため、ローカルデータを使用）
   final updatedGoals = await manager.getLocalGoals();
@@ -96,10 +95,10 @@ Future<List<Goal>> loadGoalsHelper(dynamic ref) async {
 }
 
 /// 目標をバックグラウンド更新で読み込むヘルパー関数
-/// 
+///
 /// まずローカルからデータを取得して即座に表示し、
 /// その後バックグラウンドでFirestoreから最新データを取得して更新します。
-/// 
+///
 /// **動作フロー**:
 /// 1. ローカルからデータを取得して即座に表示
 /// 2. バックグラウンドでFirestoreから最新データを取得
@@ -134,7 +133,7 @@ Future<List<Goal>> loadGoalsWithBackgroundRefreshHelper(dynamic ref) async {
 }
 
 /// 目標を同期するヘルパー関数
-/// 
+///
 /// Firestoreとローカルストレージを同期し、Providerを最新の状態に更新します。
 /// 共通ヘルパー関数を使用してタイムアウト処理とエラーハンドリングを統一します。
 Future<List<Goal>> syncGoalsHelper(dynamic ref) async {
@@ -153,7 +152,7 @@ Future<List<Goal>> syncGoalsHelper(dynamic ref) async {
 
   // リセットチェックを実行（内部でローカルデータも更新される）
   await manager.resetTodayAchievedTimeIfNeeded(goals);
-  
+
   // リセット後のローカルデータを取得してProviderを更新
   // （Firestoreへの更新は非同期で実行されるため、ローカルデータを使用）
   final updatedGoals = await manager.getLocalGoals();
@@ -177,12 +176,12 @@ Future<bool> addGoalHelper({
   if (success) {
     // 成功: Providerを更新
     ref.read(goalsListProvider.notifier).addGoal(goal);
-    
+
     // 選択された目標がない場合、自動選択を更新
     await _updateSelectedGoalAfterAddition(ref, goal);
-    
+
     showSnackBarMessage(context, '目標を追加しました', mounted: mounted);
-    
+
     // イベント画面に遷移
     if (mounted) {
       await _navigateToGoalSetEvent(context, goal);
@@ -192,12 +191,12 @@ Future<bool> addGoalHelper({
     final localGoals = await manager.getLocalGoals();
     await manager.saveLocalGoals([...localGoals, goal]);
     ref.read(goalsListProvider.notifier).addGoal(goal);
-    
+
     // 選択された目標がない場合、自動選択を更新
     await _updateSelectedGoalAfterAddition(ref, goal);
-    
+
     showSnackBarMessage(context, 'オフラインのため、ローカルに保存しました', mounted: mounted);
-    
+
     // イベント画面に遷移
     if (mounted) {
       await _navigateToGoalSetEvent(context, goal);
@@ -215,7 +214,7 @@ Future<void> _navigateToGoalSetEvent(BuildContext context, Goal goal) async {
     final streakManager = StreakDataManager();
     final streakData = await streakManager.getStreakDataOrDefault();
     final consecutiveDays = streakData.currentStreak;
-    
+
     // イベント画面に遷移
     await NavigationHelper.push(
       context,
@@ -226,6 +225,7 @@ Future<void> _navigateToGoalSetEvent(BuildContext context, Goal goal) async {
         'consecutiveDays': consecutiveDays,
         'durationDays': goal.durationDays,
         'consecutivePeriodAchievements': goal.consecutivePeriodAchievements,
+        'detectionItem': goal.detectionItem.name,
       },
     );
   } catch (e) {
@@ -237,10 +237,10 @@ Future<void> _navigateToGoalSetEvent(BuildContext context, Goal goal) async {
 /// 目標追加後の選択目標を自動更新
 Future<void> _updateSelectedGoalAfterAddition(dynamic ref, Goal newGoal) async {
   final settings = ref.read(trackingSettingsProvider);
-  
+
   bool needsUpdate = false;
   String? newSelectedId;
-  
+
   // 追加された目標のカテゴリーを判定
   switch (newGoal.detectionItem) {
     case DetectionItem.book:
@@ -262,14 +262,21 @@ Future<void> _updateSelectedGoalAfterAddition(dynamic ref, Goal newGoal) async {
       }
       break;
   }
-  
+
   if (needsUpdate) {
     final updatedSettings = settings.copyWith(
-      selectedStudyGoalId: newGoal.detectionItem == DetectionItem.book ? newSelectedId : settings.selectedStudyGoalId,
-      selectedPcGoalId: newGoal.detectionItem == DetectionItem.pc ? newSelectedId : settings.selectedPcGoalId,
-      selectedSmartphoneGoalId: newGoal.detectionItem == DetectionItem.smartphone ? newSelectedId : settings.selectedSmartphoneGoalId,
+      selectedStudyGoalId: newGoal.detectionItem == DetectionItem.book
+          ? newSelectedId
+          : settings.selectedStudyGoalId,
+      selectedPcGoalId: newGoal.detectionItem == DetectionItem.pc
+          ? newSelectedId
+          : settings.selectedPcGoalId,
+      selectedSmartphoneGoalId:
+          newGoal.detectionItem == DetectionItem.smartphone
+          ? newSelectedId
+          : settings.selectedSmartphoneGoalId,
     );
-    
+
     await saveTrackingSettingsHelper(ref, updatedSettings);
   }
 }
@@ -285,7 +292,9 @@ Future<bool> updateGoalHelper({
 
   // オプティミスティック更新: まずローカルとProviderを更新（即座に反映）
   final localGoals = await manager.getLocalGoals();
-  final updatedGoals = localGoals.map((g) => g.id == goal.id ? goal : g).toList();
+  final updatedGoals = localGoals
+      .map((g) => g.id == goal.id ? goal : g)
+      .toList();
   await manager.saveLocalGoals(updatedGoals);
   ref.read(goalsListProvider.notifier).updateList(updatedGoals);
 
@@ -337,10 +346,10 @@ Future<bool> deleteGoalHelper({
   if (success) {
     // Providerから削除
     ref.read(goalsListProvider.notifier).removeGoal(goalId);
-    
+
     // 選択された目標が削除された場合、自動選択を更新
     await _updateSelectedGoalAfterDeletion(ref, deletedGoal);
-    
+
     showSnackBarMessage(context, '目標を削除しました', mounted: mounted);
     triggerGoalChanged(ref);
   } else {
@@ -351,18 +360,23 @@ Future<bool> deleteGoalHelper({
 }
 
 /// 目標削除後の選択目標を自動更新
-Future<void> _updateSelectedGoalAfterDeletion(dynamic ref, Goal deletedGoal) async {
+Future<void> _updateSelectedGoalAfterDeletion(
+  dynamic ref,
+  Goal deletedGoal,
+) async {
   final settings = ref.read(trackingSettingsProvider);
   final goals = ref.read(goalsListProvider);
-  
+
   String? newSelectedId;
   bool needsUpdate = false;
-  
+
   // 削除された目標のカテゴリーを判定
   switch (deletedGoal.detectionItem) {
     case DetectionItem.book:
       if (settings.selectedStudyGoalId == deletedGoal.id) {
-        final studyGoals = goals.where((g) => g.detectionItem == DetectionItem.book).toList();
+        final studyGoals = goals
+            .where((g) => g.detectionItem == DetectionItem.book)
+            .toList();
         if (studyGoals.isNotEmpty) {
           newSelectedId = studyGoals[0].id;
           needsUpdate = true;
@@ -374,7 +388,9 @@ Future<void> _updateSelectedGoalAfterDeletion(dynamic ref, Goal deletedGoal) asy
       break;
     case DetectionItem.pc:
       if (settings.selectedPcGoalId == deletedGoal.id) {
-        final pcGoals = goals.where((g) => g.detectionItem == DetectionItem.pc).toList();
+        final pcGoals = goals
+            .where((g) => g.detectionItem == DetectionItem.pc)
+            .toList();
         if (pcGoals.isNotEmpty) {
           newSelectedId = pcGoals[0].id;
           needsUpdate = true;
@@ -386,7 +402,9 @@ Future<void> _updateSelectedGoalAfterDeletion(dynamic ref, Goal deletedGoal) asy
       break;
     case DetectionItem.smartphone:
       if (settings.selectedSmartphoneGoalId == deletedGoal.id) {
-        final smartphoneGoals = goals.where((g) => g.detectionItem == DetectionItem.smartphone).toList();
+        final smartphoneGoals = goals
+            .where((g) => g.detectionItem == DetectionItem.smartphone)
+            .toList();
         if (smartphoneGoals.isNotEmpty) {
           newSelectedId = smartphoneGoals[0].id;
           needsUpdate = true;
@@ -397,14 +415,21 @@ Future<void> _updateSelectedGoalAfterDeletion(dynamic ref, Goal deletedGoal) asy
       }
       break;
   }
-  
+
   if (needsUpdate) {
     final updatedSettings = settings.copyWith(
-      selectedStudyGoalId: deletedGoal.detectionItem == DetectionItem.book ? newSelectedId : settings.selectedStudyGoalId,
-      selectedPcGoalId: deletedGoal.detectionItem == DetectionItem.pc ? newSelectedId : settings.selectedPcGoalId,
-      selectedSmartphoneGoalId: deletedGoal.detectionItem == DetectionItem.smartphone ? newSelectedId : settings.selectedSmartphoneGoalId,
+      selectedStudyGoalId: deletedGoal.detectionItem == DetectionItem.book
+          ? newSelectedId
+          : settings.selectedStudyGoalId,
+      selectedPcGoalId: deletedGoal.detectionItem == DetectionItem.pc
+          ? newSelectedId
+          : settings.selectedPcGoalId,
+      selectedSmartphoneGoalId:
+          deletedGoal.detectionItem == DetectionItem.smartphone
+          ? newSelectedId
+          : settings.selectedSmartphoneGoalId,
     );
-    
+
     await saveTrackingSettingsHelper(ref, updatedSettings);
   }
 }
@@ -441,7 +466,9 @@ Future<bool> recordAchievementHelper({
 
   // オプティミスティック更新: まずローカルとProviderを更新（即座に反映）
   final localGoals = await manager.getLocalGoals();
-  final updatedGoals = localGoals.map((g) => g.id == goalId ? updatedGoal : g).toList();
+  final updatedGoals = localGoals
+      .map((g) => g.id == goalId ? updatedGoal : g)
+      .toList();
   await manager.saveLocalGoals(updatedGoals);
   ref.read(goalsListProvider.notifier).updateList(updatedGoals);
 

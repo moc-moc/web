@@ -3,6 +3,7 @@ import 'package:test_flutter/core/route_generator.dart';
 import 'package:test_flutter/presentation/screens/auth/signup_login_screen.dart';
 import 'package:test_flutter/presentation/screens/auth/initial_setup_screen.dart';
 import 'package:test_flutter/presentation/screens/auth/initial_goal_screen.dart';
+import 'package:test_flutter/presentation/screens/auth/email_verification_screen.dart';
 import 'package:test_flutter/presentation/screens/home/home_screen.dart';
 import 'package:test_flutter/presentation/screens/tracking/tracking_setting.dart';
 import 'package:test_flutter/presentation/screens/tracking/tracking.dart';
@@ -25,17 +26,22 @@ import 'package:test_flutter/presentation/screens/event/streak_milestone_event.d
 import 'package:test_flutter/presentation/screens/event/total_hours_milestone_event.dart';
 import 'package:test_flutter/presentation/screens/event/countdown_ended_event.dart';
 import 'package:test_flutter/presentation/screens/event/countdown_set_event.dart';
+import 'package:test_flutter/presentation/screens/event/level_up_event.dart';
+import 'package:test_flutter/presentation/screens/event/level_reset_event.dart';
 import 'package:test_flutter/presentation/screens/friend/friend.dart';
 import 'package:test_flutter/presentation/screens/friend/friend_list.dart';
+import 'package:test_flutter/presentation/screens/friend/friend_leaderboard.dart';
 import 'package:test_flutter/presentation/screens/tutorial/tutorial_screen.dart';
+
 class AppRoutes {
   // Tutorial Route
   static const String tutorial = '/tutorial';
-  
+
   // Auth Routes
   static const String signupLogin = '/signup-login';
   static const String initialSetup = '/initial-setup';
   static const String initialGoal = '/initial-goal';
+  static const String emailVerification = '/email-verification';
 
   // Main Routes
   static const String home = '/';
@@ -62,6 +68,7 @@ class AppRoutes {
   static const String widgetCatalog = '/widget-catalog';
   static const String friend = '/friend';
   static const String friendList = '/friend-list';
+  static const String friendLeaderboard = '/friend-leaderboard';
   // Event Routes (New)
   static const String goalAchievedEvent = '/goal-achieved-event';
   static const String goalSetEvent = '/goal-set-event';
@@ -70,6 +77,8 @@ class AppRoutes {
   static const String totalHoursMilestoneEvent = '/total-hours-milestone-event';
   static const String countdownEndedEvent = '/countdown-ended-event';
   static const String countdownSetEvent = '/countdown-set-event';
+  static const String levelUpEvent = '/level-up-event';
+  static const String levelResetEvent = '/level-reset-event';
 }
 
 class RouteGenerator {
@@ -78,11 +87,12 @@ class RouteGenerator {
   static final Map<String, Widget Function()> _routeMap = {
     // Tutorial Route
     AppRoutes.tutorial: () => const TutorialScreen(),
-    
+
     // Auth Routes
     AppRoutes.signupLogin: () => const SignupLoginScreen(),
     AppRoutes.initialSetup: () => const InitialSetupScreen(),
     AppRoutes.initialGoal: () => const InitialGoalScreen(),
+    AppRoutes.emailVerification: () => const EmailVerificationScreen(),
 
     // Main Routes
     AppRoutes.home: () => const HomeScreenNew(),
@@ -112,6 +122,7 @@ class RouteGenerator {
     AppRoutes.widgetCatalog: () => const WidgetCatalogScreen(),
     AppRoutes.friend: () => const FriendScreenNew(),
     AppRoutes.friendList: () => const FriendListScreenNew(),
+    AppRoutes.friendLeaderboard: () => const FriendLeaderboardScreen(),
     // Event Routes (New)
     AppRoutes.goalAchievedEvent: () => const GoalAchievedEventScreen(),
     AppRoutes.goalSetEvent: () => const GoalSetEventScreen(),
@@ -121,6 +132,8 @@ class RouteGenerator {
         const TotalHoursMilestoneEventScreen(),
     AppRoutes.countdownEndedEvent: () => const CountdownEndedEventScreen(),
     AppRoutes.countdownSetEvent: () => const CountdownSetEventScreen(),
+    AppRoutes.levelUpEvent: () => const LevelUpEventScreen(),
+    AppRoutes.levelResetEvent: () => const LevelResetEventScreen(),
   };
 
   /// MaterialAppのroutesプロパティへ渡すためのWidgetBuilderマップ
@@ -174,7 +187,7 @@ class RouteGenerator {
         );
       }
     }
-    
+
     // GoalSetEventScreenの場合は引数を処理
     if (settings.name == AppRoutes.goalSetEvent) {
       final arguments = settings.arguments;
@@ -183,7 +196,9 @@ class RouteGenerator {
         final targetTime = arguments['targetTime'] as int?;
         final consecutiveDays = arguments['consecutiveDays'] as int?;
         final durationDays = arguments['durationDays'] as int?;
-        final consecutivePeriodAchievements = arguments['consecutivePeriodAchievements'] as int?;
+        final consecutivePeriodAchievements =
+            arguments['consecutivePeriodAchievements'] as int?;
+        final detectionItem = arguments['detectionItem'] as String?;
         return RouteMk.createMaterialPageRoute(
           widget: GoalSetEventScreen(
             goalTitle: goalTitle,
@@ -191,12 +206,13 @@ class RouteGenerator {
             consecutiveDays: consecutiveDays,
             durationDays: durationDays,
             consecutivePeriodAchievements: consecutivePeriodAchievements,
+            detectionItem: detectionItem,
           ),
           settings: settings,
         );
       }
     }
-    
+
     // StreakMilestoneEventScreenの場合は引数を処理
     if (settings.name == AppRoutes.streakMilestoneEvent) {
       final arguments = settings.arguments;
@@ -213,18 +229,20 @@ class RouteGenerator {
       }
     }
     // ルートマップからルートを生成
-    final route = RouteMk.generateRoute(settings: settings, routeMap: _routeMap);
-    
+    final route = RouteMk.generateRoute(
+      settings: settings,
+      routeMap: _routeMap,
+    );
+
     // ルートが見つからない場合（404エラーページが返された場合）の処理
     // これは通常発生しないはずですが、念のためログを出力
-    if (route.settings.name == settings.name && 
+    if (route.settings.name == settings.name &&
         route.settings.name != null &&
         !_routeMap.containsKey(route.settings.name)) {
       debugPrint('⚠️ [RouteGenerator] ルートが見つかりませんでした: ${route.settings.name}');
       debugPrint('   - 登録されているルート: ${_routeMap.keys.join(", ")}');
     }
-    
+
     return route;
   }
-
 }

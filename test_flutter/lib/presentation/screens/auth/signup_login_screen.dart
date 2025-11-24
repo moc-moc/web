@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/buttons.dart';
@@ -11,18 +12,21 @@ import 'package:test_flutter/presentation/widgets/auth/auth_form_helper.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/data/repositories/auth_repository.dart';
 import 'package:test_flutter/data/repositories/initialization_repository.dart';
+import 'package:test_flutter/feature/auth/auth_controller.dart';
 
 /// サインアップ/ログイン画面
-class SignupLoginScreen extends StatefulWidget {
+class SignupLoginScreen extends ConsumerStatefulWidget {
   const SignupLoginScreen({super.key});
 
   @override
-  State<SignupLoginScreen> createState() => _SignupLoginScreenState();
+  ConsumerState<SignupLoginScreen> createState() => _SignupLoginScreenState();
 }
 
-class _SignupLoginScreenState extends State<SignupLoginScreen> {
+class _SignupLoginScreenState extends ConsumerState<SignupLoginScreen> {
   bool _isSignUp = true;
-  bool _isLoading = false;
+  bool _isGoogleLoading = false;
+  bool _isAppleLoading = false;
+  bool _isVerificationScreenOpen = false;
   final _emailController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -43,7 +47,38 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
     });
   }
 
-  void _handleSubmit() {
+  void _handleAuthStateChange(AuthState? previous, AuthState next) {
+    if (!mounted) return;
+
+    if (next.status == AuthStatus.error && next.errorMessage != null) {
+      showErrorSnackBar(context, next.errorMessage!);
+    }
+
+    final movedToVerification =
+        next.status == AuthStatus.requiresEmailVerification &&
+        previous?.status != AuthStatus.requiresEmailVerification;
+
+    if (movedToVerification && !_isVerificationScreenOpen) {
+      _isVerificationScreenOpen = true;
+      NavigationHelper.push(context, AppRoutes.emailVerification).whenComplete(
+        () {
+          _isVerificationScreenOpen = false;
+        },
+      );
+    }
+
+    if (next.status == AuthStatus.authenticated &&
+        previous?.status != AuthStatus.authenticated) {
+      _isVerificationScreenOpen = false;
+      _runPostAuthInitialization();
+    }
+
+    if (next.status == AuthStatus.signedOut) {
+      _isVerificationScreenOpen = false;
+    }
+  }
+
+  Future<void> _handleSubmit() async {
     // バリデーション
     final validationError = AuthFormHelper.validateForm(
       email: _emailController.text,
@@ -58,15 +93,27 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
       return;
     }
 
-    // ダミー認証: 次の画面へ遷移
-    NavigationHelper.push(context, AppRoutes.initialSetup);
+    final authController = ref.read(authControllerProvider.notifier);
+
+    if (_isSignUp) {
+      await authController.signUp(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        nickname: _usernameController.text.trim(),
+      );
+    } else {
+      await authController.signIn(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+      );
+    }
   }
 
   Future<void> _handleGoogleSignIn() async {
-    if (_isLoading) return;
+    if (_isGoogleLoading) return;
 
     setState(() {
-      _isLoading = true;
+      _isGoogleLoading = true;
     });
 
     await AuthFormHelper.handleFormSubmit(
@@ -75,41 +122,7 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
         final result = await AuthServiceUN.signInWithGoogle();
 
         if (result.success && mounted) {
-          // 認証成功後にデータ読み込みを実行（main.dartと同じ処理）
-          try {
-            debugPrint('🔄 [認証成功] アプリ初期化開始');
-            // AppContextを初期化
-            await AppInitUN.initialize();
-            debugPrint('✅ [認証成功] AppContext初期化完了');
-            
-            // 優先度1のデータを取得（カウントダウン、ストリーク、ゴール、トータル、トラッキング）
-            debugPrint('🔄 [認証成功] loadCriticalData開始');
-            try {
-              await AppInitUN.loadCriticalData().timeout(
-                const Duration(seconds: 30),
-                onTimeout: () {
-                  debugPrint('⚠️ [認証成功] loadCriticalData全体タイムアウト（30秒）');
-                  // タイムアウト時は例外を投げて、完了した処理の結果は保持する
-                  throw TimeoutException('loadCriticalDataがタイムアウトしました', const Duration(seconds: 30));
-                },
-              );
-              debugPrint('✅ [認証成功] データ読み込み完了');
-            } on TimeoutException catch (e) {
-              debugPrint('⚠️ [認証成功] loadCriticalDataタイムアウト: $e');
-              debugPrint('   一部のデータ読み込みが完了していない可能性がありますが、続行します');
-              // タイムアウトしても続行（完了した処理の結果は保持されている）
-            }
-          } catch (e, stackTrace) {
-            debugPrint('⚠️ [認証成功] データ読み込みエラー: $e');
-            debugPrint('   - スタックトレース: $stackTrace');
-            // エラーが発生してもホーム画面に遷移
-          }
-
-          // ホーム画面に遷移（全画面をクリア）
-          await NavigationHelper.pushAndRemoveUntil(
-            context,
-            AppRoutes.home,
-          );
+          await _runPostAuthInitialization();
         } else if (mounted) {
           showErrorSnackBar(context, result.message);
         }
@@ -120,13 +133,81 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
 
     if (mounted) {
       setState(() {
-        _isLoading = false;
+        _isGoogleLoading = false;
       });
     }
   }
 
+  Future<void> _handleAppleSignIn() async {
+    if (_isAppleLoading) return;
+
+    setState(() {
+      _isAppleLoading = true;
+    });
+
+    await AuthFormHelper.handleFormSubmit(
+      context: context,
+      submitFunction: () async {
+        final result = await AuthServiceUN.signInWithApple();
+
+        if (result.success && mounted) {
+          await _runPostAuthInitialization();
+        } else if (mounted) {
+          showErrorSnackBar(context, result.message);
+        }
+        return result.success;
+      },
+      errorMessage: 'Apple認証中にエラーが発生しました',
+    );
+
+    if (mounted) {
+      setState(() {
+        _isAppleLoading = false;
+      });
+    }
+  }
+
+  Future<void> _runPostAuthInitialization() async {
+    try {
+      debugPrint('🔄 [認証成功] アプリ初期化開始');
+      await AppInitUN.initialize();
+      debugPrint('✅ [認証成功] AppContext初期化完了');
+
+      debugPrint('🔄 [認証成功] loadCriticalData開始');
+      try {
+        await AppInitUN.loadCriticalData().timeout(
+          const Duration(seconds: 30),
+          onTimeout: () {
+            debugPrint('⚠️ [認証成功] loadCriticalData全体タイムアウト（30秒）');
+            throw TimeoutException(
+              'loadCriticalDataがタイムアウトしました',
+              const Duration(seconds: 30),
+            );
+          },
+        );
+        debugPrint('✅ [認証成功] データ読み込み完了');
+      } on TimeoutException catch (e) {
+        debugPrint('⚠️ [認証成功] loadCriticalDataタイムアウト: $e');
+        debugPrint('   一部のデータ読み込みが完了していない可能性がありますが、続行します');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('⚠️ [認証成功] データ読み込みエラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
+    }
+
+    if (!mounted) return;
+
+    await NavigationHelper.pushAndRemoveUntil(context, AppRoutes.home);
+  }
+
   @override
   Widget build(BuildContext context) {
+    // ref.listen は build メソッド内で呼び出す必要がある
+    ref.listen<AuthState>(authControllerProvider, _handleAuthStateChange);
+
+    final authState = ref.watch(authControllerProvider);
+    final isSubmitting = authState.isLoading;
+
     return AppScaffold(
       backgroundColor: AppColors.black,
       body: SafeArea(
@@ -161,10 +242,10 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
                 const OrDivider(),
                 SizedBox(height: AppSpacing.lg),
                 // Input Fields
-                _buildInputFields(),
+                _buildInputFields(isSubmitting),
                 SizedBox(height: AppSpacing.xl),
                 // Submit Button
-                _buildSubmitButton(),
+                _buildSubmitButton(isSubmitting),
                 SizedBox(height: AppSpacing.md),
                 // Toggle Text
                 _buildToggleText(),
@@ -198,25 +279,26 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SocialLoginButton(
-          text: 'Sign in with Apple',
+          text: _buildSocialButtonLabel('Apple'),
           icon: Icons.apple,
           textColor: Colors.white,
           backgroundColor: Colors.black,
-          onTap: _handleSubmit,
+          onTap: _handleAppleSignIn,
+          isLoading: _isAppleLoading,
         ),
         SocialLoginButton(
-          text: 'Sign in with Google',
+          text: _buildSocialButtonLabel('Google'),
           icon: Icons.g_mobiledata,
           textColor: AppColors.textPrimary,
           backgroundColor: AppColors.backgroundCard,
           onTap: _handleGoogleSignIn,
-          isLoading: _isLoading,
+          isLoading: _isGoogleLoading,
         ),
       ],
     );
   }
 
-  Widget _buildInputFields() {
+  Widget _buildInputFields(bool isSubmitting) {
     return SpacedColumn(
       spacing: AppSpacing.md,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -228,6 +310,7 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
           keyboardType: TextInputType.emailAddress,
           icon: Icons.email,
           focusColor: AppColors.blue,
+          enabled: !isSubmitting,
         ),
         if (_isSignUp)
           ColoredTextField(
@@ -236,6 +319,7 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
             controller: _usernameController,
             icon: Icons.person,
             focusColor: AppColors.green,
+            enabled: !isSubmitting,
           ),
         ColoredTextField(
           label: 'Password',
@@ -244,6 +328,7 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
           obscureText: true,
           icon: Icons.lock,
           focusColor: AppColors.orange,
+          enabled: !isSubmitting,
         ),
         if (_isSignUp)
           ColoredTextField(
@@ -253,12 +338,13 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
             obscureText: true,
             icon: Icons.lock,
             focusColor: AppColors.orange,
+            enabled: !isSubmitting,
           ),
       ],
     );
   }
 
-  Widget _buildSubmitButton() {
+  Widget _buildSubmitButton(bool isSubmitting) {
     if (_isSignUp) {
       // Create Accountボタン: blue背景と枠、白テキスト
       return Container(
@@ -271,19 +357,32 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            onTap: _handleSubmit,
+            onTap: isSubmitting
+                ? null
+                : () {
+                    _handleSubmit();
+                  },
             borderRadius: BorderRadius.circular(AppRadius.large),
             child: Container(
               padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
               child: Center(
-                child: Text(
-                  'Create Account',
-                  style: AppTextStyles.body1.copyWith(
-                    color: AppColors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18.0,
-                  ),
-                ),
+                child: isSubmitting
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : Text(
+                        'Create Account',
+                        style: AppTextStyles.body1.copyWith(
+                          color: AppColors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18.0,
+                        ),
+                      ),
               ),
             ),
           ),
@@ -292,8 +391,12 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
     } else {
       return PrimaryButton(
         text: 'Log In',
-        onPressed: _handleSubmit,
+        onPressed: () {
+          if (isSubmitting) return;
+          _handleSubmit();
+        },
         size: ButtonSize.large,
+        isLoading: isSubmitting,
       );
     }
   }
@@ -310,5 +413,9 @@ class _SignupLoginScreenState extends State<SignupLoginScreen> {
         ),
       ),
     );
+  }
+
+  String _buildSocialButtonLabel(String provider) {
+    return _isSignUp ? 'Sign up with $provider' : 'Sign in with $provider';
   }
 }

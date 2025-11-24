@@ -15,7 +15,8 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Goal {
 
- String get id; String get tag; String get title; int get targetTime; ComparisonType get comparisonType; DetectionItem get detectionItem; DateTime get startDate; int get durationDays; DateTime? get periodEndDate; int get targetSecondsPerDay; int get consecutiveAchievements; int get consecutivePeriodAchievements;// 期間内に連続で目標を達成した回数
+ String get id; String get tag; String get title; int get targetTime; ComparisonType get comparisonType; DetectionItem get detectionItem; DateTime get startDate; int get durationDays; DateTime? get periodEndDate;// 期間終了日
+ int get targetSecondsPerDay; int get consecutiveAchievements; int get consecutivePeriodAchievements;// 期間内に連続で目標を達成した回数
  int? get achievedTime; int? get todayAchievedTime;// その日の達成時間（秒単位、1日ごとにリセット）
  DateTime? get lastResetDate;// 最後にリセットされた日付
  DateTime? get lastAchievedEventShownAt;// 最後に目標達成イベントが表示された日時
@@ -242,6 +243,7 @@ class _Goal implements Goal {
 @override final  DateTime startDate;
 @override final  int durationDays;
 @override final  DateTime? periodEndDate;
+// 期間終了日
 @override@JsonKey() final  int targetSecondsPerDay;
 @override@JsonKey() final  int consecutiveAchievements;
 @override@JsonKey() final  int consecutivePeriodAchievements;

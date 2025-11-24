@@ -35,6 +35,12 @@ abstract class CameraManager {
   /// 使用後は必ず呼び出す
   Future<void> dispose();
 
+  /// カメラプレビューを一時停止（リソースは保持）
+  Future<void> pause();
+
+  /// 一時停止したカメラを再開
+  Future<void> resume();
+
   /// ファクトリコンストラクタ
   /// 
   /// プラットフォームに応じて適切な実装を返す

@@ -18,6 +18,9 @@ import 'package:test_flutter/feature/statistics/monthly_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/yearly_statistics_data_manager.dart';
 import 'package:test_flutter/feature/statistics/yearly_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/category_data_point.dart';
+import 'package:test_flutter/presentation/widgets/level_badge.dart';
+import 'package:test_flutter/feature/leveling/level_functions.dart';
+import 'package:test_flutter/feature/leveling/level_visuals.dart';
 
 /// レポート画面（新デザインシステム版）
 class ReportScreenNew extends ConsumerStatefulWidget {
@@ -58,6 +61,10 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
               _buildDateSelector(),
               SizedBox(height: AppSpacing.md),
               _buildStatHighlights(),
+              if (_selectedPeriodIndex == 2) ...[
+                SizedBox(height: AppSpacing.md),
+                _buildLevelSummaryCard(),
+              ],
               SizedBox(height: AppSpacing.lg),
               _buildActivityChartCard(),
               SizedBox(height: AppSpacing.lg),
@@ -260,6 +267,62 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
         );
       },
     );
+  }
+
+  Widget _buildLevelSummaryCard() {
+    final levelState = ref.watch(levelingStateProvider);
+    final visuals = LevelRankVisuals.resolve(levelState.rank);
+    final hours = (levelState.personSeconds / 3600).toStringAsFixed(1);
+
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.black,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: Border.all(color: visuals.badgeColor.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          LevelBadge(
+            tier: levelState.rank,
+            level: levelState.level,
+            showGlow: true,
+            size: 68,
+          ),
+          SizedBox(width: AppSpacing.lg),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Monthly Level Summary',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  '${visuals.label} • Lv ${levelState.level}',
+                  style: AppTextStyles.h3.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '$hours h human focus • Reset on ${_formatDate(levelState.nextResetAt)}',
+                  style: AppTextStyles.body2.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.month}/${date.day}';
   }
   
   /// 前期間の合計時間を取得（統計データのtotalWorkTimeSecondsを使用）
@@ -1511,6 +1574,9 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
         NavigationHelper.pushReplacement(context, AppRoutes.goal);
         break;
       case 3:
+        NavigationHelper.pushReplacement(context, AppRoutes.friend);
+        break;
+      case 4:
         NavigationHelper.pushReplacement(context, AppRoutes.settings);
         break;
     }

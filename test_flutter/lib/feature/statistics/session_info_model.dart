@@ -46,7 +46,7 @@ abstract class SessionInfo with _$SessionInfo {
   /// Timestamp型と文字列形式（ISO8601）の両方の日時形式に対応しています。
   factory SessionInfo.fromFirestore(Map<String, dynamic> data) {
     // 日時フィールドの変換ヘルパー関数
-    DateTime _parseDateTime(dynamic value) {
+    DateTime parseDateTime(dynamic value) {
       if (value is Timestamp) {
         return value.toDate();
       } else if (value is String) {
@@ -60,8 +60,8 @@ abstract class SessionInfo with _$SessionInfo {
 
     return SessionInfo(
       id: data['id'] as String,
-      startTime: _parseDateTime(data['startTime']),
-      endTime: _parseDateTime(data['endTime']),
+      startTime: parseDateTime(data['startTime']),
+      endTime: parseDateTime(data['endTime']),
       categorySeconds: Map<String, int>.from(data['categorySeconds'] as Map),
       detectionPeriods: (data['detectionPeriods'] as List<dynamic>?)
               ?.map((e) => DetectionPeriod.fromFirestore(e as Map<String, dynamic>))
@@ -70,7 +70,7 @@ abstract class SessionInfo with _$SessionInfo {
       selectedGoalIds: data['selectedGoalIds'] != null
           ? Map<String, String?>.from(data['selectedGoalIds'] as Map)
           : {},
-      lastModified: _parseDateTime(data['lastModified']),
+      lastModified: parseDateTime(data['lastModified']),
     );
   }
 

@@ -239,6 +239,11 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
       }
     }
 
+    final levelSummary = result.levelSummary;
+    if (levelSummary != null && levelSummary.leveledUp) {
+      events.add(_PendingUiEvent.level(levelSummary));
+    }
+
     return events;
   }
 
@@ -320,6 +325,11 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
             }
           }
           break;
+        case _PendingEventType.levelUp:
+          if (event.levelSummary != null) {
+            await _showLevelUpEvent(event.levelSummary!);
+          }
+          break;
       }
     }
 
@@ -398,6 +408,20 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
       );
       return false;
     }
+  }
+
+  Future<void> _showLevelUpEvent(LevelUpdateSummary summary) async {
+    if (!mounted) return;
+    await Navigator.of(context).pushNamed(
+      AppRoutes.levelUpEvent,
+      arguments: {
+        'level': summary.state.level,
+        'rank': summary.state.rank.name,
+        'exactLevel': summary.state.exactLevel,
+        'personSeconds': summary.state.personSeconds,
+        'progress': summary.state.progressToNextLevel,
+      },
+    );
   }
 
   /// 期間ラベルを取得
@@ -1237,7 +1261,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
   }
 }
 
-enum _PendingEventType { totalHours, streakMilestone, goalAchieved }
+enum _PendingEventType { totalHours, streakMilestone, goalAchieved, levelUp }
 
 class _PendingUiEvent {
   const _PendingUiEvent._({
@@ -1247,6 +1271,7 @@ class _PendingUiEvent {
     this.goal,
     this.achievedTimeSeconds,
     this.consecutiveDays,
+    this.levelSummary,
   });
 
   factory _PendingUiEvent.total(Map<String, int> payload) {
@@ -1276,12 +1301,20 @@ class _PendingUiEvent {
     );
   }
 
+  factory _PendingUiEvent.level(LevelUpdateSummary summary) {
+    return _PendingUiEvent._(
+      type: _PendingEventType.levelUp,
+      levelSummary: summary,
+    );
+  }
+
   final _PendingEventType type;
   final Map<String, int>? totalMilestonePayload;
   final StreakMilestonePayload? streakPayload;
   final Goal? goal;
   final int? achievedTimeSeconds;
   final int? consecutiveDays;
+  final LevelUpdateSummary? levelSummary;
 }
 
 class _CategoryStat {

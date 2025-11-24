@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/data/services/tutorial_service.dart';
 
@@ -61,8 +62,8 @@ class _TutorialScreenState extends State<TutorialScreen> {
   }
 
   Future<void> _completeTutorial() async {
-    // チュートリアル完了フラグを保存
-    await TutorialService.markTutorialAsCompleted();
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    await TutorialService.markTutorialAsCompleted(userId: uid);
     
     if (mounted) {
       Navigator.of(context).pushReplacementNamed('/');

@@ -14,33 +14,22 @@ import 'package:test_flutter/data/services/goal_period_ended_event_service.dart'
 import 'package:test_flutter/presentation/screens/auth/signup_login_screen.dart';
 import 'package:test_flutter/presentation/widgets/loading/app_fullscreen_loader.dart';
 import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    if (kIsWeb) {
-      // Web版: FirebaseOptionsを明示的に指定
-      await Firebase.initializeApp(
-        options: const FirebaseOptions(
-          apiKey: 'AIzaSyBBVBVMlfK7jabroCYjgstsrCUam8Mn4so',
-          appId: '1:451402739791:web:default',
-          messagingSenderId: '451402739791',
-          projectId: 'test-flutter-4b625',
-          storageBucket: 'test-flutter-4b625.firebasestorage.app',
-          authDomain: 'test-flutter-4b625.firebaseapp.com',
-        ),
-      );
-    } else {
-      // モバイル版: デフォルト設定を使用
-      await Firebase.initializeApp();
-    }
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
     final container = ProviderContainer();
     AppInitUN.setGlobalContainer(container);
 
     // 認証復元のみ実行（データ読み込みはMyApp内で実行）
     await AuthServiceUN.initializeAuth();
+    await AuthServiceUN.ensureActiveUserConsistency();
 
     runApp(
       UncontrolledProviderScope(container: container, child: const MyApp()),
@@ -77,7 +66,7 @@ class _MyAppState extends ConsumerState<MyApp> {
     try {
       // Web版の場合、ブラウザのURLを確認して無効なルートをリセット
       String? browserRoute;
-      if (kIsWeb) {
+      if (Firebase.apps.isNotEmpty && Firebase.apps.first.options.authDomain != null) {
         try {
           final uri = Uri.base;
           browserRoute = uri.path;
@@ -93,9 +82,12 @@ class _MyAppState extends ConsumerState<MyApp> {
             AppRoutes.reportNew,
             AppRoutes.settings,
             AppRoutes.settingsNew,
+            AppRoutes.friend,
+            AppRoutes.friendList,
             AppRoutes.signupLogin,
             AppRoutes.initialSetup,
             AppRoutes.initialGoal,
+            AppRoutes.emailVerification,
             AppRoutes.tutorial,
           ];
           
@@ -225,7 +217,10 @@ class _MyAppState extends ConsumerState<MyApp> {
         return;
       }
       
-      final isCompleted = await TutorialService.isTutorialCompleted()
+      final currentUser = FirebaseAuth.instance.currentUser;
+      final isCompleted = await TutorialService.isTutorialCompleted(
+        userId: currentUser?.uid,
+      )
           .timeout(const Duration(seconds: 5), onTimeout: () {
         if (!mounted) {
           debugPrint('⚠️ [MyApp] チュートリアル状態チェックタイムアウト時、Widgetが破棄されました');
@@ -357,13 +352,16 @@ class _MyAppState extends ConsumerState<MyApp> {
           AppRoutes.reportNew,
           AppRoutes.settings,
           AppRoutes.settingsNew,
+          AppRoutes.friend,
+          AppRoutes.friendList,
           AppRoutes.signupLogin,
           AppRoutes.initialSetup,
           AppRoutes.initialGoal,
+          AppRoutes.emailVerification,
           AppRoutes.tutorial,
         ];
         
-        if (_initialRoute != null && !validRoutes.contains(_initialRoute)) {
+      if (_initialRoute != null && !validRoutes.contains(_initialRoute)) {
           debugPrint('⚠️ [MyApp] 無効な初期ルート: $_initialRoute → ホーム画面に変更');
           _initialRoute = AppRoutes.home;
         }
@@ -381,7 +379,9 @@ class _MyAppState extends ConsumerState<MyApp> {
       
       // Web版の場合、保護されたルートにアクセスしようとしている場合は認証状態を再確認
       // サインアウト後にブラウザのURLが/settingsのままになっている場合に対応
-      if (kIsWeb && _initialRoute != AppRoutes.signupLogin && 
+      if (Firebase.apps.isNotEmpty &&
+          Firebase.apps.first.options.authDomain != null &&
+          _initialRoute != AppRoutes.signupLogin && 
           _initialRoute != AppRoutes.initialSetup && 
           _initialRoute != AppRoutes.initialGoal &&
           _initialRoute != AppRoutes.tutorial) {
@@ -437,6 +437,7 @@ class _MyAppState extends ConsumerState<MyApp> {
               AppRoutes.signupLogin,
               AppRoutes.initialSetup,
               AppRoutes.initialGoal,
+              AppRoutes.emailVerification,
               AppRoutes.tutorial,
             ];
             if (currentUser == null && !publicRoutes.contains(targetRoute)) {

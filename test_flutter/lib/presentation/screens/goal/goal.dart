@@ -14,6 +14,7 @@ import 'package:test_flutter/feature/countdown/countdown_functions.dart';
 import 'package:test_flutter/feature/countdown/countdown_model.dart';
 import 'package:test_flutter/presentation/widgets/buttons.dart';
 import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
+import 'package:test_flutter/feature/leveling/level_functions.dart';
 
 /// 目標画面（新デザインシステム版）
 class GoalScreenNew extends ConsumerStatefulWidget {
@@ -337,8 +338,18 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
 
   Widget _buildCountdownSection(BuildContext context, WidgetRef ref) {
     final countdowns = ref.watch(countdownsListProvider);
+    final levelState = ref.watch(levelingStateProvider);
     if (countdowns.isEmpty) {
-      return const SizedBox.shrink();
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: RealtimeCountdownDisplay(
+          eventName: 'Monthly reset',
+          targetDate: levelState.nextResetAt,
+          accentColor: AppColors.purple,
+          borderColor: AppColors.purple.withValues(alpha: 0.35),
+          backgroundColor: AppColors.blackgray,
+        ),
+      );
     }
 
     final now = DateTime.now();
@@ -363,6 +374,14 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          RealtimeCountdownDisplay(
+            eventName: 'Monthly reset',
+            targetDate: levelState.nextResetAt,
+            accentColor: AppColors.purple,
+            borderColor: AppColors.purple.withValues(alpha: 0.35),
+            backgroundColor: AppColors.blackgray,
+          ),
+          SizedBox(height: AppSpacing.sm),
           ...List.generate(activeCountdowns.length, (index) {
             final countdown = activeCountdowns[index];
             final accent = accentPalette[index % accentPalette.length];
@@ -631,6 +650,9 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
         NavigationHelper.pushReplacement(context, AppRoutes.report);
         break;
       case 3:
+        NavigationHelper.pushReplacement(context, AppRoutes.friend);
+        break;
+      case 4:
         NavigationHelper.pushReplacement(context, AppRoutes.settings);
         break;
     }

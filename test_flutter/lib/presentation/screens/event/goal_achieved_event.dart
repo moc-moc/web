@@ -23,7 +23,8 @@ class GoalAchievedEventScreen extends StatefulWidget {
   });
 
   @override
-  State<GoalAchievedEventScreen> createState() => _GoalAchievedEventScreenState();
+  State<GoalAchievedEventScreen> createState() =>
+      _GoalAchievedEventScreenState();
 }
 
 class _GoalAchievedEventScreenState extends State<GoalAchievedEventScreen> {
@@ -62,10 +63,15 @@ class _GoalAchievedEventScreenState extends State<GoalAchievedEventScreen> {
     final effectiveGoalName = _goalName ?? widget.goalName ?? 'Goal';
     final effectivePeriod = _period ?? widget.period ?? 'Daily';
     final effectiveTargetHours = _targetHours ?? widget.targetHours ?? 2.0;
-    final effectiveAchievedHours = _achievedHours ?? widget.achievedHours ?? 2.5;
-    final effectiveProgressPercent = _progressPercent ?? widget.progressPercent ?? 100.0;
-    final effectiveConsecutiveDays = _consecutiveDays ?? widget.consecutiveDays ?? 0;
-    final difference = effectiveAchievedHours - effectiveTargetHours;
+    final effectiveAchievedHours =
+        _achievedHours ?? widget.achievedHours ?? 2.5;
+    final effectiveProgressPercent =
+        _progressPercent ?? widget.progressPercent ?? 100.0;
+    final effectiveConsecutiveDays =
+        _consecutiveDays ?? widget.consecutiveDays ?? 0;
+    final progressRatio = effectiveTargetHours > 0
+        ? (effectiveAchievedHours / effectiveTargetHours).clamp(0.0, 1.0)
+        : 1.0;
 
     return EventScreenBase(
       gradientColors: const [Color(0xFF9E66D5), Color(0xFF7C3AED)], // Purple
@@ -73,122 +79,54 @@ class _GoalAchievedEventScreenState extends State<GoalAchievedEventScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          EventContentBuilder.buildIconContent(
-            icon: Icons.emoji_events,
-            title: 'Goal Achieved!',
-            message: 'Congratulations! You have achieved your goal.',
-            iconSize: 80,
-            titleFontSize: 34,
+          Icon(Icons.emoji_events, size: 72, color: AppColors.textPrimary),
+          SizedBox(height: AppSpacing.sm),
+          Text(
+            'Goal Achieved',
+            style: AppTextStyles.h1.copyWith(fontSize: 36),
+            textAlign: TextAlign.center,
           ),
           SizedBox(height: AppSpacing.sm),
-          EventContentBuilder.buildEventNameCard(
-            eventName: effectiveGoalName,
-            fontSize: 26,
-            additionalContent: Column(
-              children: [
-                SizedBox(height: AppSpacing.sm),
-                EventContentBuilder.buildDetailRow('Period', effectivePeriod),
-                EventContentBuilder.buildDetailRow(
-                  'Consecutive Days',
-                  '$effectiveConsecutiveDays days',
-                ),
-              ],
-            ),
+          Text(
+            'Amazing work! Your dedication is paying off.',
+            style: AppTextStyles.body1,
+            textAlign: TextAlign.center,
           ),
-          SizedBox(height: AppSpacing.sm),
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: AppSpacing.sm,
-            runSpacing: AppSpacing.sm,
-            children: [
-              EventContentBuilder.buildChip(label: 'Target ${effectiveTargetHours.toStringAsFixed(1)}h'),
-              EventContentBuilder.buildChip(
-                  label:
-                      'Achieved ${effectiveAchievedHours.toStringAsFixed(1)}h'),
-            ],
+          SizedBox(height: AppSpacing.lg),
+          EventContentBuilder.buildProgressRing(
+            percentage: progressRatio,
+            value: '${effectiveProgressPercent.toStringAsFixed(0)}%',
+            label: 'Progress',
+            size: 280,
           ),
-          SizedBox(height: AppSpacing.sm),
-          EventContentBuilder.buildAchievementCard(
-            goalName: effectiveGoalName,
-            achievedHours: effectiveAchievedHours,
-            targetHours: effectiveTargetHours,
-          ),
-          SizedBox(height: AppSpacing.xs),
-          // 進捗率を表示
-          Container(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-            decoration: BoxDecoration(
-              color: AppColors.textPrimary.withValues(alpha: 0.2),
-              borderRadius: BorderRadius.circular(AppRadius.medium),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.trending_up, color: AppColors.textPrimary, size: 18),
-                SizedBox(width: AppSpacing.xs),
-                Text(
-                  'Progress: ${effectiveProgressPercent.toStringAsFixed(1)}%',
-                  style: AppTextStyles.body2.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          // 連続日数を表示
-          if (effectiveConsecutiveDays > 0) ...[
-            SizedBox(height: AppSpacing.xs),
-            Container(
-              padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
-              decoration: BoxDecoration(
-                color: AppColors.textPrimary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(AppRadius.medium),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.local_fire_department, color: AppColors.textPrimary, size: 18),
-                  SizedBox(width: AppSpacing.xs),
-                  Text(
-                    'Consecutive Days: $effectiveConsecutiveDays',
-                    style: AppTextStyles.body2.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
           SizedBox(height: AppSpacing.md),
           Container(
             width: double.infinity,
             padding: EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
-              color: AppColors.textPrimary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(AppRadius.large),
+              color: AppColors.textPrimary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(AppRadius.medium),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Keep Growing',
-                  style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+                EventContentBuilder.buildDetailRow('Goal', effectiveGoalName),
+                EventContentBuilder.buildDetailRow(
+                  'Hours',
+                  '${effectiveAchievedHours.toStringAsFixed(1)}h / ${effectiveTargetHours.toStringAsFixed(1)}h',
                 ),
-                SizedBox(height: AppSpacing.xs),
-                Text(
-                  difference >= 0
-                      ? 'You beat the target by ${difference.toStringAsFixed(1)}h. Set a slightly higher goal to keep the momentum.'
-                      : 'You reached the target right on time. Maintain the rhythm for the next period.',
-                  style: AppTextStyles.body2,
+                EventContentBuilder.buildDetailRow(
+                  'Consecutive Days',
+                  '$effectiveConsecutiveDays days',
+                ),
+                EventContentBuilder.buildDetailRow(
+                  'Goal Period',
+                  effectivePeriod,
                 ),
               ],
             ),
           ),
         ],
       ),
-      okButtonText: 'View Progress',
     );
   }
 }

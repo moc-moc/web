@@ -105,6 +105,7 @@ class ColoredTextField extends StatelessWidget {
   final Color focusColor;
   final TextInputType keyboardType;
   final bool obscureText;
+  final bool enabled;
 
   const ColoredTextField({
     super.key,
@@ -115,6 +116,7 @@ class ColoredTextField extends StatelessWidget {
     required this.focusColor,
     this.keyboardType = TextInputType.text,
     this.obscureText = false,
+    this.enabled = true,
   });
 
   @override
@@ -134,6 +136,7 @@ class ColoredTextField extends StatelessWidget {
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          enabled: enabled,
           style: AppTextStyles.body1.copyWith(color: AppColors.white),
           decoration: InputDecoration(
             hintText: placeholder,

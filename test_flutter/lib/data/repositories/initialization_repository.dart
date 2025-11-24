@@ -12,6 +12,7 @@ import 'package:test_flutter/feature/setting/settings_data_manager.dart';
 import 'package:test_flutter/feature/total/total_functions.dart';
 import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
 import 'package:test_flutter/feature/statistics/statistics_functions.dart';
+import 'package:test_flutter/feature/leveling/level_functions.dart';
 
 /// アプリ全体で1回だけ呼び出すグローバル初期化関数
 class AppInitUN {
@@ -173,6 +174,21 @@ class AppInitUN {
               debugPrint('   - スタックトレース: $stackTrace');
               return {'トラッキング': false};
             }),
+        _syncLevelData(container)
+            .timeout(timeoutDuration, onTimeout: () {
+              debugPrint('⏱️ [loadCriticalData] レベルタイムアウト（20秒）');
+              throw TimeoutException('レベル同期がタイムアウトしました', timeoutDuration);
+            })
+            .then((_) {
+              debugPrint('✅ [loadCriticalData] レベル完了');
+              return {'レベル': true};
+            })
+            .catchError((e, stackTrace) {
+              errors['レベル'] = e.toString();
+              debugPrint('❌ [loadCriticalData] レベルエラー: $e');
+              debugPrint('   - スタックトレース: $stackTrace');
+              return {'レベル': false};
+            }),
       ];
 
       debugPrint('🔄 [loadCriticalData] Future.wait開始');
@@ -200,8 +216,8 @@ class AppInitUN {
       }
       
       // タイムアウトした処理がある場合の警告
-      if (totalCount < 5) {
-        debugPrint('⚠️ [loadCriticalData] 一部の処理が完了しませんでした（完了: $totalCount/5件）');
+      if (totalCount < futures.length) {
+        debugPrint('⚠️ [loadCriticalData] 一部の処理が完了しませんでした（完了: $totalCount/${futures.length}件）');
       }
     } catch (e, stackTrace) {
       debugPrint('❌ [loadCriticalData] エラー: $e');
@@ -493,6 +509,12 @@ class AppInitUN {
     }
     await syncTrackingSessionsHelper(container);
     debugPrint('✅ [_syncTrackingData] 完了');
+  }
+
+  static Future<void> _syncLevelData(ProviderContainer container) async {
+    debugPrint('🔄 [_syncLevelData] 開始');
+    await loadLevelingStateHelper(container);
+    debugPrint('✅ [_syncLevelData] 完了');
   }
 
   /// 統計データを差分同期

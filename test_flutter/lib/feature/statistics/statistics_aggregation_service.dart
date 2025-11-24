@@ -25,6 +25,9 @@ import 'package:test_flutter/feature/setting/settings_data_manager.dart';
 import 'package:test_flutter/data/models/settings_models.dart';
 import 'package:test_flutter/data/repositories/initialization_repository.dart';
 import 'package:test_flutter/feature/streak/streak_functions.dart';
+import 'package:test_flutter/feature/leveling/level_data_manager.dart';
+import 'package:test_flutter/feature/leveling/level_formula.dart';
+import 'package:test_flutter/feature/leveling/level_model.dart';
 
 class AggregationPhaseResult {
   const AggregationPhaseResult({
@@ -42,12 +45,14 @@ class AggregationPhase2Result {
     required this.totalHours,
     required this.totalMilestone,
     required this.streakSummary,
+    required this.levelSummary,
   });
 
   final GoalUpdateSummary? goalSummary;
   final int totalHours;
   final Map<String, int>? totalMilestone;
   final StreakUpdateSummary? streakSummary;
+  final LevelUpdateSummary? levelSummary;
 }
 
 class GoalUpdateSummary {
@@ -92,6 +97,18 @@ class StreakMilestonePayload {
   final int? nextMilestone;
 }
 
+class LevelUpdateSummary {
+  const LevelUpdateSummary({
+    required this.state,
+    required this.gainedPersonSeconds,
+    required this.leveledUp,
+  });
+
+  final LevelingState state;
+  final int gainedPersonSeconds;
+  final bool leveledUp;
+}
+
 /// 統計集計サービス
 /// 
 /// トラッキングセッション終了時に、各期間の統計データを集計・更新します。
@@ -106,6 +123,7 @@ class StatisticsAggregationService {
   static final TotalHoursMilestoneManager _milestoneManager = TotalHoursMilestoneManager();
   static final TrackingSettingsDataManager _trackingSettingsManager = TrackingSettingsDataManager();
   static final StreakDataManager _streakManager = StreakDataManager();
+  static final LevelingDataManager _levelingManager = LevelingDataManager();
   
   // 目標キャッシュ（セッション処理中は再利用）
   List<Goal>? _cachedGoals;
@@ -141,6 +159,7 @@ class StatisticsAggregationService {
               totalHours: 0,
               totalMilestone: null,
               streakSummary: null,
+              levelSummary: null,
             ),
           ),
         );
@@ -193,6 +212,7 @@ class StatisticsAggregationService {
               totalHours: 0,
               totalMilestone: null,
               streakSummary: null,
+              levelSummary: null,
             ),
           ),
         );
@@ -230,6 +250,7 @@ class StatisticsAggregationService {
             totalHours: 0,
             totalMilestone: null,
             streakSummary: null,
+            levelSummary: null,
           ),
         ),
       );
@@ -283,6 +304,7 @@ class StatisticsAggregationService {
         GoalUpdateSummary? goalSummary;
         TotalData? updatedTotalData;
         StreakUpdateSummary? streakSummary;
+        LevelUpdateSummary? levelSummary;
 
         // 週次、月次、年次、目標、Total Time、ストリークを並列実行
         await Future.wait([
@@ -337,6 +359,15 @@ class StatisticsAggregationService {
               stackTrace: stackTrace,
             );
           }),
+          _updateLevelingProgress(session).then((value) {
+            levelSummary = value;
+          }).catchError((e, stackTrace) {
+            LogMk.logError(
+              '❌ レベル更新に失敗しました: $e',
+              tag: 'StatisticsAggregationService',
+              stackTrace: stackTrace,
+            );
+          }),
         ]);
 
         // 更新後の総時間を確認
@@ -359,6 +390,7 @@ class StatisticsAggregationService {
           totalHours: totalHours,
           totalMilestone: milestoneInfo,
           streakSummary: streakSummary,
+          levelSummary: levelSummary,
         );
       } catch (e, stackTrace) {
         LogMk.logError(
@@ -371,9 +403,66 @@ class StatisticsAggregationService {
           totalHours: 0,
           totalMilestone: null,
           streakSummary: null,
+          levelSummary: null,
         );
       }
     });
+  }
+
+  Future<LevelUpdateSummary?> _updateLevelingProgress(
+    TrackingSession session,
+  ) async {
+    final gainedSeconds = session.categorySeconds['personOnly'] ?? 0;
+    if (gainedSeconds <= 0) {
+      return null;
+    }
+
+    final referenceDate = session.startTime;
+    final periodId = LevelFormula.periodId(referenceDate);
+    LevelingState currentState;
+    try {
+      currentState =
+          await _levelingManager.getOrCreateCurrentState(referenceDate);
+    } catch (_) {
+      currentState = LevelingState.initial(now: referenceDate);
+    }
+
+    final previousLevel = currentState.level;
+    if (currentState.periodId != periodId) {
+      currentState = LevelingState.initial(
+        now: referenceDate,
+        id: currentState.id,
+      );
+    }
+
+    final updatedSeconds = currentState.personSeconds + gainedSeconds;
+    final computation = LevelFormula.computeLevel(updatedSeconds);
+
+    final updatedState = currentState.copyWith(
+      periodId: periodId,
+      level: computation.level,
+      exactLevel: computation.exactLevel,
+      progressToNextLevel: computation.progressToNextLevel,
+      personSeconds: updatedSeconds,
+      requiredSecondsForNextLevel: computation.requiredSecondsForNextLevel,
+      rank: computation.rank,
+      periodStart: LevelFormula.periodStart(referenceDate),
+      periodEnd: LevelFormula.periodEnd(referenceDate),
+      nextResetAt: LevelFormula.nextResetDate(referenceDate),
+      lastUpdated: DateTime.now(),
+    );
+
+    await _levelingManager.saveCurrentLevel(updatedState);
+    LogMk.logDebug(
+      '🎯 レベル更新: ${currentState.level} -> ${updatedState.level} (人検出 +${gainedSeconds}s)',
+      tag: 'StatisticsAggregationService',
+    );
+
+    return LevelUpdateSummary(
+      state: updatedState,
+      gainedPersonSeconds: gainedSeconds,
+      leveledUp: updatedState.level > previousLevel,
+    );
   }
 
   /// Phase 1: 日次データの集計・更新（ローカル保存優先、Firestoreは非同期）
@@ -669,6 +758,9 @@ class StatisticsAggregationService {
         'smartphone': (existing?.categorySeconds['smartphone'] ?? 0) + sessionCategorySeconds['smartphone']!,
       };
       final updatedWorkSeconds = (existing?.totalWorkTimeSeconds ?? 0) + workSeconds;
+      final sessionPersonSeconds = session.categorySeconds['personOnly'] ?? 0;
+      final updatedPersonSeconds =
+          (existing?.personDetectedSeconds ?? 0) + sessionPersonSeconds;
       
       // 日ごとのデータを集計
       final monthStart = DateTime(year, month, 1);
@@ -701,6 +793,7 @@ class StatisticsAggregationService {
         totalWorkTimeSeconds: updatedWorkSeconds,
         pieChartData: pieChartData,
         dailyCategorySeconds: updatedDailyCategorySeconds,
+        personDetectedSeconds: updatedPersonSeconds,
         lastModified: DateTime.now(),
       );
       
@@ -1251,7 +1344,7 @@ class StatisticsAggregationService {
   Future<Map<String, int>?> checkTotalHoursMilestoneWithCache(int totalHours) async {
     try {
       LogMk.logDebug(
-        '🔍 総時間マイルストーンチェック開始: 総時間=${totalHours}時間',
+        '🔍 総時間マイルストーンチェック開始: 総時間=$totalHours時間',
         tag: 'StatisticsAggregationService',
       );
       
@@ -1260,7 +1353,7 @@ class StatisticsAggregationService {
       
       if (achievedMilestone == null) {
         LogMk.logDebug(
-          'ℹ️ マイルストーン未達成: 総時間=${totalHours}時間',
+          'ℹ️ マイルストーン未達成: 総時間=$totalHours時間',
           tag: 'StatisticsAggregationService',
         );
         return null;

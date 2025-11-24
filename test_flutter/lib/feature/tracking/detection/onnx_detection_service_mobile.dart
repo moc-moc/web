@@ -16,6 +16,8 @@ class ONNXDetectionService implements DetectionService {
   Isolate? _worker;
   SendPort? _workerPort;
   bool _isInitialized = false;
+  bool _initialPowerSavingMode = false;
+  bool _lastRequestedPowerSavingMode = false;
 
   Future<void> _ensureWorker() async {
     if (_workerPort != null) {
@@ -66,9 +68,12 @@ class ONNXDetectionService implements DetectionService {
   Future<bool> initialize() async {
     await _ensureWorker();
     final response = await _sendRequest('init', payload: {
-      'powerSavingMode': false,
+      'powerSavingMode': _initialPowerSavingMode,
     });
     _isInitialized = response['success'] == true;
+    if (_isInitialized) {
+      _lastRequestedPowerSavingMode = _initialPowerSavingMode;
+    }
     if (!_isInitialized) {
       LogMk.logError(
         'ONNX worker initialisation failed: ${response['error'] ?? 'unknown'}',
@@ -76,6 +81,20 @@ class ONNXDetectionService implements DetectionService {
       );
     }
     return _isInitialized;
+  }
+
+  @override
+  void applyInitialPowerSavingMode(bool powerSavingMode) {
+    _initialPowerSavingMode = powerSavingMode;
+    _lastRequestedPowerSavingMode = powerSavingMode;
+  }
+
+  @override
+  bool? get currentPowerSavingMode => _lastRequestedPowerSavingMode;
+
+  @override
+  Future<void> prefetchModel({required bool powerSavingMode}) async {
+    applyInitialPowerSavingMode(powerSavingMode);
   }
 
   @override
@@ -140,6 +159,7 @@ class ONNXDetectionService implements DetectionService {
       return false;
     }
 
+    _lastRequestedPowerSavingMode = powerSavingMode;
     return true;
   }
 

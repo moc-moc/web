@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
+import 'package:test_flutter/feature/leveling/level_model.dart';
+import 'package:test_flutter/presentation/widgets/level_badge.dart';
 
 /// フレンドリスト画面（新デザインシステム版）
 class FriendListScreenNew extends StatelessWidget {
@@ -74,6 +76,8 @@ class FriendListScreenNew extends StatelessWidget {
             final following = [500, 890];
             final streaks = [120, 250];
             final focusHours = [500, 1200];
+            final levels = [45, 58];
+            final tiers = [LevelRankTier.silver, LevelRankTier.gold];
 
             return Padding(
               padding: EdgeInsets.only(bottom: AppSpacing.md),
@@ -85,6 +89,8 @@ class FriendListScreenNew extends StatelessWidget {
                 following: following[index],
                 streak: streaks[index],
                 focusHours: focusHours[index],
+                level: levels[index],
+                tier: tiers[index],
               ),
             );
           }),
@@ -142,6 +148,8 @@ class FriendListScreenNew extends StatelessWidget {
     required int following,
     required int streak,
     required int focusHours,
+    required int level,
+    required LevelRankTier tier,
   }) {
     return Container(
       padding: EdgeInsets.all(AppSpacing.lg),
@@ -229,6 +237,12 @@ class FriendListScreenNew extends StatelessWidget {
                       ],
                     ),
                   ),
+                  LevelBadge(
+                    tier: tier,
+                    level: level,
+                    size: 56,
+                    showGlow: true,
+                  ),
                 ],
               ),
               // 右上のフレンド追加ボタン（右上に配置）
@@ -290,6 +304,11 @@ class FriendListScreenNew extends StatelessWidget {
                 value: '${focusHours}h',
                 label: 'Focus',
                 color: AppColors.blue,
+              ),
+              _buildStatItem(
+                value: 'Lv $level',
+                label: 'Level',
+                color: AppColors.purple,
               ),
             ],
           ),

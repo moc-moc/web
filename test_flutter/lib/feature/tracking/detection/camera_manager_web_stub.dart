@@ -22,6 +22,12 @@ class CameraManagerWebStub implements CameraManager {
 
   @override
   Future<void> dispose() => throw UnimplementedError('Web版の実装が必要です');
+
+  @override
+  Future<void> pause() => throw UnimplementedError('Web版の実装が必要です');
+
+  @override
+  Future<void> resume() => throw UnimplementedError('Web版の実装が必要です');
 }
 
 // Web版のエイリアス（モバイル版では使用されない）

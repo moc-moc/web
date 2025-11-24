@@ -3,7 +3,6 @@ import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/screens/event/event_screen_base.dart';
-import 'package:test_flutter/presentation/widgets/progress_bars.dart';
 import 'package:test_flutter/presentation/widgets/event_content_builder.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
@@ -30,10 +29,12 @@ class GoalPeriodEndedEventScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<GoalPeriodEndedEventScreen> createState() => _GoalPeriodEndedEventScreenState();
+  ConsumerState<GoalPeriodEndedEventScreen> createState() =>
+      _GoalPeriodEndedEventScreenState();
 }
 
-class _GoalPeriodEndedEventScreenState extends ConsumerState<GoalPeriodEndedEventScreen> {
+class _GoalPeriodEndedEventScreenState
+    extends ConsumerState<GoalPeriodEndedEventScreen> {
   String? _goalName;
   double? _targetHours;
   double? _achievedHours;
@@ -77,15 +78,12 @@ class _GoalPeriodEndedEventScreenState extends ConsumerState<GoalPeriodEndedEven
     // 処理完了後、画面を閉じてホーム画面に遷移
     // pushAndRemoveUntilは既に画面を閉じる処理を含んでいる
     if (mounted) {
-      NavigationHelper.pushAndRemoveUntil(
-        context,
-        AppRoutes.home,
-      );
+      NavigationHelper.pushAndRemoveUntil(context, AppRoutes.home);
     }
   }
 
   /// ゴールをリセット・更新する処理
-  /// 
+  ///
   /// - 達成時間を0にリセット
   /// - 進捗率は自動的に0になる（achievedTime / targetTime）
   /// - 期間を更新（startDateを現在時刻に更新）
@@ -142,36 +140,40 @@ class _GoalPeriodEndedEventScreenState extends ConsumerState<GoalPeriodEndedEven
   Widget build(BuildContext context) {
     final effectiveGoalName = _goalName ?? widget.goalName ?? 'Goal';
     final effectiveTargetHours = _targetHours ?? widget.targetHours ?? 10.0;
-    final effectiveAchievedHours = _achievedHours ?? widget.achievedHours ?? 8.5;
+    final effectiveAchievedHours =
+        _achievedHours ?? widget.achievedHours ?? 8.5;
     final effectiveProgress = _progress ?? widget.progress ?? 0.85;
-    final effectiveConsecutiveDays = _consecutiveDays ?? widget.consecutiveDays ?? 0;
+    final effectiveConsecutiveDays =
+        _consecutiveDays ?? widget.consecutiveDays ?? 0;
     final effectivePeriod = _period ?? widget.period ?? 'Weekly';
 
     return EventScreenBase(
       gradientColors: const [Color(0xFFEC4899), Color(0xFFC026D3)], // Pink
       content: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
+          Icon(Icons.calendar_today, size: 64, color: AppColors.textPrimary),
+          SizedBox(height: AppSpacing.sm),
           Text(
             'Goal Period Ended',
             style: AppTextStyles.h1.copyWith(fontSize: 40),
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: AppSpacing.md),
+          SizedBox(height: AppSpacing.sm),
           Text(
-            'The goal period has ended. Check your progress below.',
+            'You\'ve completed this period—reflect and set new goals!',
             style: AppTextStyles.body1,
             textAlign: TextAlign.center,
           ),
-          SizedBox(height: AppSpacing.xl),
-          CircularProgressBar(
-            percentage: effectiveProgress,
-            size: 160,
-            strokeWidth: 16,
-            progressColor: AppColors.textPrimary,
-            backgroundColor: AppColors.textPrimary.withValues(alpha: 0.2),
+          SizedBox(height: AppSpacing.lg),
+          EventContentBuilder.buildProgressRing(
+            percentage: effectiveProgress.clamp(0.0, 1.0),
+            value: '${(effectiveProgress * 100).toInt()}%',
+            label: 'Progress',
+            size: 280,
           ),
-          SizedBox(height: AppSpacing.xl),
+          SizedBox(height: AppSpacing.lg),
           Container(
             padding: EdgeInsets.all(AppSpacing.lg),
             decoration: BoxDecoration(
@@ -186,14 +188,13 @@ class _GoalPeriodEndedEventScreenState extends ConsumerState<GoalPeriodEndedEven
                   '${effectiveAchievedHours.toStringAsFixed(1)}h / ${effectiveTargetHours.toStringAsFixed(1)}h',
                 ),
                 EventContentBuilder.buildDetailRow(
-                  'Achievement',
-                  '${(effectiveProgress * 100).toInt()}%',
-                ),
-                EventContentBuilder.buildDetailRow(
                   'Consecutive Days',
                   '$effectiveConsecutiveDays days',
                 ),
-                EventContentBuilder.buildDetailRow('Goal Period', effectivePeriod),
+                EventContentBuilder.buildDetailRow(
+                  'Goal Period',
+                  effectivePeriod,
+                ),
               ],
             ),
           ),

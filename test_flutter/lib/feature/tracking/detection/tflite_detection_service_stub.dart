@@ -25,5 +25,13 @@ class TFLiteDetectionService implements DetectionService {
   Future<void> dispose() async {
     // スタブ実装
   }
+  @override
+  void applyInitialPowerSavingMode(bool powerSavingMode) {}
+
+  @override
+  bool? get currentPowerSavingMode => null;
+
+  @override
+  Future<void> prefetchModel({required bool powerSavingMode}) async {}
 }
 

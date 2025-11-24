@@ -61,13 +61,13 @@ class FirestoreDataManager<T> {
       _currentUserId = userId;
       return userId;
     }
-    if (_currentUserId != null && _currentUserId!.isNotEmpty) {
-      return _currentUserId;
-    }
     final currentUser = AuthMk.getCurrentUser();
     if (currentUser != null && currentUser.uid.isNotEmpty) {
       _currentUserId = currentUser.uid;
       return currentUser.uid;
+    }
+    if (_currentUserId != null && _currentUserId!.isNotEmpty) {
+      return _currentUserId;
     }
     return null;
   }

@@ -16,6 +16,7 @@ class CameraManagerMobile implements CameraManager {
   StreamController<CameraImageData>? _imageStreamController;
   CameraImage? _latestCameraImage;
   final List<Completer<CameraImageData?>> _pendingCaptureRequests = [];
+  bool _isStreaming = false;
 
   @override
   bool get isInitialized => _isInitialized && _controller != null;
@@ -68,17 +69,7 @@ class CameraManagerMobile implements CameraManager {
 
       // 映像ストリームの設定
       _imageStreamController = StreamController<CameraImageData>.broadcast();
-      _controller!.startImageStream((image) {
-        if (_imageStreamController != null && !_imageStreamController!.isClosed) {
-          final data = CameraImageData.fromMobile(image);
-          _imageStreamController!.add(data);
-          _latestCameraImage = image;
-          _completePendingCaptures(data);
-        } else {
-          _latestCameraImage = image;
-          _completePendingCaptures(CameraImageData.fromMobile(image));
-        }
-      });
+      await _startImageStream();
 
       _isInitialized = true;
       LogMk.logDebug(
@@ -176,7 +167,7 @@ class CameraManagerMobile implements CameraManager {
       await _imageStreamController?.close();
       _imageStreamController = null;
 
-      await _controller?.stopImageStream();
+      await _stopImageStream();
       await _controller?.dispose();
       _controller = null;
 
@@ -212,6 +203,51 @@ class CameraManagerMobile implements CameraManager {
         completer.complete(data);
       }
     }
+  }
+
+  Future<void> _startImageStream() async {
+    if (_controller == null) {
+      return;
+    }
+    if (_controller!.value.isStreamingImages || _isStreaming) {
+      return;
+    }
+    await _controller!.startImageStream(_handleCameraImage);
+    _isStreaming = true;
+  }
+
+  Future<void> _stopImageStream() async {
+    if (!(_controller?.value.isStreamingImages ?? false)) {
+      _isStreaming = false;
+      return;
+    }
+    await _controller!.stopImageStream();
+    _isStreaming = false;
+  }
+
+  void _handleCameraImage(CameraImage image) {
+    if (_imageStreamController != null && !_imageStreamController!.isClosed) {
+      final data = CameraImageData.fromMobile(image);
+      _imageStreamController!.add(data);
+      _latestCameraImage = image;
+      _completePendingCaptures(data);
+    } else {
+      _latestCameraImage = image;
+      _completePendingCaptures(CameraImageData.fromMobile(image));
+    }
+  }
+
+  @override
+  Future<void> pause() async {
+    await _stopImageStream();
+  }
+
+  @override
+  Future<void> resume() async {
+    if (_controller == null) {
+      return;
+    }
+    await _startImageStream();
   }
 }
 

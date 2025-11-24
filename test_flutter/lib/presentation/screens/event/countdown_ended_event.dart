@@ -20,10 +20,12 @@ class CountdownEndedEventScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<CountdownEndedEventScreen> createState() => _CountdownEndedEventScreenState();
+  ConsumerState<CountdownEndedEventScreen> createState() =>
+      _CountdownEndedEventScreenState();
 }
 
-class _CountdownEndedEventScreenState extends ConsumerState<CountdownEndedEventScreen> {
+class _CountdownEndedEventScreenState
+    extends ConsumerState<CountdownEndedEventScreen> {
   String? _eventName;
   String? _countdownId;
 
@@ -55,10 +57,7 @@ class _CountdownEndedEventScreenState extends ConsumerState<CountdownEndedEventS
 
     // ホーム画面に遷移
     if (mounted) {
-      NavigationHelper.pushAndRemoveUntil(
-        context,
-        AppRoutes.home,
-      );
+      NavigationHelper.pushAndRemoveUntil(context, AppRoutes.home);
     }
   }
 
@@ -73,52 +72,49 @@ class _CountdownEndedEventScreenState extends ConsumerState<CountdownEndedEventS
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          EventContentBuilder.buildIconContent(
-            icon: Icons.alarm,
-            title: 'Countdown Ended!',
-            message: 'The countdown has reached zero.',
-            iconSize: 76,
-            titleFontSize: 32,
+          Icon(Icons.alarm_off, size: 76, color: AppColors.textPrimary),
+          SizedBox(height: AppSpacing.sm),
+          Text(
+            'Countdown Complete',
+            style: AppTextStyles.h1.copyWith(fontSize: 36),
+            textAlign: TextAlign.center,
           ),
           SizedBox(height: AppSpacing.sm),
+          Text(
+            'Congratulations! You made it to the finish line!',
+            style: AppTextStyles.body1,
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.lg),
+          Text(
+            '0',
+            style: AppTextStyles.h1.copyWith(
+              fontSize: 72,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.xs),
+          Text(
+            'days remaining',
+            style: AppTextStyles.body1,
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.lg),
           EventContentBuilder.buildEventNameCard(
-            eventName: effectiveEventName,
-            fontSize: 26,
+            eventName: 'Event Summary',
+            fontSize: 22,
             additionalContent: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(height: AppSpacing.sm),
+                EventContentBuilder.buildDetailRow('Event', effectiveEventName),
                 EventContentBuilder.buildDetailRow(
-                  'Completed on',
+                  'Completion Date',
                   completionDate,
                 ),
                 EventContentBuilder.buildDetailRow(
                   'Status',
-                  'Time to celebrate and review!',
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: AppSpacing.md),
-          Container(
-            padding: EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.textPrimary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(AppRadius.large),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Suggested Actions',
-                  style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
-                ),
-                SizedBox(height: AppSpacing.xs),
-                Text(
-                  '• Record what you accomplished\n'
-                  '• Set a fresh countdown to keep the momentum\n'
-                  '• Share the milestone with friends',
-                  style: AppTextStyles.body2,
+                  'Time to celebrate and reflect!',
                 ),
               ],
             ),

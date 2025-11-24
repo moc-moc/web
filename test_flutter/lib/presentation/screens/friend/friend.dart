@@ -3,6 +3,7 @@ import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
+import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
 import 'package:test_flutter/presentation/screens/friend/post_cards/tracking_post_card.dart';
 import 'package:test_flutter/presentation/screens/friend/post_cards/goal_achieved_post_card.dart';
 import 'package:test_flutter/presentation/screens/friend/post_cards/goal_set_post_card.dart';
@@ -222,6 +223,16 @@ class _FriendScreenNewState extends State<FriendScreenNew> {
             ),
           ),
           const Spacer(),
+          IconButton(
+            icon: const Icon(
+              Icons.emoji_events,
+              color: AppColors.white,
+            ),
+            onPressed: () {
+              Navigator.pushNamed(context, AppRoutes.friendLeaderboard);
+            },
+          ),
+          SizedBox(width: AppSpacing.sm),
           // 右上のボタン（フレンドリスト画面へ遷移）
           Container(
             decoration: BoxDecoration(
@@ -418,16 +429,16 @@ class _FriendScreenNewState extends State<FriendScreenNew> {
     if (index == 3) return;
     switch (index) {
       case 0:
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        NavigationHelper.pushReplacement(context, AppRoutes.home);
         break;
       case 1:
-        Navigator.pushReplacementNamed(context, AppRoutes.goal);
+        NavigationHelper.pushReplacement(context, AppRoutes.goal);
         break;
       case 2:
-        Navigator.pushReplacementNamed(context, AppRoutes.report);
+        NavigationHelper.pushReplacement(context, AppRoutes.report);
         break;
       case 4:
-        Navigator.pushReplacementNamed(context, AppRoutes.settings);
+        NavigationHelper.pushReplacement(context, AppRoutes.settings);
         break;
     }
   }

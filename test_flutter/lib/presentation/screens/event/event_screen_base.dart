@@ -33,16 +33,36 @@ class EventScreenBase extends StatelessWidget {
         ),
         child: SafeArea(
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg, vertical: AppSpacing.md),
+            padding: EdgeInsets.symmetric(
+              horizontal: AppSpacing.lg,
+              vertical: AppSpacing.md,
+            ),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: Center(
-                    child: SingleChildScrollView(
-                      child: content,
-                    ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final availableWidth = constraints.maxWidth.isFinite
+                          ? constraints.maxWidth
+                          : 520.0;
+                      final maxContentWidth = availableWidth > 520
+                          ? 520.0
+                          : availableWidth;
+                      return Center(
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.center,
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxWidth: maxContentWidth,
+                            ),
+                            child: content,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
 
@@ -50,46 +70,32 @@ class EventScreenBase extends StatelessWidget {
 
                 // SNSシェアボタン
                 if (showShareButton) ...[
-                  Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: AppColors.textPrimary.withValues(alpha: 0.5),
-                        width: 2,
-                      ),
-                      borderRadius: BorderRadius.circular(30.0),
-                    ),
-                    child: Material(
-                      color: Colors.transparent,
-                      child: InkWell(
-                        onTap: () {
-                          // 将来実装: SNS共有機能
-                        },
-                        borderRadius: BorderRadius.circular(30.0),
-                        child: SizedBox(
-                          height: 56,
-                          child: Center(
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.share,
-                                  color: AppColors.textPrimary.withValues(alpha: 0.5),
-                                  size: 18,
-                                ),
-                                SizedBox(width: AppSpacing.sm),
-                                Text(
-                                  'Share',
-                                  style: AppTextStyles.h3.copyWith(
-                                    color: AppColors.textPrimary.withValues(alpha: 0.5),
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _ShareButton(
+                          icon: Icons.share,
+                          label: 'Share',
+                          textColor: Colors.white,
+                          iconColor: Colors.white,
+                          onTap: () {
+                            // 将来実装: SNS共有機能
+                          },
                         ),
                       ),
-                    ),
+                      SizedBox(width: AppSpacing.sm),
+                      Expanded(
+                        child: _ShareButton(
+                          icon: Icons.group,
+                          label: 'Friend Share',
+                          textColor: Colors.white,
+                          iconColor: Colors.white,
+                          onTap: () {
+                            NavigationHelper.push(context, AppRoutes.friend);
+                          },
+                        ),
+                      ),
+                    ],
                   ),
                   SizedBox(height: AppSpacing.md),
                 ],
@@ -128,6 +134,59 @@ class EventScreenBase extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShareButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color textColor;
+  final Color iconColor;
+  final VoidCallback onTap;
+
+  const _ShareButton({
+    required this.icon,
+    required this.label,
+    required this.textColor,
+    required this.iconColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: textColor.withValues(alpha: 0.5), width: 2),
+        borderRadius: BorderRadius.circular(30.0),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(30.0),
+          child: SizedBox(
+            height: 56,
+            child: Center(
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, color: iconColor, size: 18),
+                  SizedBox(width: AppSpacing.sm),
+                  Text(
+                    label,
+                    style: AppTextStyles.h3.copyWith(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

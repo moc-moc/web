@@ -65,13 +65,13 @@ class FirestoreHiveDataManager<T> {
       _currentUserId = userId;
       return userId;
     }
-    if (_currentUserId != null && _currentUserId!.isNotEmpty) {
-      return _currentUserId;
-    }
     final currentUser = AuthMk.getCurrentUser();
     if (currentUser != null && currentUser.uid.isNotEmpty) {
       _currentUserId = currentUser.uid;
       return currentUser.uid;
+    }
+    if (_currentUserId != null && _currentUserId!.isNotEmpty) {
+      return _currentUserId;
     }
     return null;
   }
@@ -1599,7 +1599,7 @@ class FirestoreHiveDataManager<T> {
   /// 
   Future<List<T>> getDirtyItems() async {
     try {
-      final dirtyDataList = await HiveMk.getDirtyItems(hiveBoxName);
+      final dirtyDataList = await HiveMk.getDirtyItems(_scopedHiveBoxNameForCurrentUser());
       
       final items = <T>[];
       for (final data in dirtyDataList) {
@@ -1633,9 +1633,10 @@ class FirestoreHiveDataManager<T> {
   ) async {
     try {
       await LogMk.logInfo('スキーマバージョンチェック開始: 目標v$targetVersion', tag: 'DataManager.checkAndMigrateSchema');
+      final scopedBox = _scopedHiveBoxNameForCurrentUser();
       
       final migrated = await HiveMk.migrateData(
-        hiveBoxName,
+        scopedBox,
         targetVersion,
         migrationFunction,
       );
@@ -1658,7 +1659,7 @@ class FirestoreHiveDataManager<T> {
   /// 
   Future<int> getSchemaVersion() async {
     try {
-      final version = await HiveMk.getSchemaVersion(hiveBoxName);
+      final version = await HiveMk.getSchemaVersion(_scopedHiveBoxNameForCurrentUser());
       await LogMk.logDebug('スキーマバージョン: v$version', tag: 'DataManager.getSchemaVersion');
       return version;
     } catch (e) {
@@ -1802,8 +1803,9 @@ class FirestoreHiveDataManager<T> {
     String? timestampField,
   }) async {
     try {
+      final scopedBox = _scopedHiveBoxNameForCurrentUser();
       final removed = await HiveMk.clearOldData(
-        hiveBoxName,
+        scopedBox,
         ttl,
         timestampField: timestampField ?? lastModifiedField,
       );

@@ -17,6 +17,7 @@ class CameraManagerWeb implements CameraManager {
   int _imageHeight = 480;
   html.CanvasElement? _captureCanvas;
   html.CanvasRenderingContext2D? _captureContext;
+  bool? _lastLowQualitySetting;
 
   @override
   bool get isInitialized => _isInitialized && _videoElement != null;
@@ -30,6 +31,19 @@ class CameraManagerWeb implements CameraManager {
   @override
   Future<bool> initialize() async {
     try {
+      final desiredLowQuality = CameraPerformanceConfig.isLowQuality;
+      if (_isInitialized &&
+          _stream != null &&
+          _videoElement != null &&
+          _lastLowQualitySetting == desiredLowQuality) {
+        LogMk.logDebug(
+          '📷 [CameraManagerWeb] 既存ストリームを再利用します',
+          tag: 'CameraManagerWeb.initialize',
+        );
+        await resume();
+        return true;
+      }
+
       LogMk.logDebug(
         '📷 [CameraManagerWeb] カメラ初期化開始',
         tag: 'CameraManagerWeb.initialize',
@@ -179,6 +193,7 @@ class CameraManagerWeb implements CameraManager {
       }
 
       _isInitialized = true;
+      _lastLowQualitySetting = desiredLowQuality;
       LogMk.logDebug(
         '✅ [CameraManagerWeb] カメラ初期化完了（Web版）',
         tag: 'CameraManagerWeb.initialize',
@@ -345,6 +360,7 @@ class CameraManagerWeb implements CameraManager {
       _videoElement = null;
 
       _isInitialized = false;
+      _lastLowQualitySetting = null;
       LogMk.logDebug(
         '✅ [CameraManagerWeb] カメラリソース解放完了（Web版）',
         tag: 'CameraManagerWeb.dispose',
@@ -354,6 +370,58 @@ class CameraManagerWeb implements CameraManager {
         '❌ [CameraManagerWeb] カメラリソース解放エラー: $e',
         tag: 'CameraManagerWeb.dispose',
         stackTrace: stackTrace,
+      );
+    }
+  }
+
+  @override
+  Future<void> pause() async {
+    if (_videoElement == null) {
+      return;
+    }
+    try {
+      _videoElement!.pause();
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] プレビューを一時停止しました',
+        tag: 'CameraManagerWeb.pause',
+      );
+    } catch (e) {
+      LogMk.logWarning(
+        '⚠️ [CameraManagerWeb] プレビュー一時停止に失敗しました: $e',
+        tag: 'CameraManagerWeb.pause',
+      );
+    }
+  }
+
+  @override
+  Future<void> resume() async {
+    if (_videoElement == null && _stream != null) {
+      _videoElement = html.VideoElement()
+        ..autoplay = true
+        ..muted = true
+        ..setAttribute('playsinline', 'true')
+        ..srcObject = _stream;
+    }
+
+    if (_videoElement == null) {
+      await initialize();
+      return;
+    }
+
+    if (_videoElement!.srcObject == null && _stream != null) {
+      _videoElement!.srcObject = _stream;
+    }
+
+    try {
+      await _videoElement!.play();
+      LogMk.logDebug(
+        '📷 [CameraManagerWeb] プレビューを再開しました',
+        tag: 'CameraManagerWeb.resume',
+      );
+    } catch (e) {
+      LogMk.logWarning(
+        '⚠️ [CameraManagerWeb] プレビュー再開に失敗しました: $e',
+        tag: 'CameraManagerWeb.resume',
       );
     }
   }

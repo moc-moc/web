@@ -21,8 +21,9 @@ class CountdownSetEventScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final effectiveEventName = eventName ?? 'Event';
     final effectiveRemainingDays = remainingDays ?? 15;
-    final estimatedEndDate =
-        DateTime.now().add(Duration(days: effectiveRemainingDays.clamp(0, 3650)));
+    final estimatedEndDate = DateTime.now().add(
+      Duration(days: effectiveRemainingDays.clamp(0, 3650)),
+    );
     final formattedEndDate = DateFormat('yyyy/MM/dd').format(estimatedEndDate);
 
     return EventScreenBase(
@@ -31,24 +32,45 @@ class CountdownSetEventScreen extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
         children: [
-          EventContentBuilder.buildIconContent(
-            icon: Icons.alarm_add,
-            title: 'Countdown Set!',
-            message: 'Keep it up!',
-            iconSize: 72,
-            titleFontSize: 30,
+          Icon(Icons.alarm_add, size: 72, color: AppColors.textPrimary),
+          SizedBox(height: AppSpacing.sm),
+          Text(
+            'Countdown Set',
+            style: AppTextStyles.h1.copyWith(fontSize: 36),
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.sm),
+          Text(
+            'Stay focused and make every day count!',
+            style: AppTextStyles.body1,
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.lg),
+          Text(
+            '$effectiveRemainingDays',
+            style: AppTextStyles.h1.copyWith(
+              fontSize: 72,
+              fontWeight: FontWeight.bold,
+            ),
+            textAlign: TextAlign.center,
           ),
           SizedBox(height: AppSpacing.xs),
+          Text(
+            'days remaining',
+            style: AppTextStyles.body1,
+            textAlign: TextAlign.center,
+          ),
+          SizedBox(height: AppSpacing.lg),
           EventContentBuilder.buildEventNameCard(
-            eventName: effectiveEventName,
+            eventName: 'Schedule Overview',
             fontSize: 22,
             additionalContent: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                SizedBox(height: AppSpacing.sm),
+                EventContentBuilder.buildDetailRow('Event', effectiveEventName),
                 EventContentBuilder.buildDetailRow(
                   'Days Remaining',
-                  '$effectiveRemainingDays days',
+                  '$effectiveRemainingDays',
                 ),
                 EventContentBuilder.buildDetailRow(
                   'Finish Date',
@@ -57,39 +79,11 @@ class CountdownSetEventScreen extends StatelessWidget {
               ],
             ),
           ),
-          SizedBox(height: AppSpacing.md),
-          Container(
-            width: double.infinity,
-            padding: EdgeInsets.all(AppSpacing.lg),
-            decoration: BoxDecoration(
-              color: AppColors.textPrimary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppRadius.large),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Next Step',
-                  style: AppTextStyles.body1.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                SizedBox(height: AppSpacing.xs),
-                Text(
-                  'Add reminders and plan checkpoints before $formattedEndDate.',
-                  style: AppTextStyles.body2,
-                ),
-              ],
-            ),
-          ),
         ],
       ),
       onOkPressed: () {
         // ゴール画面に遷移（イベント画面を閉じてから遷移）
-        NavigationHelper.popAndPush(
-          context,
-          AppRoutes.goal,
-        );
+        NavigationHelper.popAndPush(context, AppRoutes.goal);
       },
     );
   }

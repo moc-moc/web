@@ -3,6 +3,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
+import 'package:test_flutter/feature/leveling/level_model.dart';
 
 part 'monthly_statistics_model.freezed.dart';
 part 'monthly_statistics_model.g.dart';
@@ -41,6 +42,19 @@ abstract class MonthlyStatistics with _$MonthlyStatistics {
     /// キー: "1", "2", ..., "31" (日)
     /// 値: カテゴリ別秒数のMap {study: 3600, pc: 1800, smartphone: 600}
     @Default({}) Map<String, Map<String, int>> dailyCategorySeconds,
+
+    /// 当月終了時点のレベルスナップショット
+    @JsonKey(
+      toJson: _levelSnapshotToJson,
+      fromJson: _levelSnapshotFromJson,
+    )
+    LevelSnapshot? levelSnapshot,
+
+    /// グローバルランキング（未実装の場合null）
+    int? globalRank,
+
+    /// 人検出の合計秒数
+    @Default(0) int personDetectedSeconds,
     
     /// 最終更新日時
     required DateTime lastModified,
@@ -82,6 +96,9 @@ abstract class MonthlyStatistics with _$MonthlyStatistics {
       totalWorkTimeSeconds: data['totalWorkTimeSeconds'] as int,
       pieChartData: pieChartDataModel,
       dailyCategorySeconds: dailyCategorySeconds,
+      levelSnapshot: _levelSnapshotFromJson(data['levelSnapshot'] as Map<String, dynamic>?),
+      globalRank: data['globalRank'] as int?,
+      personDetectedSeconds: data['personDetectedSeconds'] as int? ?? 0,
       lastModified: (data['lastModified'] as Timestamp).toDate(),
     );
   }
@@ -98,6 +115,9 @@ abstract class MonthlyStatistics with _$MonthlyStatistics {
       'dailyCategorySeconds': dailyCategorySeconds.map(
         (key, value) => MapEntry(key, value),
       ),
+      if (levelSnapshot != null) 'levelSnapshot': levelSnapshot?.toJson(),
+      if (globalRank != null) 'globalRank': globalRank,
+      'personDetectedSeconds': personDetectedSeconds,
       'lastModified': Timestamp.fromDate(lastModified),
     };
   }
@@ -110,4 +130,11 @@ Map<String, dynamic>? _pieChartDataToJson(PieChartDataModel? instance) =>
 /// JSONからPieChartDataModelを生成するヘルパー関数
 PieChartDataModel? _pieChartDataFromJson(Map<String, dynamic>? json) =>
     json != null ? PieChartDataModel.fromJson(json) : null;
+
+Map<String, dynamic>? _levelSnapshotToJson(LevelSnapshot? snapshot) =>
+    snapshot?.toJson();
+
+LevelSnapshot? _levelSnapshotFromJson(Map<String, dynamic>? json) =>
+    json == null ? null : LevelSnapshot.fromJson(json);
+
 

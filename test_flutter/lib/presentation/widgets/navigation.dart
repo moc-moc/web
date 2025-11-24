@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
-import 'package:test_flutter/presentation/screens/home/home_screen.dart';
 import 'package:test_flutter/presentation/screens/goal/goal.dart';
+import 'package:test_flutter/presentation/screens/home/home_screen.dart';
 import 'package:test_flutter/presentation/screens/report/report.dart';
-import 'package:test_flutter/presentation/screens/setting/settings_screen.dart';
 
 // ========================================
 // 新しいデザインシステムに基づくナビゲーション
@@ -13,13 +12,11 @@ import 'package:test_flutter/presentation/screens/setting/settings_screen.dart';
 class NavigationItem {
   final IconData icon;
   final String label;
-  final Widget screen;
   final Color? activeColor;
 
   const NavigationItem({
     required this.icon,
     required this.label,
-    required this.screen,
     this.activeColor,
   });
 }
@@ -37,31 +34,32 @@ class AppBottomNavigationBar extends StatelessWidget {
     required this.items,
   });
 
-  /// デフォルトの4項目ナビゲーション（Home, Goal, Report, Settings）
-  static List<NavigationItem> get defaultItems => [
-    const NavigationItem(
+  /// デフォルトの5項目ナビゲーション（Home, Goal, Report, Friend, Settings）
+  static List<NavigationItem> get defaultItems => const [
+    NavigationItem(
       icon: Icons.home,
       label: 'Home',
-      screen: HomeScreenNew(),
       activeColor: AppColors.blue,
     ),
-    const NavigationItem(
+    NavigationItem(
       icon: Icons.flag,
       label: 'Goal',
-      screen: GoalScreenNew(),
       activeColor: AppColors.orange,
     ),
-    const NavigationItem(
+    NavigationItem(
       icon: Icons.assessment,
       label: 'Report',
-      screen: ReportScreenNew(),
       activeColor: AppColors.green,
     ),
-    const NavigationItem(
+    NavigationItem(
+      icon: Icons.people_alt,
+      label: 'Friend',
+      activeColor: AppColors.purple,
+    ),
+    NavigationItem(
       icon: Icons.settings,
       label: 'Settings',
-      screen: SettingsScreenNew(),
-      activeColor: AppColors.purple,
+      activeColor: AppColors.gray,
     ),
   ];
 
@@ -176,46 +174,6 @@ class _NavigationBarItem extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// ボトムナビゲーションバー付きの画面コンテナ
-class AppNavigationScreen extends StatefulWidget {
-  final int initialIndex;
-  final List<NavigationItem>? items;
-
-  const AppNavigationScreen({super.key, this.initialIndex = 0, this.items});
-
-  @override
-  State<AppNavigationScreen> createState() => _AppNavigationScreenState();
-}
-
-class _AppNavigationScreenState extends State<AppNavigationScreen> {
-  late int _currentIndex;
-  late List<NavigationItem> _items;
-
-  @override
-  void initState() {
-    super.initState();
-    _currentIndex = widget.initialIndex;
-    _items = widget.items ?? AppBottomNavigationBar.defaultItems;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.backgroundPrimary,
-      body: _items[_currentIndex].screen,
-      bottomNavigationBar: AppBottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
-        items: _items,
       ),
     );
   }

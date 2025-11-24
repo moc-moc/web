@@ -16,6 +16,9 @@ import 'package:test_flutter/feature/setting/goal_memo_notifier.dart';
 import 'package:test_flutter/presentation/widgets/dialogs.dart';
 import 'package:test_flutter/presentation/widgets/buttons.dart';
 import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
+import 'package:test_flutter/feature/leveling/level_functions.dart';
+import 'package:test_flutter/feature/leveling/level_reset_service.dart';
+import 'package:test_flutter/presentation/widgets/level_progress_card.dart';
 
 /// ホーム画面（新デザインシステム版）
 class HomeScreenNew extends ConsumerStatefulWidget {
@@ -34,6 +37,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   bool _goalMemoLoadFailed = false;
   int? _pendingHomeToken;
   bool _hasInitialized = false; // 初期化済みフラグ
+  bool _hasCheckedLevelReset = false;
 
   @override
   void initState() {
@@ -86,6 +90,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         setState(() {
           _isLoading = false;
         });
+        await _maybeHandleLevelReset();
       }
     } catch (e, stackTrace) {
       debugPrint('❌ [HomeScreen] データ取得エラー: $e');
@@ -98,6 +103,18 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         });
       }
     }
+  }
+
+  Future<void> _maybeHandleLevelReset() async {
+    if (_hasCheckedLevelReset || !mounted) {
+      return;
+    }
+    _hasCheckedLevelReset = true;
+    await LevelResetService.ensureMonthlyReset(
+      ref: ref,
+      context: context,
+      mounted: mounted,
+    );
   }
 
   void _handleHomeRefreshTrigger(DataRefreshState state) {
@@ -246,6 +263,8 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              _buildLevelSection(),
+              SizedBox(height: AppSpacing.md),
               // 目標メモセクション
               _buildGoalMemoSection(),
 
@@ -273,6 +292,17 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _buildLevelSection() {
+    final levelState = ref.watch(levelingStateProvider);
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      child: LevelProgressCard(
+        state: levelState,
+        showCountdown: true,
       ),
     );
   }
@@ -955,6 +985,9 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         NavigationHelper.pushReplacement(context, AppRoutes.report);
         break;
       case 3:
+        NavigationHelper.pushReplacement(context, AppRoutes.friend);
+        break;
+      case 4:
         NavigationHelper.pushReplacement(context, AppRoutes.settings);
         break;
     }

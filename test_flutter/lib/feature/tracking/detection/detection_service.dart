@@ -13,6 +13,19 @@ abstract class DetectionService {
   /// **戻り値**: 初期化成功時true、失敗時false
   Future<bool> initialize();
 
+  /// 現在の省電力モード（対応しているサービスのみ有効）
+  bool? get currentPowerSavingMode => null;
+
+  /// 初期化前に省電力モード設定を伝達
+  /// 
+  /// デフォルトでは何もしない（ONNXなど必要な実装で上書き）
+  void applyInitialPowerSavingMode(bool powerSavingMode) {}
+
+  /// モデルを事前読み込み（プリフェッチ）する
+  /// 
+  /// デフォルト実装は何もしない。対応サービスのみ上書きする。
+  Future<void> prefetchModel({required bool powerSavingMode}) async {}
+
   /// 画像から物体を検出
   /// 
   /// **パラメータ**:

@@ -12,7 +12,9 @@ import 'package:test_flutter/data/services/log_service.dart';
 class DetectionController {
   final DetectionProcessor _processor;
   final CameraManager _cameraManager;
-  
+  bool _initialModeSynced;
+  bool _lastAppliedMode;
+
   Timer? _detectionTimer;
   bool _isPowerSavingMode = false;
   bool _isRunning = false;
@@ -35,8 +37,13 @@ class DetectionController {
   DetectionController({
     required DetectionProcessor processor,
     required CameraManager cameraManager,
+    bool initialModeSynced = false,
+    bool initialPowerSavingMode = false,
   })  : _processor = processor,
-        _cameraManager = cameraManager;
+        _cameraManager = cameraManager,
+        _initialModeSynced = initialModeSynced,
+        _lastAppliedMode = initialPowerSavingMode,
+        _isPowerSavingMode = initialPowerSavingMode;
 
   /// 検出を開始
   /// 
@@ -54,22 +61,27 @@ class DetectionController {
     _isPowerSavingMode = powerSavingMode;
     _isRunning = true;
 
-    try {
-      final switched = await _processor.detectionService.switchModel(
-        powerSavingMode: _isPowerSavingMode,
-      );
-      if (!switched) {
-        LogMk.logWarning(
-          '⚠️ 要求したモードへのモデル切り替えに失敗しました（省電力モード: $_isPowerSavingMode）',
+    if (!_initialModeSynced || _lastAppliedMode != _isPowerSavingMode) {
+      try {
+        final switched = await _processor.detectionService.switchModel(
+          powerSavingMode: _isPowerSavingMode,
+        );
+        if (!switched) {
+          LogMk.logWarning(
+            '⚠️ 要求したモードへのモデル切り替えに失敗しました（省電力モード: $_isPowerSavingMode）',
+            tag: 'DetectionController.start',
+          );
+        } else {
+          _lastAppliedMode = _isPowerSavingMode;
+          _initialModeSynced = true;
+        }
+      } catch (e, stackTrace) {
+        LogMk.logError(
+          '❌ モデル切り替え中にエラーが発生しましたが、処理を続行します: $e',
           tag: 'DetectionController.start',
+          stackTrace: stackTrace,
         );
       }
-    } catch (e, stackTrace) {
-      LogMk.logError(
-        '❌ モデル切り替え中にエラーが発生しましたが、処理を続行します: $e',
-        tag: 'DetectionController.start',
-        stackTrace: stackTrace,
-      );
     }
 
     final interval =
@@ -155,6 +167,9 @@ class DetectionController {
           '⚠️ モデル切り替えに失敗しましたが、処理を続行します',
           tag: 'DetectionController.setPowerSavingMode',
         );
+      } else {
+        _lastAppliedMode = enabled;
+        _initialModeSynced = true;
       }
     } catch (e) {
       LogMk.logError(

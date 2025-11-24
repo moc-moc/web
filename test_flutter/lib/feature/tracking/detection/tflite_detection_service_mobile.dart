@@ -391,6 +391,14 @@ class TFLiteDetectionService implements DetectionService {
       tag: 'TFLiteDetectionService.dispose',
     );
   }
+  @override
+  void applyInitialPowerSavingMode(bool powerSavingMode) {}
+
+  @override
+  bool? get currentPowerSavingMode => null;
+
+  @override
+  Future<void> prefetchModel({required bool powerSavingMode}) async {}
 }
 
 /// 検出結果（内部データ構造）

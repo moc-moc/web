@@ -1,6 +1,5 @@
 // Flutter / Riverpod
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:hooks_riverpod/hooks_riverpod.dart';
 
 // Project files
 import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';

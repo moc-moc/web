@@ -1,9 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-// Web版でのみdart:jsをインポート
-import 'dart:js' as js if (dart.library.html) 'dart:js';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/app_bars.dart';
@@ -17,6 +14,10 @@ import 'package:test_flutter/data/repositories/auth_repository.dart';
 import 'package:test_flutter/data/repositories/initialization_repository.dart';
 import 'package:test_flutter/core/route.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
+import 'package:test_flutter/feature/auth/auth_controller.dart';
+import 'package:test_flutter/feature/leveling/level_functions.dart';
+import 'package:test_flutter/feature/leveling/level_visuals.dart';
+import 'package:test_flutter/presentation/widgets/level_badge.dart';
 
 /// アカウント設定画面（新デザインシステム版）
 class AccountSettingsScreenNew extends ConsumerStatefulWidget {
@@ -27,7 +28,8 @@ class AccountSettingsScreenNew extends ConsumerStatefulWidget {
       _AccountSettingsScreenNewState();
 }
 
-class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreenNew> {
+class _AccountSettingsScreenNewState
+    extends ConsumerState<AccountSettingsScreenNew> {
   late TextEditingController _nameController;
   late TextEditingController _bioController;
   String _selectedColor = 'blue';
@@ -91,17 +93,21 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
   Future<void> _handleSave() async {
     final currentSettings = ref.read(accountSettingsProvider);
     final updatedSettings = currentSettings.copyWith(
-      accountName: _nameController.text.isNotEmpty ? _nameController.text : 'ユーザー',
+      accountName: _nameController.text.isNotEmpty
+          ? _nameController.text
+          : 'ユーザー',
       avatarColor: _selectedColor,
       lastModified: DateTime.now(),
     );
 
     final success = await saveAccountSettingsHelper(ref, updatedSettings);
-    
+
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(success ? 'Settings saved!' : 'Failed to save settings'),
+          content: Text(
+            success ? 'Settings saved!' : 'Failed to save settings',
+          ),
           backgroundColor: success ? AppColors.success : AppColors.error,
         ),
       );
@@ -114,9 +120,7 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
       return AppScaffold(
         backgroundColor: AppColors.black,
         appBar: AppBarWithBack(title: 'Account Settings'),
-        body: const Center(
-          child: CircularProgressIndicator(),
-        ),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -132,6 +136,7 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
             children: [
               // アバタープレビュー
               _buildAvatarPreview(),
+              _buildLevelOverview(),
 
               // アカウント名
               _buildTextFieldCard(
@@ -226,6 +231,58 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
     );
   }
 
+  Widget _buildLevelOverview() {
+    final levelState = ref.watch(levelingStateProvider);
+    final visuals = LevelRankVisuals.resolve(levelState.rank);
+    final hours = (levelState.personSeconds / 3600).toStringAsFixed(1);
+
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: AppColors.black,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: Border.all(color: visuals.badgeColor.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          LevelBadge(
+            tier: levelState.rank,
+            level: levelState.level,
+            showGlow: true,
+            size: 72,
+          ),
+          SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Monthly Rank',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                Text(
+                  '${visuals.label} • Lv ${levelState.level}',
+                  style: AppTextStyles.h3.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                Text(
+                  '$hours h human focus',
+                  style: AppTextStyles.body2.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _handleSignIn() async {
     await _showSignInDialog();
   }
@@ -243,48 +300,17 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
 
   Future<void> _handleGoogleSignIn() async {
     Navigator.of(context).pop(); // ダイアログを閉じる
-    
+
     try {
       final result = await AuthServiceUN.signInWithGoogle();
-      
+
       if (result.success && mounted) {
-        // 認証成功後にアカウント設定のみを読み込み
-        // 他のデータ（カウントダウン、ストリークなど）は、ホーム画面に遷移した際に読み込まれるため、
-        // ここではアカウント設定のみを読み込んで重複を防止
-        try {
-          // ProviderContainerが設定されているか確認
-          final container = AppInitUN.getGlobalContainer();
-          if (container != null) {
-            // アカウント設定のみを同期（重複を避けるため、他のデータは読み込まない）
-            try {
-              await syncAccountSettingsHelper(container).timeout(
-                const Duration(seconds: 10),
-                onTimeout: () {
-                  debugPrint('⚠️ [AccountSettings] アカウント設定同期タイムアウト（10秒）');
-                  // タイムアウト時はデフォルト値を返す
-                  return AccountSettings.defaultSettings();
-                },
-              );
-              debugPrint('✅ [AccountSettings] アカウント設定読み込み完了');
-            } catch (e) {
-              debugPrint('⚠️ [AccountSettings] アカウント設定同期エラー: $e');
-              // エラー時は続行（デフォルト値が使用される）
-            }
-          } else {
-            debugPrint('⚠️ [AccountSettings] ProviderContainerが設定されていません');
-            // ProviderContainerが設定されていない場合は、データ読み込みをスキップ
-            // アプリ起動時に自動的に読み込まれるため
-          }
-        } catch (e, stackTrace) {
-          debugPrint('❌ [AccountSettings] アカウント設定読み込みエラー: $e');
-          debugPrint('   - スタックトレース: $stackTrace');
-          // エラーが発生してもログインは成功しているので、続行
-        }
-        
+        await _syncAccountSettingsAfterSocialLogin();
+
         setState(() {
           _isAuthenticated = true;
         });
-        
+
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -315,19 +341,48 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
 
   Future<void> _handleAppleSignIn() async {
     Navigator.of(context).pop(); // ダイアログを閉じる
-    
-    // UIのみ実装（今後実装予定）
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Apple認証は今後実装予定です'),
-        backgroundColor: AppColors.gray,
-      ),
-    );
+
+    try {
+      final result = await AuthServiceUN.signInWithApple();
+
+      if (result.success && mounted) {
+        await _syncAccountSettingsAfterSocialLogin();
+
+        setState(() {
+          _isAuthenticated = true;
+        });
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Appleでログインしました'),
+              backgroundColor: AppColors.success,
+            ),
+          );
+        }
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.message),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Apple認証中にエラーが発生しました'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _handleEmailSignIn() async {
     Navigator.of(context).pop(); // ダイアログを閉じる
-    
+
     // UIのみ実装（今後実装予定）
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -350,26 +405,10 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
     if (confirmed == true) {
       try {
         await AuthServiceUN.signOut();
-        
+        await ref.read(authControllerProvider.notifier).signOut();
+
         if (mounted) {
-          // Web版の場合、ブラウザのURLをリセットするためにアプリをリロード
-          // これにより、ブラウザのURLが/settingsのままになることを防ぐ
-          if (kIsWeb) {
-            debugPrint('🌐 [AccountSettings] Web版: サインアウト後にアプリをリロード');
-            // リロード前に少し待機して、サインアウト処理が完了するのを待つ
-            await Future.delayed(const Duration(milliseconds: 300));
-            // アプリをリロード（Web版でのみ動作）
-            try {
-              // ignore: avoid_web_libraries_in_flutter
-              js.context.callMethod('location.reload');
-              return; // リロードするため、以降の処理は実行されない
-            } catch (e) {
-              debugPrint('⚠️ [AccountSettings] リロードエラー: $e');
-              // リロードに失敗した場合は、通常の画面遷移にフォールバック
-            }
-          }
-          
-          // モバイル版またはリロードに失敗した場合、ログイン画面に遷移（全画面をクリア）
+          // ログイン画面に遷移（全画面をクリア）
           await NavigationHelper.pushAndRemoveUntil(
             context,
             AppRoutes.signupLogin,
@@ -385,6 +424,31 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
           );
         }
       }
+    }
+  }
+
+  Future<void> _syncAccountSettingsAfterSocialLogin() async {
+    try {
+      final container = AppInitUN.getGlobalContainer();
+      if (container != null) {
+        try {
+          await syncAccountSettingsHelper(container).timeout(
+            const Duration(seconds: 10),
+            onTimeout: () {
+              debugPrint('⚠️ [AccountSettings] アカウント設定同期タイムアウト（10秒）');
+              return AccountSettings.defaultSettings();
+            },
+          );
+          debugPrint('✅ [AccountSettings] アカウント設定読み込み完了');
+        } catch (e) {
+          debugPrint('⚠️ [AccountSettings] アカウント設定同期エラー: $e');
+        }
+      } else {
+        debugPrint('⚠️ [AccountSettings] ProviderContainerが設定されていません');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ [AccountSettings] アカウント設定読み込みエラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
     }
   }
 
@@ -418,10 +482,7 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
               decoration: BoxDecoration(
                 color: selectedColor.withValues(alpha: 0.2),
                 shape: BoxShape.circle,
-                border: Border.all(
-                  color: selectedColor,
-                  width: 2.0,
-                ),
+                border: Border.all(color: selectedColor, width: 2.0),
               ),
               child: Center(
                 child: Text(
@@ -487,13 +548,7 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
                     ),
                   ),
                   child: isSelected
-                      ? Center(
-                          child: Icon(
-                            Icons.check,
-                            color: color,
-                            size: 28,
-                          ),
-                        )
+                      ? Center(child: Icon(Icons.check, color: color, size: 28))
                       : null,
                 ),
               );
@@ -534,17 +589,15 @@ class _AccountSettingsScreenNewState extends ConsumerState<AccountSettingsScreen
           SizedBox(height: AppSpacing.sm),
           Row(
             children: [
-              Icon(
-                Icons.email,
-                color: AppColors.textSecondary,
-                size: 20,
-              ),
+              Icon(Icons.email, color: AppColors.textSecondary, size: 20),
               SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: Text(
                   email ?? 'メールアドレスが設定されていません',
                   style: AppTextStyles.body1.copyWith(
-                    color: email != null ? AppColors.textPrimary : AppColors.textSecondary,
+                    color: email != null
+                        ? AppColors.textPrimary
+                        : AppColors.textSecondary,
                   ),
                 ),
               ),
@@ -588,9 +641,7 @@ class _SignInDialog extends StatelessWidget {
         children: [
           Text(
             'サインイン方法を選択してください',
-            style: AppTextStyles.body1.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            style: AppTextStyles.body1.copyWith(color: AppColors.textSecondary),
           ),
           SizedBox(height: AppSpacing.lg),
           // Apple認証ボタン

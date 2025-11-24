@@ -81,7 +81,7 @@ abstract class DailyStatistics with _$DailyStatistics {
   /// Timestamp型と文字列形式（ISO8601）の両方の日時形式に対応しています。
   factory DailyStatistics.fromFirestore(Map<String, dynamic> data) {
     // 日時フィールドの変換ヘルパー関数
-    DateTime _parseDateTime(dynamic value) {
+    DateTime parseDateTime(dynamic value) {
       if (value is Timestamp) {
         return value.toDate();
       } else if (value is String) {
@@ -123,13 +123,13 @@ abstract class DailyStatistics with _$DailyStatistics {
 
     return DailyStatistics(
       id: data['id'] as String,
-      date: _parseDateTime(data['date']),
+      date: parseDateTime(data['date']),
       categorySeconds: Map<String, int>.from(data['categorySeconds'] as Map),
       totalWorkTimeSeconds: data['totalWorkTimeSeconds'] as int,
       pieChartData: pieChartDataModel,
       hourlyCategorySeconds: hourlyCategorySeconds,
       sessions: sessions,
-      lastModified: _parseDateTime(data['lastModified']),
+      lastModified: parseDateTime(data['lastModified']),
     );
   }
 

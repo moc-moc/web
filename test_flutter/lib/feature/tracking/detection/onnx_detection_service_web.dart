@@ -17,6 +17,7 @@ class ONNXDetectionService implements DetectionService {
   bool _isInferencing = false; // 推論実行中フラグ（並行実行防止）
   bool _powerSavingMode = false; // 現在の省電力モード状態
   String? _currentModelName; // 現在使用中のモデル名
+  Future<void>? _prefetchFuture;
 
   /// モデルの入力サイズ
   static const int _inputSize = 640; // YOLO標準サイズ
@@ -60,6 +61,43 @@ class ONNXDetectionService implements DetectionService {
   }
 
   double get _activeConfidenceThreshold => _baseConfidenceThreshold;
+
+  @override
+  bool? get currentPowerSavingMode => _powerSavingMode;
+
+  @override
+  void applyInitialPowerSavingMode(bool powerSavingMode) {
+    _powerSavingMode = powerSavingMode;
+  }
+
+  @override
+  Future<void> prefetchModel({required bool powerSavingMode}) async {
+    if (_isInitialized) {
+      return;
+    }
+    if (_session != null && _powerSavingMode == powerSavingMode) {
+      return;
+    }
+    _prefetchFuture ??= () async {
+      LogMk.logDebug(
+        '🤖 [ONNXDetectionService] プリフェッチ開始（powerSaving: $powerSavingMode）',
+        tag: 'ONNXDetectionService.prefetch',
+      );
+      final loaded = await _ensureModelLoadedForMode(powerSavingMode);
+      LogMk.logDebug(
+        loaded
+            ? '✅ [ONNXDetectionService] プリフェッチ完了'
+            : '⚠️ [ONNXDetectionService] プリフェッチ失敗',
+        tag: 'ONNXDetectionService.prefetch',
+      );
+    }();
+
+    try {
+      await _prefetchFuture;
+    } finally {
+      _prefetchFuture = null;
+    }
+  }
 
   /// モードに応じたモデルを読み込み
   Future<bool> _loadModelForMode(bool powerSavingMode) async {
@@ -134,6 +172,17 @@ class ONNXDetectionService implements DetectionService {
     return true;
   }
 
+  Future<bool> _ensureModelLoadedForMode(bool powerSavingMode) async {
+    if (_session != null && _powerSavingMode == powerSavingMode) {
+      LogMk.logDebug(
+        '🤖 [ONNXDetectionService] 既存モデルを再利用します（${_currentModelName ?? "unknown"}, mode: $powerSavingMode）',
+        tag: 'ONNXDetectionService._ensureModelLoadedForMode',
+      );
+      return true;
+    }
+    return _loadModelForMode(powerSavingMode);
+  }
+
   @override
   Future<bool> initialize() async {
     try {
@@ -161,7 +210,16 @@ class ONNXDetectionService implements DetectionService {
         tag: 'ONNXDetectionService.initialize',
       );
 
-      final modelLoaded = await _loadModelForMode(_powerSavingMode);
+      final ongoingPrefetch = _prefetchFuture;
+      if (ongoingPrefetch != null) {
+        LogMk.logDebug(
+          '🤖 [ONNXDetectionService] 進行中のプリフェッチ完了を待機します',
+          tag: 'ONNXDetectionService.initialize',
+        );
+        await ongoingPrefetch;
+      }
+
+      final modelLoaded = await _ensureModelLoadedForMode(_powerSavingMode);
       if (!modelLoaded) {
         return false;
       }

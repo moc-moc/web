@@ -9,17 +9,15 @@ class StreakMilestoneEventScreen extends StatefulWidget {
   final int? days;
   final int? nextMilestone;
 
-  const StreakMilestoneEventScreen({
-    super.key,
-    this.days,
-    this.nextMilestone,
-  });
+  const StreakMilestoneEventScreen({super.key, this.days, this.nextMilestone});
 
   @override
-  State<StreakMilestoneEventScreen> createState() => _StreakMilestoneEventScreenState();
+  State<StreakMilestoneEventScreen> createState() =>
+      _StreakMilestoneEventScreenState();
 }
 
-class _StreakMilestoneEventScreenState extends State<StreakMilestoneEventScreen> {
+class _StreakMilestoneEventScreenState
+    extends State<StreakMilestoneEventScreen> {
   int? _days;
 
   @override
@@ -44,10 +42,7 @@ class _StreakMilestoneEventScreenState extends State<StreakMilestoneEventScreen>
 
     // ホーム画面に遷移
     if (mounted) {
-      Navigator.of(context).pushNamedAndRemoveUntil(
-        '/',
-        (route) => false,
-      );
+      Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
     }
   }
 
@@ -61,49 +56,29 @@ class _StreakMilestoneEventScreenState extends State<StreakMilestoneEventScreen>
         future: StreakMilestoneService.getNextMilestoneAfter(effectiveDays),
         builder: (context, snapshot) {
           final effectiveNextMilestone = snapshot.data;
-          
+
           return Column(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
             children: [
-              // ファイアアイコンを数値の上に表示
               Icon(
                 Icons.local_fire_department,
-                size: 60,
+                size: 72,
                 color: AppColors.textPrimary,
               ),
               SizedBox(height: AppSpacing.sm),
-              // 数字を表示
-              Text(
-                '$effectiveDays',
-                style: TextStyle(
-                  fontSize: 90,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.textPrimary,
-                  height: 1.0,
-                ),
-              ),
-              SizedBox(height: AppSpacing.sm),
-              Text(
-                'Days Streak',
-                style: AppTextStyles.h2.copyWith(fontSize: 22),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: AppSpacing.md),
-              Text(
-                'Streak Milestone!',
-                style: AppTextStyles.h1.copyWith(fontSize: 32),
-                textAlign: TextAlign.center,
-              ),
-              SizedBox(height: AppSpacing.sm),
-              Text(
-                'Amazing! You have reached a new milestone.',
-                style: AppTextStyles.body1.copyWith(fontSize: 16),
-                textAlign: TextAlign.center,
+              EventContentBuilder.buildNumberContent(
+                number: '$effectiveDays',
+                label: 'day streak',
+                title: 'Streak Milestone!',
+                message: 'Amazing consistency—keep the fire going.',
+                numberFontSize: 120,
+                titleFontSize: 30,
               ),
               SizedBox(height: AppSpacing.lg),
               EventContentBuilder.buildMilestoneCard(
-                nextMilestoneText: effectiveNextMilestone != null && effectiveNextMilestone > 0
+                nextMilestoneText:
+                    effectiveNextMilestone != null && effectiveNextMilestone > 0
                     ? 'Next Milestone: $effectiveNextMilestone Days'
                     : 'All Milestones Achieved!',
                 icon: Icons.arrow_forward,

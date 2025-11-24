@@ -21,6 +21,12 @@ _MonthlyStatistics _$MonthlyStatisticsFromJson(Map<String, dynamic> json) =>
             (k, e) => MapEntry(k, Map<String, int>.from(e as Map)),
           ) ??
           const {},
+      levelSnapshot: _levelSnapshotFromJson(
+        json['levelSnapshot'] as Map<String, dynamic>?,
+      ),
+      globalRank: (json['globalRank'] as num?)?.toInt(),
+      personDetectedSeconds:
+          (json['personDetectedSeconds'] as num?)?.toInt() ?? 0,
       lastModified: DateTime.parse(json['lastModified'] as String),
     );
 
@@ -33,5 +39,8 @@ Map<String, dynamic> _$MonthlyStatisticsToJson(_MonthlyStatistics instance) =>
       'totalWorkTimeSeconds': instance.totalWorkTimeSeconds,
       'pieChartData': _pieChartDataToJson(instance.pieChartData),
       'dailyCategorySeconds': instance.dailyCategorySeconds,
+      'levelSnapshot': _levelSnapshotToJson(instance.levelSnapshot),
+      'globalRank': instance.globalRank,
+      'personDetectedSeconds': instance.personDetectedSeconds,
       'lastModified': instance.lastModified.toIso8601String(),
     };

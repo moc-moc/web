@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/presentation/widgets/toggles_chips.dart';
+import 'package:test_flutter/presentation/widgets/progress_bars.dart';
 
 /// イベント画面の共通コンテンツ生成ヘルパー
 class EventContentBuilder {
@@ -33,6 +34,56 @@ class EventContentBuilder {
     );
   }
 
+  /// 円形リング＋ラベルを生成（イベント進捗表示用）
+  static Widget buildProgressRing({
+    required double percentage,
+    required String value,
+    required String label,
+    double size = 120,
+    Color? progressColor,
+    Color? backgroundColor,
+  }) {
+    final clampedPercentage = percentage.clamp(0.0, 1.0);
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          CircularProgressBar(
+            percentage: clampedPercentage,
+            size: size,
+            strokeWidth: 12,
+            showPercentage: false,
+            progressColor: progressColor ?? AppColors.textPrimary,
+            backgroundColor:
+                backgroundColor ?? AppColors.textPrimary.withValues(alpha: 0.2),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                value,
+                style: AppTextStyles.h1.copyWith(
+                  fontSize: 60,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              SizedBox(height: AppSpacing.xs),
+              Text(
+                label,
+                style: AppTextStyles.body2.copyWith(
+                  color: AppColors.textPrimary.withValues(alpha: 0.8),
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 大きな数字 + ラベル + タイトル + メッセージのコンテンツを生成
   static Widget buildNumberContent({
     required String number,
@@ -56,11 +107,7 @@ class EventContentBuilder {
           ),
         ),
         SizedBox(height: AppSpacing.xs),
-        Text(
-          label,
-          style: AppTextStyles.h3,
-          textAlign: TextAlign.center,
-        ),
+        Text(label, style: AppTextStyles.h3, textAlign: TextAlign.center),
         SizedBox(height: AppSpacing.sm),
         Text(
           title,
@@ -68,11 +115,7 @@ class EventContentBuilder {
           textAlign: TextAlign.center,
         ),
         SizedBox(height: AppSpacing.xs),
-        Text(
-          message,
-          style: AppTextStyles.body2,
-          textAlign: TextAlign.center,
-        ),
+        Text(message, style: AppTextStyles.body2, textAlign: TextAlign.center),
       ],
     );
   }
@@ -83,7 +126,10 @@ class EventContentBuilder {
     IconData? icon,
   }) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(AppRadius.medium),
@@ -120,7 +166,10 @@ class EventContentBuilder {
   }) {
     final percentage = (achievedHours / targetHours * 100).toStringAsFixed(0);
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(AppRadius.medium),
@@ -144,9 +193,7 @@ class EventContentBuilder {
           SizedBox(height: AppSpacing.xs),
           Text(
             'Achieved $percentage%',
-            style: AppTextStyles.body2.copyWith(
-              fontWeight: FontWeight.w600,
-            ),
+            style: AppTextStyles.body2.copyWith(fontWeight: FontWeight.w600),
             textAlign: TextAlign.center,
           ),
         ],
@@ -161,7 +208,10 @@ class EventContentBuilder {
     Widget? additionalContent,
   }) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.sm,
+      ),
       decoration: BoxDecoration(
         color: AppColors.textPrimary.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(AppRadius.medium),
@@ -215,9 +265,9 @@ class EventContentBuilder {
   }) {
     return AppChip(
       label: label,
-      backgroundColor: backgroundColor ?? AppColors.textPrimary.withValues(alpha: 0.2),
+      backgroundColor:
+          backgroundColor ?? AppColors.textPrimary.withValues(alpha: 0.2),
       textColor: textColor ?? AppColors.textPrimary,
     );
   }
 }
-

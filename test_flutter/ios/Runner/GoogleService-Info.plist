@@ -3,9 +3,9 @@
 <plist version="1.0">
 <dict>
 	<key>CLIENT_ID</key>
-	<string>451402739791-drpuc3a3rrb4u0h1bjmi674cq5e9p50u.apps.googleusercontent.com</string>
+	<string>451402739791-vnih0uu3ol85v7mlahs5imeab4qqdhpe.apps.googleusercontent.com</string>
 	<key>REVERSED_CLIENT_ID</key>
-	<string>com.googleusercontent.apps.451402739791-drpuc3a3rrb4u0h1bjmi674cq5e9p50u</string>
+	<string>com.googleusercontent.apps.451402739791-vnih0uu3ol85v7mlahs5imeab4qqdhpe</string>
 	<key>API_KEY</key>
 	<string>AIzaSyA76cLYgPJvqPAEoTc98HZrpLElKGGbRvg</string>
 	<key>GCM_SENDER_ID</key>
@@ -13,7 +13,7 @@
 	<key>PLIST_VERSION</key>
 	<string>1</string>
 	<key>BUNDLE_ID</key>
-	<string>com.example.testFlutter</string>
+	<string>com.mindnew.timeplus</string>
 	<key>PROJECT_ID</key>
 	<string>test-flutter-4b625</string>
 	<key>STORAGE_BUCKET</key>
@@ -29,6 +29,6 @@
 	<key>IS_SIGNIN_ENABLED</key>
 	<true></true>
 	<key>GOOGLE_APP_ID</key>
-	<string>1:451402739791:ios:73bec93c9e324598f0fa3a</string>
+	<string>1:451402739791:ios:2afbe6301c0bfb3ff0fa3a</string>
 </dict>
 </plist>

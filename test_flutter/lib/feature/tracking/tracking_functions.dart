@@ -29,6 +29,38 @@ enum DetectionServiceType {
   auto,
 }
 
+/// 初期化ステージ
+enum DetectionInitStage {
+  camera,
+  ai,
+}
+
+/// 初期化ステージの進行状況
+enum DetectionInitStatus {
+  pending,
+  inProgress,
+  success,
+  failure,
+}
+
+typedef DetectionInitStageCallback = void Function(
+  DetectionInitStage stage,
+  DetectionInitStatus status,
+);
+
+/// 検出初期化時の追加オプション
+class DetectionInitOptions {
+  final bool powerSavingMode;
+  final DetectionInitStageCallback? onStageStatusChanged;
+  final bool enableModelPrefetch;
+
+  const DetectionInitOptions({
+    this.powerSavingMode = false,
+    this.onStageStatusChanged,
+    this.enableModelPrefetch = true,
+  });
+}
+
 /// プラットフォームに応じた検出サービスを作成
 /// 
 /// **パラメータ**:
@@ -97,6 +129,7 @@ DetectionService createDetectionService({
 Future<DetectionController?> initializeDetection({
   DetectionService? detectionService,
   DetectionServiceType serviceType = DetectionServiceType.auto,
+  DetectionInitOptions? options,
 }) async {
   try {
     LogMk.logDebug(
@@ -104,17 +137,14 @@ Future<DetectionController?> initializeDetection({
       tag: 'initializeDetection',
     );
     
+    final powerSavingMode = options?.powerSavingMode ?? false;
+    void notifyStage(DetectionInitStage stage, DetectionInitStatus status) {
+      options?.onStageStatusChanged?.call(stage, status);
+    }
+
     // カメラマネージャーの初期化（プラットフォーム自動判定）
     final cameraManager = CameraManager.create();
-    final cameraInitialized = await cameraManager.initialize();
-    
-    if (!cameraInitialized) {
-      LogMk.logError(
-        'カメラマネージャーの初期化に失敗',
-        tag: 'initializeDetection',
-      );
-      return null;
-    }
+    notifyStage(DetectionInitStage.camera, DetectionInitStatus.inProgress);
 
     // 検出サービスの初期化（キャッシュ活用）
     DetectionService service;
@@ -130,32 +160,77 @@ Future<DetectionController?> initializeDetection({
       }
     }
 
-    if (!shouldCacheService || !_cachedDetectionServiceInitialized) {
+    service.applyInitialPowerSavingMode(powerSavingMode);
+
+    if (options?.enableModelPrefetch == true) {
+      service.prefetchModel(powerSavingMode: powerSavingMode).catchError((error, stackTrace) {
+        LogMk.logWarning(
+          '検出サービスのプリフェッチに失敗しました: $error',
+          tag: 'initializeDetection.prefetch',
+        );
+      });
+    }
+
+    final bool serviceInitNeeded = !shouldCacheService || !_cachedDetectionServiceInitialized;
+
+    if (serviceInitNeeded) {
+      notifyStage(DetectionInitStage.ai, DetectionInitStatus.inProgress);
       LogMk.logDebug(
-        '検出サービスの初期化を開始: ${service.runtimeType}',
+        '検出サービスの初期化を開始: ${service.runtimeType} (powerSaving: $powerSavingMode)',
         tag: 'initializeDetection',
       );
-
-      final serviceInitialized = await service.initialize();
-
-      if (!serviceInitialized) {
-        LogMk.logError(
-          '検出サービスの初期化に失敗',
-          tag: 'initializeDetection',
-        );
-        await cameraManager.dispose();
-        if (shouldCacheService) {
-          await service.dispose();
-          _cachedDetectionService = null;
-          _cachedDetectionServiceInitialized = false;
-        }
-        return null;
-      }
-
-      if (shouldCacheService) {
-        _cachedDetectionServiceInitialized = true;
-      }
+    } else {
+      notifyStage(DetectionInitStage.ai, DetectionInitStatus.success);
     }
+
+    final cameraInitFuture = cameraManager.initialize().then((success) {
+      notifyStage(
+        DetectionInitStage.camera,
+        success ? DetectionInitStatus.success : DetectionInitStatus.failure,
+      );
+      return success;
+    });
+
+    final detectionInitFuture = serviceInitNeeded
+        ? service.initialize().then((success) {
+            notifyStage(
+              DetectionInitStage.ai,
+              success ? DetectionInitStatus.success : DetectionInitStatus.failure,
+            );
+            return success;
+          })
+        : Future<bool>.value(true);
+
+    final results = await Future.wait<bool>([
+      cameraInitFuture,
+      detectionInitFuture,
+    ]);
+
+    final cameraInitialized = results[0];
+    final serviceInitialized = results[1];
+
+    if (!cameraInitialized || !serviceInitialized) {
+      LogMk.logError(
+        'カメラ/検出サービスの初期化に失敗 (camera: $cameraInitialized, service: $serviceInitialized)',
+        tag: 'initializeDetection',
+      );
+      await cameraManager.dispose();
+      if (shouldCacheService) {
+        await service.dispose();
+        _cachedDetectionService = null;
+        _cachedDetectionServiceInitialized = false;
+      }
+      return null;
+    }
+
+    if (shouldCacheService && !_cachedDetectionServiceInitialized) {
+      _cachedDetectionServiceInitialized = true;
+    }
+
+    final bool controllerInitialModeSynced = (shouldCacheService && serviceInitNeeded)
+        ? true
+        : (service.currentPowerSavingMode == null ||
+            service.currentPowerSavingMode == powerSavingMode);
 
     // 検出プロセッサーの作成
     final processor = DetectionProcessor(
@@ -167,6 +242,8 @@ Future<DetectionController?> initializeDetection({
     final controller = DetectionController(
       processor: processor,
       cameraManager: cameraManager,
+      initialPowerSavingMode: powerSavingMode,
+      initialModeSynced: controllerInitialModeSynced,
     );
 
     LogMk.logDebug(

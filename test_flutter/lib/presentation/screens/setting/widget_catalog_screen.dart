@@ -752,19 +752,16 @@ class _WidgetCatalogScreenState extends State<WidgetCatalogScreen> {
       NavigationItem(
         icon: Icons.home,
         label: 'Home',
-        screen: const Center(child: Text('Home')),
         activeColor: AppColors.blue,
       ),
       NavigationItem(
         icon: Icons.flag,
         label: 'Goals',
-        screen: const Center(child: Text('Goals')),
         activeColor: AppColors.orange,
       ),
       NavigationItem(
         icon: Icons.assessment,
         label: 'Report',
-        screen: const Center(child: Text('Report')),
         activeColor: AppColors.green,
       ),
     ];

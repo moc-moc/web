@@ -281,5 +281,18 @@ class TFJSDetectionService implements DetectionService {
       tag: 'TFJSDetectionService.dispose',
     );
   }
+
+  @override
+  void applyInitialPowerSavingMode(bool powerSavingMode) {
+    // Web TFJSサービスでは省電力モードの概念は無いため何もしない
+  }
+
+  @override
+  bool? get currentPowerSavingMode => null;
+
+  @override
+  Future<void> prefetchModel({required bool powerSavingMode}) async {
+    // TFJSではプリフェッチ不要
+  }
 }
 

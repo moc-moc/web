@@ -24,6 +24,8 @@ import 'package:test_flutter/feature/statistics/daily_statistics_data_manager.da
 import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/session_info_model.dart';
 import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
+import 'package:test_flutter/feature/leveling/level_functions.dart';
+import 'package:test_flutter/presentation/widgets/level_progress_card.dart';
 
 enum _TrackingSetupStatus {
   loading,
@@ -54,6 +56,10 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   StreamSubscription<DetectionResult>? _detectionSubscription;
   bool _isCameraInitializing = false;
   String? _cameraError;
+  final Map<DetectionInitStage, DetectionInitStatus> _initStageStatuses = {
+    DetectionInitStage.camera: DetectionInitStatus.pending,
+    DetectionInitStage.ai: DetectionInitStatus.pending,
+  };
 
   // 現在検出されているカテゴリ（'study', 'pc', 'smartphone', 'personOnly', null）
   String? _currentDetection;
@@ -287,10 +293,24 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       if (_setupStatus != _TrackingSetupStatus.ready) {
         _setupStatus = _TrackingSetupStatus.loading;
       }
+      _initStageStatuses[DetectionInitStage.camera] = DetectionInitStatus.inProgress;
+      _initStageStatuses[DetectionInitStage.ai] = DetectionInitStatus.pending;
     });
 
     try {
-      final controller = await initializeDetection();
+      final controller = await initializeDetection(
+        options: DetectionInitOptions(
+          powerSavingMode: _isPowerSavingMode,
+          onStageStatusChanged: (stage, status) {
+            if (!mounted) {
+              return;
+            }
+            setState(() {
+              _initStageStatuses[stage] = status;
+            });
+          },
+        ),
+      );
 
       if (!mounted) {
         await controller?.dispose();
@@ -317,6 +337,8 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         _cameraManager = cameraManager;
         _isCameraInitializing = false;
         _cameraError = null;
+        _initStageStatuses[DetectionInitStage.camera] = DetectionInitStatus.success;
+        _initStageStatuses[DetectionInitStage.ai] = DetectionInitStatus.success;
       });
 
       // 検出を開始
@@ -346,6 +368,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       setState(() {
         _isCameraInitializing = false;
         _cameraError = 'カメラエラー: $e';
+        _initStageStatuses[DetectionInitStage.ai] = DetectionInitStatus.failure;
         if (_setupStatus != _TrackingSetupStatus.ready) {
           _setupStatus = _TrackingSetupStatus.error;
           _setupErrorMessage = 'カメラとAIモデルの初期化に失敗しました。再試行してください。';
@@ -677,9 +700,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   }
 
   void _ensureSessionTimingStarted() {
-    if (_sessionStartTime == null) {
-      _sessionStartTime = DateTime.now();
-    }
+    _sessionStartTime ??= DateTime.now();
     if (_timer == null) {
       _startTimer();
     }
@@ -1063,6 +1084,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
               spacing: AppSpacing.lg,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _buildLevelStatus(),
                 // 目標達成率（1番上）
                 _buildGoalProgress(),
 
@@ -1084,6 +1106,15 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     );
   }
 
+  Widget _buildLevelStatus() {
+    final levelState = ref.watch(levelingStateProvider);
+    return LevelProgressCard(
+      state: levelState,
+      additionalPersonSeconds: _personOnlySeconds,
+      showCountdown: false,
+    );
+  }
+
   Widget _buildCameraArea() {
     return Container(
       height: 280,
@@ -1099,14 +1130,17 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const CircularProgressIndicator(),
-                  SizedBox(height: AppSpacing.md),
-                  Text(
-                    'カメラを初期化中...',
-                    style: AppTextStyles.body1.copyWith(
-                      color: AppColors.textDisabled,
-                    ),
-                  ),
+              const CircularProgressIndicator(),
+              SizedBox(height: AppSpacing.md),
+              _buildInitStageStatusRow(
+                label: 'カメラ準備中',
+                stage: DetectionInitStage.camera,
+              ),
+              SizedBox(height: AppSpacing.xs),
+              _buildInitStageStatusRow(
+                label: 'AIモデル準備中',
+                stage: DetectionInitStage.ai,
+              ),
                 ],
               ),
             )
@@ -1195,9 +1229,21 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
                   icon: _isCameraOn ? Icons.videocam : Icons.videocam_off,
                   isActive: _isCameraOn,
                   onTap: () {
+                    final nextState = !_isCameraOn;
                     setState(() {
-                      _isCameraOn = !_isCameraOn;
+                      _isCameraOn = nextState;
                     });
+                    if (nextState) {
+                      final resumeFuture = _cameraManager?.resume();
+                      if (resumeFuture != null) {
+                        unawaited(resumeFuture);
+                      }
+                    } else {
+                      final pauseFuture = _cameraManager?.pause();
+                      if (pauseFuture != null) {
+                        unawaited(pauseFuture);
+                      }
+                    }
                     // 設定を保存
                     _saveTrackingSettings();
                   },
@@ -1227,6 +1273,51 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildInitStageStatusRow({
+    required String label,
+    required DetectionInitStage stage,
+  }) {
+    final status = _initStageStatuses[stage] ?? DetectionInitStatus.pending;
+    IconData icon;
+    Color color;
+    String statusText;
+
+    switch (status) {
+      case DetectionInitStatus.inProgress:
+        icon = Icons.sync;
+        color = AppColors.textDisabled;
+        statusText = '処理中';
+        break;
+      case DetectionInitStatus.success:
+        icon = Icons.check_circle;
+        color = AppColors.green;
+        statusText = '完了';
+        break;
+      case DetectionInitStatus.failure:
+        icon = Icons.error;
+        color = AppColors.red;
+        statusText = 'エラー';
+        break;
+      case DetectionInitStatus.pending:
+        icon = Icons.pause_circle;
+        color = AppColors.textSecondary;
+        statusText = '待機中';
+        break;
+    }
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(icon, color: color, size: 20),
+        SizedBox(width: AppSpacing.xs),
+        Text(
+          '$label - $statusText',
+          style: AppTextStyles.body2.copyWith(color: color),
+        ),
+      ],
     );
   }
 

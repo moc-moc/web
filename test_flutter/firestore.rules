@@ -1,49 +1,58 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Goal（目標）用
+    function isVerifiedUser(userId) {
+      return request.auth != null &&
+          request.auth.uid == userId &&
+          request.auth.token.email_verified == true;
+    }
+
+    match /users/{userId} {
+      allow read, write: if isVerifiedUser(userId);
+    }
+
     match /users/{userId}/goals/{goalId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isVerifiedUser(userId);
     }
-    
-    // TrackingSession（トラッキングセッション）用
+
+    match /users/{userId}/countdowns/{countdownId} {
+      allow read, write, delete: if isVerifiedUser(userId);
+    }
+
     match /users/{userId}/tracking_sessions/{sessionId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isVerifiedUser(userId);
     }
 
-    // 日次統計データ
     match /users/{userId}/daily_statistics/{docId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isVerifiedUser(userId);
     }
 
-    // 週次統計データ
     match /users/{userId}/weekly_statistics/{docId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isVerifiedUser(userId);
     }
 
-    // 月次統計データ
     match /users/{userId}/monthly_statistics/{docId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isVerifiedUser(userId);
     }
 
-    // 年次統計データ
     match /users/{userId}/yearly_statistics/{docId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isVerifiedUser(userId);
     }
 
-    // 累計データ
     match /users/{userId}/total/{docId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isVerifiedUser(userId);
     }
 
-    // ストリークデータ
     match /users/{userId}/streak/{docId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isVerifiedUser(userId);
     }
-    
-    // Settings（設定）用
+
+    match /users/{userId}/leveling/{docId} {
+      allow read, write, delete: if isVerifiedUser(userId);
+    }
+
     match /users/{userId}/settings/{settingId} {
-      allow read, write, delete: if request.auth != null && request.auth.uid == userId;
+      allow read, write, delete: if isVerifiedUser(userId);
     }
   }
 }

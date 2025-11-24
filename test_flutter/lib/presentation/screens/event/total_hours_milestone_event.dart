@@ -18,14 +18,17 @@ class TotalHoursMilestoneEventScreen extends StatefulWidget {
   });
 
   @override
-  State<TotalHoursMilestoneEventScreen> createState() => _TotalHoursMilestoneEventScreenState();
+  State<TotalHoursMilestoneEventScreen> createState() =>
+      _TotalHoursMilestoneEventScreenState();
 }
 
-class _TotalHoursMilestoneEventScreenState extends State<TotalHoursMilestoneEventScreen> {
+class _TotalHoursMilestoneEventScreenState
+    extends State<TotalHoursMilestoneEventScreen> {
   int? _hours;
   int? _nextMilestone;
   int? _achievedMilestone;
-  final TotalHoursMilestoneManager _milestoneManager = TotalHoursMilestoneManager();
+  final TotalHoursMilestoneManager _milestoneManager =
+      TotalHoursMilestoneManager();
 
   @override
   void didChangeDependencies() {
@@ -65,20 +68,21 @@ class _TotalHoursMilestoneEventScreenState extends State<TotalHoursMilestoneEven
 
     // ホーム画面に遷移
     if (mounted) {
-      NavigationHelper.pushAndRemoveUntil(
-        context,
-        AppRoutes.home,
-      );
+      NavigationHelper.pushAndRemoveUntil(context, AppRoutes.home);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final effectiveHours = _hours ?? widget.hours ?? 1000;
-    final effectiveNextMilestone = _nextMilestone ?? widget.nextMilestone ?? 2000;
+    final effectiveNextMilestone =
+        _nextMilestone ?? widget.nextMilestone ?? 2000;
 
     return EventScreenBase(
-      gradientColors: const [Color(0xFFD97706), Color(0xFFB45309)], // トーンを落とした専用の黄色
+      gradientColors: const [
+        Color(0xFFD97706),
+        Color(0xFFB45309),
+      ], // トーンを落とした専用の黄色
       content: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         mainAxisSize: MainAxisSize.min,
@@ -87,15 +91,15 @@ class _TotalHoursMilestoneEventScreenState extends State<TotalHoursMilestoneEven
           SizedBox(height: AppSpacing.md),
           EventContentBuilder.buildNumberContent(
             number: '$effectiveHours',
-            label: 'Hours',
+            label: 'hours logged',
             title: 'Total Hours Milestone!',
-            message: 'Congratulations! You have reached a new milestone.',
-            numberFontSize: 70,
-            titleFontSize: 28,
+            message: 'Outstanding dedication—celebrate the progress.',
+            numberFontSize: 120,
+            titleFontSize: 30,
           ),
           SizedBox(height: AppSpacing.md),
           EventContentBuilder.buildMilestoneCard(
-            nextMilestoneText: 'Next target time is $effectiveNextMilestone hours',
+            nextMilestoneText: 'Next milestone: $effectiveNextMilestone hours',
             icon: Icons.arrow_forward,
           ),
         ],

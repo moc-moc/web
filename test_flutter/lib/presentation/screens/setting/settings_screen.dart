@@ -32,13 +32,15 @@ class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
   }
 
   Widget _buildBody(BuildContext context) {
+    final authState = ref.watch(authControllerProvider);
+    final isAdmin = authState.profile?.isAdmin ?? false;
     return ScrollableContent(
       child: SpacedColumn(
         spacing: AppSpacing.lg,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _buildProfileSection(context, ref),
-          _buildSettingsSection(context),
+          _buildSettingsSection(context, isAdmin: isAdmin),
           _buildPreviewSection(context),
         ],
       ),
@@ -106,7 +108,10 @@ class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
     );
   }
 
-  Widget _buildSettingsSection(BuildContext context) {
+  Widget _buildSettingsSection(
+    BuildContext context, {
+    required bool isAdmin,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -156,6 +161,18 @@ class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
             NavigationHelper.push(context, AppRoutes.subscriptionNew);
           },
         ),
+
+        if (isAdmin)
+          _buildSettingItem(
+            context,
+            icon: Icons.lock_open,
+            iconColor: AppColors.green,
+            title: 'Subscription Admin',
+            subtitle: 'プラン・トライアルを手動で管理',
+            onTap: () {
+              NavigationHelper.push(context, AppRoutes.subscriptionAdmin);
+            },
+          ),
 
         _buildSettingItem(
           context,

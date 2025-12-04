@@ -24,7 +24,7 @@ class LevelProgressCard extends StatelessWidget {
     final totalSeconds =
         (state.personSeconds + additionalPersonSeconds).clamp(0, 1 << 31).toInt();
     final computation = LevelFormula.computeLevel(totalSeconds);
-    final visuals = LevelRankVisuals.resolve(computation.rank);
+    final visuals = LevelRankVisuals.resolveForLevel(computation.level);
     final percentage = computation.progressToNextLevel.clamp(0.0, 1.0);
     final hours = (totalSeconds / 3600).toStringAsFixed(1);
     final nextReset = state.nextResetAt;
@@ -94,6 +94,7 @@ class LevelProgressCard extends StatelessWidget {
             height: 12,
             progressColor: visuals.badgeColor,
             backgroundColor: AppColors.blackgray,
+            barBackgroundColor: AppColors.disabledGray,
             showFlowAnimation: true,
           ),
           SizedBox(height: AppSpacing.xs),

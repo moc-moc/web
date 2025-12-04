@@ -27,6 +27,7 @@ class _SignupLoginScreenState extends ConsumerState<SignupLoginScreen> {
   bool _isGoogleLoading = false;
   bool _isAppleLoading = false;
   bool _isVerificationScreenOpen = false;
+  bool _isPostAuthInitializing = false;
   final _emailController = TextEditingController();
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -168,36 +169,48 @@ class _SignupLoginScreenState extends ConsumerState<SignupLoginScreen> {
   }
 
   Future<void> _runPostAuthInitialization() async {
-    try {
-      debugPrint('🔄 [認証成功] アプリ初期化開始');
-      await AppInitUN.initialize();
-      debugPrint('✅ [認証成功] AppContext初期化完了');
-
-      debugPrint('🔄 [認証成功] loadCriticalData開始');
-      try {
-        await AppInitUN.loadCriticalData().timeout(
-          const Duration(seconds: 30),
-          onTimeout: () {
-            debugPrint('⚠️ [認証成功] loadCriticalData全体タイムアウト（30秒）');
-            throw TimeoutException(
-              'loadCriticalDataがタイムアウトしました',
-              const Duration(seconds: 30),
-            );
-          },
-        );
-        debugPrint('✅ [認証成功] データ読み込み完了');
-      } on TimeoutException catch (e) {
-        debugPrint('⚠️ [認証成功] loadCriticalDataタイムアウト: $e');
-        debugPrint('   一部のデータ読み込みが完了していない可能性がありますが、続行します');
-      }
-    } catch (e, stackTrace) {
-      debugPrint('⚠️ [認証成功] データ読み込みエラー: $e');
-      debugPrint('   - スタックトレース: $stackTrace');
+    if (_isPostAuthInitializing) {
+      debugPrint('⚠️ [認証成功] 初期化処理が既に進行中のためスキップします');
+      return;
     }
 
-    if (!mounted) return;
+    _isPostAuthInitializing = true;
+    try {
+      try {
+        debugPrint('🔄 [認証成功] アプリ初期化開始');
+        await AppInitUN.initialize();
+        debugPrint('✅ [認証成功] AppContext初期化完了');
 
-    await NavigationHelper.pushAndRemoveUntil(context, AppRoutes.home);
+        debugPrint('🔄 [認証成功] loadCriticalData開始');
+        try {
+          await AppInitUN.loadCriticalData().timeout(
+            const Duration(seconds: 30),
+            onTimeout: () {
+              debugPrint('⚠️ [認証成功] loadCriticalData全体タイムアウト（30秒）');
+              throw TimeoutException(
+                'loadCriticalDataがタイムアウトしました',
+                const Duration(seconds: 30),
+              );
+            },
+          );
+          debugPrint('✅ [認証成功] データ読み込み完了');
+        } on TimeoutException catch (e) {
+          debugPrint('⚠️ [認証成功] loadCriticalDataタイムアウト: $e');
+          debugPrint('   一部のデータ読み込みが完了していない可能性がありますが、続行します');
+        }
+      } catch (e, stackTrace) {
+        debugPrint('⚠️ [認証成功] データ読み込みエラー: $e');
+        debugPrint('   - スタックトレース: $stackTrace');
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      await NavigationHelper.pushAndRemoveUntil(context, AppRoutes.home);
+    } finally {
+      _isPostAuthInitializing = false;
+    }
   }
 
   @override

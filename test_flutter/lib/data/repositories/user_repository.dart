@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:test_flutter/data/models/app_user.dart';
+import 'package:test_flutter/data/models/subscription_status.dart';
 
 class UserRepository {
   UserRepository({
@@ -63,6 +64,31 @@ class UserRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     };
     await _collection.doc(uid).set(payload, SetOptions(merge: true));
+  }
+
+  Future<void> updateSubscriptionStatus(
+    String uid,
+    SubscriptionStatus status,
+  ) async {
+    await _collection.doc(uid).set(
+      {
+        'planType': status.planType.name,
+        'trialStartAt': status.trialStartAt != null
+            ? Timestamp.fromDate(status.trialStartAt!)
+            : null,
+        'trialEndAt': status.trialEndAt != null
+            ? Timestamp.fromDate(status.trialEndAt!)
+            : null,
+        'nextBillingAt': status.nextBillingAt != null
+            ? Timestamp.fromDate(status.nextBillingAt!)
+            : null,
+        'isLifetime': status.isLifetime,
+        if (status.promoLabel != null) 'promoLabel': status.promoLabel,
+        'subscription': status.toMap(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
   }
 }
 

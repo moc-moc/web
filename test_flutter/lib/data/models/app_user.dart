@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:test_flutter/data/models/subscription_status.dart';
 
 /// Firestore上の `users/{uid}` ドキュメントをアプリ内で扱うためのモデル。
 class AppUser {
@@ -11,6 +12,8 @@ class AppUser {
     this.emailVerified = false,
     this.createdAt,
     this.updatedAt,
+    this.subscription = const SubscriptionStatus.free(),
+    this.roles = const [],
   });
 
   final String uid;
@@ -21,8 +24,25 @@ class AppUser {
   final bool emailVerified;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+  final SubscriptionStatus subscription;
+  final List<String> roles;
+
+  bool get isAdmin => roles.contains('admin');
 
   factory AppUser.fromMap(String uid, Map<String, dynamic> data) {
+    final subscriptionData =
+        (data['subscription'] as Map<String, dynamic>?) ?? <String, dynamic>{};
+    final mapForStatus = {
+      if (subscriptionData.isEmpty) ...{
+        'planType': data['planType'],
+        'trialStartAt': data['trialStartAt'],
+        'trialEndAt': data['trialEndAt'],
+        'nextBillingAt': data['nextBillingAt'],
+        'isLifetime': data['isLifetime'],
+        'promoLabel': data['promoLabel'],
+      } else
+        ...subscriptionData,
+    };
     return AppUser(
       uid: uid,
       email: (data['email'] as String?) ?? '',
@@ -32,6 +52,11 @@ class AppUser {
       emailVerified: data['emailVerified'] as bool? ?? false,
       createdAt: _decodeTimestamp(data['createdAt']),
       updatedAt: _decodeTimestamp(data['updatedAt']),
+      subscription: SubscriptionStatus.fromMap(mapForStatus),
+      roles: (data['roles'] as List<dynamic>?)
+              ?.map((item) => item as String)
+              .toList(growable: false) ??
+          const [],
     );
   }
 
@@ -44,6 +69,20 @@ class AppUser {
       'emailVerified': emailVerified,
       'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : FieldValue.serverTimestamp(),
+      'planType': subscription.planType.name,
+      'trialStartAt': subscription.trialStartAt != null
+          ? Timestamp.fromDate(subscription.trialStartAt!)
+          : null,
+      'trialEndAt': subscription.trialEndAt != null
+          ? Timestamp.fromDate(subscription.trialEndAt!)
+          : null,
+      'nextBillingAt': subscription.nextBillingAt != null
+          ? Timestamp.fromDate(subscription.nextBillingAt!)
+          : null,
+      'isLifetime': subscription.isLifetime,
+      if (subscription.promoLabel != null) 'promoLabel': subscription.promoLabel,
+      'roles': roles,
+      'subscription': subscription.toMap(),
     };
   }
 
@@ -55,6 +94,8 @@ class AppUser {
     bool? emailVerified,
     DateTime? createdAt,
     DateTime? updatedAt,
+    SubscriptionStatus? subscription,
+    List<String>? roles,
   }) {
     return AppUser(
       uid: uid,
@@ -65,6 +106,8 @@ class AppUser {
       emailVerified: emailVerified ?? this.emailVerified,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      subscription: subscription ?? this.subscription,
+      roles: roles ?? this.roles,
     );
   }
 

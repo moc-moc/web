@@ -6,6 +6,8 @@ import 'package:test_flutter/presentation/widgets/input_fields.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/countdown/countdown_functions.dart';
+import 'package:test_flutter/feature/subscription/subscription_providers.dart';
+import 'package:test_flutter/presentation/widgets/entitlement_gate.dart';
 import 'package:uuid/uuid.dart';
 
 /// ダイアログベース
@@ -601,147 +603,159 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
             color: AppColors.blue.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(30),
             child: InkWell(
-              onTap: _isSaving ? null : () async {
-                // バリデーション
-                if (_titleController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Please enter a goal title'),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
-                  return;
-                }
+              onTap: _isSaving
+                  ? null
+                  : () async {
+                      if (_titleController.text.trim().isEmpty) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Text('Please enter a goal title'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                        return;
+                      }
 
-                final targetHours = double.tryParse(_targetHoursController.text);
-                if (targetHours == null || targetHours <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Please enter a valid target hours'),
-                      backgroundColor: AppColors.error,
-                    ),
-                  );
-                  return;
-                }
+                      final targetHours =
+                          double.tryParse(_targetHoursController.text);
+                      if (targetHours == null || targetHours <= 0) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content:
+                                const Text('Please enter a valid target hours'),
+                            backgroundColor: AppColors.error,
+                          ),
+                        );
+                        return;
+                      }
 
-                setState(() => _isSaving = true);
+                      if (!widget.isEdit) {
+                        final subscriptionStatus =
+                            ref.read(subscriptionStatusProvider);
+                        final canHaveMultipleGoals = EntitlementRules.canUse(
+                          subscriptionStatus,
+                          PremiumFeature.multipleGoals,
+                        );
+                        final goals = ref.read(goalsListProvider);
+                        if (!canHaveMultipleGoals && goals.isNotEmpty) {
+                          await _showPremiumUpgradeDialog();
+                          return;
+                        }
+                      }
 
-                try {
-                  // DetectionItemの変換
-                  DetectionItem detectionItem;
-                  switch (_selectedCategory) {
-                    case 'study':
-                      detectionItem = DetectionItem.book;
-                      break;
-                    case 'pc':
-                      detectionItem = DetectionItem.pc;
-                      break;
-                    case 'smartphone':
-                      detectionItem = DetectionItem.smartphone;
-                      break;
-                    default:
-                      detectionItem = DetectionItem.book;
-                  }
+                      setState(() => _isSaving = true);
 
-                  // ComparisonTypeの変換
-                  final comparisonType = _comparisonType == 'above'
-                      ? ComparisonType.above
-                      : ComparisonType.below;
+                      try {
+                        DetectionItem detectionItem;
+                        switch (_selectedCategory) {
+                          case 'study':
+                            detectionItem = DetectionItem.book;
+                            break;
+                          case 'pc':
+                            detectionItem = DetectionItem.pc;
+                            break;
+                          case 'smartphone':
+                            detectionItem = DetectionItem.smartphone;
+                            break;
+                          default:
+                            detectionItem = DetectionItem.book;
+                        }
 
-                  // durationDaysの変換
-                  int durationDays;
-                  switch (_selectedPeriod) {
-                    case 'daily':
-                      durationDays = 1;
-                      break;
-                    case 'weekly':
-                      durationDays = 7;
-                      break;
-                    case 'monthly':
-                      durationDays = 30;
-                      break;
-                    default:
-                      durationDays = 1;
-                  }
+                        final comparisonType = _comparisonType == 'above'
+                            ? ComparisonType.above
+                            : ComparisonType.below;
 
-                  final now = DateTime.now();
-                  final targetTimeSeconds = (targetHours * 3600).toInt();
+                        int durationDays;
+                        switch (_selectedPeriod) {
+                          case 'daily':
+                            durationDays = 1;
+                            break;
+                          case 'weekly':
+                            durationDays = 7;
+                            break;
+                          case 'monthly':
+                            durationDays = 30;
+                            break;
+                          default:
+                            durationDays = 1;
+                        }
 
-                  Goal goal;
-                  if (widget.isEdit && widget.goalId != null) {
-                    // 編集: 既存のGoalを取得して更新
-                    final goals = ref.read(goalsListProvider);
-                    final existingGoal = goals.firstWhere(
-                      (g) => g.id == widget.goalId,
-                      orElse: () => goals.first,
-                    );
+                        final now = DateTime.now();
+                        final targetTimeSeconds =
+                            (targetHours * 3600).toInt();
 
-                    goal = existingGoal.copyWith(
-                      title: _titleController.text.trim(),
-                      targetTime: targetTimeSeconds,
-                      comparisonType: comparisonType,
-                      detectionItem: detectionItem,
-                      durationDays: durationDays,
-                      periodEndDate: existingGoal.startDate.add(Duration(days: durationDays)),
-                      startDate: existingGoal.startDate, // 開始日は変更しない
-                      lastModified: now,
-                    );
+                        Goal goal;
+                        if (widget.isEdit && widget.goalId != null) {
+                          final goals = ref.read(goalsListProvider);
+                          final existingGoal = goals.firstWhere(
+                            (g) => g.id == widget.goalId,
+                            orElse: () => goals.first,
+                          );
 
-                    // 更新処理
-                    await updateGoalHelper(
-                      context: context,
-                      ref: ref,
-                      goal: goal,
-                      mounted: mounted,
-                    );
+                          goal = existingGoal.copyWith(
+                            title: _titleController.text.trim(),
+                            targetTime: targetTimeSeconds,
+                            comparisonType: comparisonType,
+                            detectionItem: detectionItem,
+                            durationDays: durationDays,
+                            periodEndDate: existingGoal.startDate
+                                .add(Duration(days: durationDays)),
+                            startDate: existingGoal.startDate,
+                            lastModified: now,
+                          );
 
-                    if (mounted) {
-                      Navigator.of(context).pop();
-                      widget.onSave?.call();
-                    }
-                  } else {
-                    // 新規作成
-                    goal = Goal(
-                      id: const Uuid().v4(),
-                      tag: 'goal_$_selectedCategory',
-                      title: _titleController.text.trim(),
-                      targetTime: targetTimeSeconds,
-                      comparisonType: comparisonType,
-                      detectionItem: detectionItem,
-                      startDate: now,
-                      durationDays: durationDays,
-                      periodEndDate: now.add(Duration(days: durationDays)),
-                      lastModified: now,
-                    );
+                          await updateGoalHelper(
+                            context: context,
+                            ref: ref,
+                            goal: goal,
+                            mounted: mounted,
+                          );
 
-                    // 追加処理
-                    await addGoalHelper(
-                      context: context,
-                      ref: ref,
-                      goal: goal,
-                      mounted: mounted,
-                    );
+                          if (mounted) {
+                            Navigator.of(context).pop();
+                            widget.onSave?.call();
+                          }
+                        } else {
+                          goal = Goal(
+                            id: const Uuid().v4(),
+                            tag: 'goal_$_selectedCategory',
+                            title: _titleController.text.trim(),
+                            targetTime: targetTimeSeconds,
+                            comparisonType: comparisonType,
+                            detectionItem: detectionItem,
+                            startDate: now,
+                            durationDays: durationDays,
+                            periodEndDate: now.add(Duration(days: durationDays)),
+                            lastModified: now,
+                          );
 
-                    if (mounted) {
-                      Navigator.of(context).pop();
-                      widget.onSave?.call();
-                    }
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Error: $e'),
-                        backgroundColor: AppColors.error,
-                      ),
-                    );
-                  }
-                } finally {
-                  if (mounted) {
-                    setState(() => _isSaving = false);
-                  }
-                }
-              },
+                          await addGoalHelper(
+                            context: context,
+                            ref: ref,
+                            goal: goal,
+                            mounted: mounted,
+                          );
+
+                          if (mounted) {
+                            Navigator.of(context).pop();
+                            widget.onSave?.call();
+                          }
+                        }
+                      } catch (e) {
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: AppColors.error,
+                            ),
+                          );
+                        }
+                      } finally {
+                        if (mounted) {
+                          setState(() => _isSaving = false);
+                        }
+                      }
+                    },
               borderRadius: BorderRadius.circular(30),
               child: Container(
                 padding: EdgeInsets.symmetric(
@@ -755,7 +769,9 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(AppColors.white),
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              AppColors.white,
+                            ),
                           ),
                         )
                       : Text(
@@ -770,6 +786,20 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
           ),
         ),
       ],
+    );
+  }
+
+  Future<void> _showPremiumUpgradeDialog() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: EdgeInsets.all(AppSpacing.lg),
+        child: const PremiumLockCard(
+          feature: PremiumFeature.multipleGoals,
+        ),
+      ),
     );
   }
 }

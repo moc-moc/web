@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
-import 'package:test_flutter/feature/leveling/level_model.dart';
 import 'package:test_flutter/feature/leveling/level_visuals.dart';
 import 'package:test_flutter/presentation/screens/event/event_screen_base.dart';
 import 'package:test_flutter/presentation/widgets/event_content_builder.dart';
@@ -17,7 +16,6 @@ class _LevelUpEventScreenState extends State<LevelUpEventScreen> {
   double _exactLevel = 0;
   double _progress = 0;
   int _personSeconds = 0;
-  LevelRankTier _rank = LevelRankTier.apprentice;
 
   @override
   void didChangeDependencies() {
@@ -29,18 +27,13 @@ class _LevelUpEventScreenState extends State<LevelUpEventScreen> {
         _exactLevel = (arguments['exactLevel'] as num?)?.toDouble() ?? _level.toDouble();
         _progress = (arguments['progress'] as num?)?.toDouble() ?? 0;
         _personSeconds = (arguments['personSeconds'] as num?)?.round() ?? 0;
-        final rankName = arguments['rank'] as String?;
-        _rank = LevelRankTier.values.firstWhere(
-          (tier) => tier.name == rankName,
-          orElse: () => LevelRankTier.apprentice,
-        );
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final style = LevelRankVisuals.resolve(_rank);
+    final style = LevelRankVisuals.resolveForLevel(_level);
     final hours = (_personSeconds / 3600).toStringAsFixed(1);
     final percent = ((_progress.clamp(0.0, 1.0)) * 100).toStringAsFixed(1);
 

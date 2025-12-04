@@ -15,6 +15,7 @@ import 'package:test_flutter/presentation/screens/setting/account_settings.dart'
 import 'package:test_flutter/presentation/screens/setting/notification_settings.dart';
 import 'package:test_flutter/presentation/screens/setting/display_settings.dart';
 import 'package:test_flutter/presentation/screens/setting/subscription.dart';
+import 'package:test_flutter/presentation/screens/setting/subscription_admin.dart';
 import 'package:test_flutter/presentation/screens/setting/contact_us.dart';
 import 'package:test_flutter/presentation/screens/setting/event_preview.dart';
 import 'package:test_flutter/presentation/screens/setting/widget_catalog_screen.dart';
@@ -62,6 +63,7 @@ class AppRoutes {
   static const String notificationSettingsNew = '/notification-settings-new';
   static const String displaySettingsNew = '/display-settings-new';
   static const String subscriptionNew = '/subscription-new';
+  static const String subscriptionAdmin = '/subscription-admin';
   static const String contactUsNew = '/contact-us-new';
   static const String eventPreviewNew = '/event-preview-new';
   static const String colorPreview = '/color-preview';
@@ -116,6 +118,7 @@ class RouteGenerator {
     // Settings Routes (New)
     AppRoutes.settingsNew: () => const SettingsScreenNew(),
     AppRoutes.subscriptionNew: () => const SubscriptionScreenNew(),
+    AppRoutes.subscriptionAdmin: () => const SubscriptionAdminScreen(),
     AppRoutes.contactUsNew: () => const ContactUsScreenNew(),
     AppRoutes.eventPreviewNew: () => const EventPreviewScreenNew(),
     AppRoutes.colorPreview: () => const ColorPreviewScreen(),

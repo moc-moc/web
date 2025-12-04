@@ -19,7 +19,8 @@ class LevelBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = LevelRankVisuals.resolve(tier);
+    // レベルに応じたスタイルを取得
+    final style = LevelRankVisuals.resolveForLevel(level);
 
     return Container(
       width: size,
@@ -34,9 +35,9 @@ class LevelBadge extends StatelessWidget {
         boxShadow: showGlow
             ? [
                 BoxShadow(
-                  color: style.badgeColor.withValues(alpha: 0.7),
-                  blurRadius: 18,
-                  spreadRadius: 2,
+                  color: style.badgeColor.withValues(alpha: 0.7 * style.glowIntensity),
+                  blurRadius: 18 * style.glowIntensity,
+                  spreadRadius: 2 * style.glowIntensity,
                 ),
               ]
             : [],
@@ -47,19 +48,24 @@ class LevelBadge extends StatelessWidget {
           color: AppColors.black.withValues(alpha: 0.35),
           shape: BoxShape.circle,
           border: Border.all(
-            color: Colors.white.withValues(alpha: 0.4),
-            width: 2,
+            color: style.badgeColor.withValues(alpha: 0.6),
+            width: style.borderWidth,
           ),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(style.icon, color: style.accentColor, size: size * 0.35),
+            Icon(
+              style.icon,
+              color: style.accentColor,
+              size: size * 0.35,
+            ),
             Text(
               level.toString(),
               style: AppTextStyles.body1.copyWith(
                 color: AppColors.white,
                 fontWeight: FontWeight.bold,
+                fontSize: size * 0.25,
               ),
             ),
           ],

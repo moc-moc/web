@@ -1,6 +1,23 @@
 <!DOCTYPE html>
 <html>
 <head>
+  <!-- 開発環境での認証チェック -->
+  <script>
+    // 開発環境でのみ認証チェックを実行
+    // 本番環境ではこのチェックを無効化する
+    const isDevelopment = true; // 本番時は false に変更してください
+    
+    if (isDevelopment) {
+      // 認証チェックページ自身の場合はスキップ
+      if (!window.location.pathname.includes('auth-check.html')) {
+        // セッションストレージの認証フラグをチェック
+        if (sessionStorage.getItem('dev_authenticated') !== 'true') {
+          // 認証されていない場合は認証ページにリダイレクト
+          window.location.href = '/auth-check.html';
+        }
+      }
+    }
+  </script>
   <!--
     If you are serving your web app in a path other than the root, change the
     href value below to reflect the base path you are serving from.
@@ -35,6 +52,10 @@
   
   <!-- ONNX Runtime Web for YOLO11 object detection -->
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  <!-- Google AdSense -->
+  <script async 
+    src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-8898871336544729"
+    crossorigin="anonymous"></script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

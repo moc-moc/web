@@ -10,6 +10,11 @@ dependencies:
   flutter:
     sdk: flutter
   
+  in_app_purchase: ^3.1.11
+  flutter_stripe: ^12.1.1
+  cloud_functions: ^6.0.3
+  universal_io: ^2.2.2
+  url_launcher: ^6.3.0
   # Firebase関連
   firebase_core: ^4.2.0
   firebase_auth: ^6.1.1
@@ -60,6 +65,7 @@ dependencies:
   http: ^1.5.0
   async_locks: ^3.1.0
   uuid: ^4.5.1
+  google_mobile_ads: ^5.1.0
 
 dev_dependencies:
   flutter_test: 

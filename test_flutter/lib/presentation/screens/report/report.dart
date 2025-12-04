@@ -18,9 +18,11 @@ import 'package:test_flutter/feature/statistics/monthly_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/yearly_statistics_data_manager.dart';
 import 'package:test_flutter/feature/statistics/yearly_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/category_data_point.dart';
-import 'package:test_flutter/presentation/widgets/level_badge.dart';
 import 'package:test_flutter/feature/leveling/level_functions.dart';
 import 'package:test_flutter/feature/leveling/level_visuals.dart';
+import 'package:test_flutter/feature/subscription/subscription_providers.dart';
+import 'package:test_flutter/presentation/widgets/entitlement_gate.dart';
+import 'package:test_flutter/presentation/widgets/level_badge.dart';
 
 /// レポート画面（新デザインシステム版）
 class ReportScreenNew extends ConsumerStatefulWidget {
@@ -42,6 +44,13 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
 
   @override
   Widget build(BuildContext context) {
+    final subscriptionStatus = ref.watch(subscriptionStatusProvider);
+    final hasExtendedReports = EntitlementRules.canUse(
+      subscriptionStatus,
+      PremiumFeature.extendedReports,
+    );
+    final isLockedView = _selectedPeriodIndex >= 2 && !hasExtendedReports;
+
     return AppScaffold(
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
@@ -56,19 +65,23 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildPeriodTabs(),
+              _buildPeriodTabs(hasExtendedReports),
               SizedBox(height: AppSpacing.md),
-              _buildDateSelector(),
-              SizedBox(height: AppSpacing.md),
-              _buildStatHighlights(),
-              if (_selectedPeriodIndex == 2) ...[
+              if (isLockedView) ...[
+                const PremiumLockCard(feature: PremiumFeature.extendedReports),
+              ] else ...[
+                _buildDateSelector(),
                 SizedBox(height: AppSpacing.md),
-                _buildLevelSummaryCard(),
+                _buildStatHighlights(),
+                if (_selectedPeriodIndex == 2) ...[
+                  SizedBox(height: AppSpacing.md),
+                  _buildLevelSummaryCard(),
+                ],
+                SizedBox(height: AppSpacing.lg),
+                _buildActivityChartCard(),
+                SizedBox(height: AppSpacing.lg),
+                _buildDistributionCard(),
               ],
-              SizedBox(height: AppSpacing.lg),
-              _buildActivityChartCard(),
-              SizedBox(height: AppSpacing.lg),
-              _buildDistributionCard(),
             ],
           ),
         ),
@@ -109,7 +122,7 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     }
   }
 
-  Widget _buildPeriodTabs() {
+  Widget _buildPeriodTabs(bool hasExtendedReports) {
     const periods = ['Day', 'Week', 'Month', 'Year'];
     return Container(
       padding: EdgeInsets.symmetric(
@@ -124,6 +137,8 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
       child: Row(
         children: List.generate(periods.length, (index) {
           final isSelected = index == _selectedPeriodIndex;
+          final isPremiumTab = index >= 2;
+          final isLocked = isPremiumTab && !hasExtendedReports;
           return Expanded(
             child: Padding(
               padding: EdgeInsets.symmetric(horizontal: AppSpacing.xs),
@@ -132,6 +147,14 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
                 child: InkWell(
                   borderRadius: BorderRadius.circular(24),
                   onTap: () {
+                    if (isLocked) {
+                      setState(() {
+                        _selectedPeriodIndex = index;
+                      });
+                      Navigator.of(context)
+                          .pushNamed(AppRoutes.subscriptionNew);
+                      return;
+                    }
                     setState(() {
                       _selectedPeriodIndex = index;
                       _selectedDate = DateTime.now();
@@ -155,17 +178,32 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
                           width: 1.5,
                         ),
                       ),
-                      child: Text(
-                        periods[index],
-                        textAlign: TextAlign.center,
-                        style: AppTextStyles.body2.copyWith(
-                          color: isSelected
-                              ? AppColors.blue
-                              : AppColors.textSecondary,
-                          fontWeight: isSelected
-                              ? FontWeight.bold
-                              : FontWeight.normal,
-                        ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            periods[index],
+                            style: AppTextStyles.body2.copyWith(
+                              color: isLocked
+                                  ? AppColors.textSecondary
+                                  : isSelected
+                                      ? AppColors.blue
+                                      : AppColors.textSecondary,
+                              fontWeight: isSelected
+                                  ? FontWeight.bold
+                                  : FontWeight.normal,
+                            ),
+                          ),
+                          if (isLocked) ...[
+                            SizedBox(width: AppSpacing.xs),
+                            const Icon(
+                              Icons.lock,
+                              size: 16,
+                              color: AppColors.textSecondary,
+                            ),
+                          ],
+                        ],
                       ),
                     ),
                   ),
@@ -271,7 +309,7 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
 
   Widget _buildLevelSummaryCard() {
     final levelState = ref.watch(levelingStateProvider);
-    final visuals = LevelRankVisuals.resolve(levelState.rank);
+    final visuals = LevelRankVisuals.resolveForLevel(levelState.level);
     final hours = (levelState.personSeconds / 3600).toStringAsFixed(1);
 
     return Container(

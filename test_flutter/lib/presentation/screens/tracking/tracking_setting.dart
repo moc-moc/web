@@ -9,6 +9,8 @@ import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.d
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
+import 'package:test_flutter/feature/tracking/tracking_limit_providers.dart';
+import 'package:test_flutter/feature/subscription/subscription_providers.dart';
 
 /// トラッキング設定画面（新デザインシステム版）
 class TrackingSettingScreenNew extends ConsumerStatefulWidget {
@@ -511,12 +513,21 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
   /// スタートボタン
   Widget _buildStartButton(BuildContext context) {
     final borderRadius = BorderRadius.circular(AppRadius.large);
+    final subscriptionStatus = ref.watch(subscriptionStatusProvider);
+    final remainingCount = ref.watch(remainingTrackingCountProvider);
+    final canStart = ref.watch(canStartTrackingProvider);
+    
     return Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: borderRadius,
         onTap: () {
-          NavigationHelper.push(context, AppRoutes.trackingNew);
+          if (!canStart) {
+            // 4回目（制限超過）の場合は課金画面に遷移
+            NavigationHelper.push(context, AppRoutes.subscriptionNew);
+          } else {
+            NavigationHelper.push(context, AppRoutes.trackingNew);
+          }
         },
         child: Container(
           padding: EdgeInsets.symmetric(
@@ -531,36 +542,66 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
               width: 1.5,
             ),
           ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          child: Stack(
             children: [
-              Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(26),
-                  gradient: const LinearGradient(
-                    colors: [
-                      AppColors.blue,
-                      AppColors.purple,
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(26),
+                      gradient: const LinearGradient(
+                        colors: [
+                          AppColors.blue,
+                          AppColors.purple,
+                        ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.play_arrow_rounded,
+                      color: AppColors.white,
+                      size: 28,
+                    ),
+                  ),
+                  SizedBox(width: AppSpacing.md),
+                  Text(
+                    'Start Tracking',
+                    style: AppTextStyles.h3.copyWith(
+                      color: AppColors.white,
+                    ),
+                  ),
+                ],
+              ),
+              // 残り回数表示（無料プランの場合のみ）
+              if (!subscriptionStatus.hasPremiumAccess && remainingCount >= 0)
+                Positioned(
+                  top: 0,
+                  right: 0,
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.xs,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: remainingCount > 0
+                          ? AppColors.blue.withValues(alpha: 0.8)
+                          : AppColors.error.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      remainingCount > 0 ? '$remainingCount' : '0',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
-                child: const Icon(
-                  Icons.play_arrow_rounded,
-                  color: AppColors.white,
-                  size: 28,
-                ),
-              ),
-              SizedBox(width: AppSpacing.md),
-              Text(
-                'Start Tracking',
-                style: AppTextStyles.h3.copyWith(
-                  color: AppColors.white,
-                ),
-              ),
             ],
           ),
         ),

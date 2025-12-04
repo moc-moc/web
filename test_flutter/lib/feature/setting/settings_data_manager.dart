@@ -190,8 +190,11 @@ class GoalMemoDataManager extends BaseDataManager<GoalMemo> {
   Future<GoalMemo?> getGoalMemoWithAuth() async {
     try {
       final userId = AuthMk.getCurrentUserId();
-      return await manager.getById(userId, 'goal_memo');
-    } catch (_) {
+      final result = await manager.getById(userId, 'goal_memo');
+      debugPrint('✅ [getGoalMemoWithAuth] 取得結果: ${result != null ? "success" : "null"}');
+      return result;
+    } catch (e) {
+      debugPrint('❌ [getGoalMemoWithAuth] エラー: $e');
       return null;
     }
   }
@@ -209,6 +212,32 @@ class GoalMemoDataManager extends BaseDataManager<GoalMemo> {
       await manager.updateLocal(memo);
     } catch (_) {
       await manager.addLocal(memo);
+    }
+  }
+  
+  /// 同期（他のデータマネージャーと統一）
+  Future<GoalMemo?> syncGoalMemoWithAuth() async {
+    try {
+      final userId = AuthMk.getCurrentUserId();
+      debugPrint('🔄 [syncGoalMemoWithAuth] 同期開始: userId=$userId');
+      
+      // getById()を使用して直接取得（単一ドキュメントなのでこれが最適）
+      final goalMemo = await manager.getById(userId, 'goal_memo');
+      
+      if (goalMemo != null) {
+        debugPrint('✅ [syncGoalMemoWithAuth] goal_memo取得成功: content="${goalMemo.content}"');
+        // ローカルにも保存
+        await saveLocalGoalMemo(goalMemo);
+        debugPrint('   - ローカル保存完了');
+      } else {
+        debugPrint('⚠️ [syncGoalMemoWithAuth] goal_memoが見つかりません（新規作成が必要かも）');
+      }
+      
+      return goalMemo;
+    } catch (e, stackTrace) {
+      debugPrint('❌ [syncGoalMemoWithAuth] エラー: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
+      return null;
     }
   }
 }

@@ -15,6 +15,8 @@ import 'package:test_flutter/feature/countdown/countdown_model.dart';
 import 'package:test_flutter/presentation/widgets/buttons.dart';
 import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
 import 'package:test_flutter/feature/leveling/level_functions.dart';
+import 'package:test_flutter/feature/subscription/subscription_providers.dart';
+import 'package:test_flutter/presentation/widgets/entitlement_gate.dart';
 
 /// 目標画面（新デザインシステム版）
 class GoalScreenNew extends ConsumerStatefulWidget {
@@ -182,6 +184,18 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
       );
     }
 
+    final subscriptionStatus = ref.watch(subscriptionStatusProvider);
+    final hasCountdownAccess = EntitlementRules.canUse(
+      subscriptionStatus,
+      PremiumFeature.countdown,
+    );
+    final hasMultiGoalAccess = EntitlementRules.canUse(
+      subscriptionStatus,
+      PremiumFeature.multipleGoals,
+    );
+    final goals = ref.watch(goalsListProvider);
+    final isGoalLimitReached = !hasMultiGoalAccess && goals.isNotEmpty;
+
     return AppScaffold(
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
@@ -198,12 +212,25 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
                   SizedBox(height: AppSpacing.md),
 
                   // カウントダウン表示
-                  _buildCountdownSection(context, ref),
+                  _buildCountdownSection(
+                    context,
+                    ref,
+                    hasCountdownAccess,
+                  ),
 
                   SizedBox(height: AppSpacing.md),
 
                   // 目標一覧
-                  _buildGoalsList(context, ref),
+                  _buildGoalsList(context, goals),
+                  if (isGoalLimitReached) ...[
+                    SizedBox(height: AppSpacing.md),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                      child: const PremiumLockCard(
+                        feature: PremiumFeature.multipleGoals,
+                      ),
+                    ),
+                  ],
 
                   SizedBox(height: AppSpacing.xxl * 2), // FABのスペース確保
                 ],
@@ -227,7 +254,11 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
                   shape: const CircleBorder(),
                   elevation: 8,
                   onPressed: () {
-                    _showAddEditDialog(context, ref);
+                    _showAddEditDialog(
+                      context,
+                      ref,
+                      hasCountdownAccess: hasCountdownAccess,
+                    );
                   },
                   child: const Icon(Icons.add, color: AppColors.white),
                 ),
@@ -336,7 +367,19 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     );
   }
 
-  Widget _buildCountdownSection(BuildContext context, WidgetRef ref) {
+  Widget _buildCountdownSection(
+    BuildContext context,
+    WidgetRef ref,
+    bool countdownUnlocked,
+  ) {
+    if (!countdownUnlocked) {
+      return Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        child: const PremiumLockCard(
+          feature: PremiumFeature.countdown,
+        ),
+      );
+    }
     final countdowns = ref.watch(countdownsListProvider);
     final levelState = ref.watch(levelingStateProvider);
     if (countdowns.isEmpty) {
@@ -408,8 +451,7 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     );
   }
 
-  Widget _buildGoalsList(BuildContext context, WidgetRef ref) {
-    final goals = ref.watch(goalsListProvider);
+  Widget _buildGoalsList(BuildContext context, List<Goal> goals) {
     // 写真のデザインに合わせて、最初の4つの目標を表示
     final displayGoals = goals.take(4).toList();
 
@@ -658,30 +700,52 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     }
   }
 
-  void _showAddEditDialog(BuildContext context, WidgetRef ref) async {
+  void _showAddEditDialog(
+    BuildContext context,
+    WidgetRef ref, {
+    required bool hasCountdownAccess,
+  }) async {
     showDialog(
       context: context,
-      builder: (context) => _AddEditSelectionDialog(
-        onCountdownAdd: () {
-          NavigationHelper.pop(context);
-          _openCountdownCreationDialog(context);
-        },
-        onCountdownEdit: () {
-          NavigationHelper.pop(context);
-          _showCountdownEditPicker(context, ref);
-        },
-        onGoalAdd: () {
-          NavigationHelper.pop(context);
-          showDialog(
-            context: context,
-            builder: (context) => const GoalSettingDialog(),
-          );
-        },
-        onGoalEdit: () {
-          NavigationHelper.pop(context);
-          _showGoalEditPicker(context, ref);
-        },
-      ),
+      builder: (dialogContext) {
+        final navigator = Navigator.of(dialogContext, rootNavigator: true);
+        void openSubscription() {
+          navigator.pop();
+          navigator.pushNamed(AppRoutes.subscriptionNew);
+        }
+
+        return _AddEditSelectionDialog(
+          countdownLocked: !hasCountdownAccess,
+          countdownEditLocked: !hasCountdownAccess,
+          onCountdownAdd: () {
+            if (!hasCountdownAccess) {
+              openSubscription();
+              return;
+            }
+            navigator.pop();
+            _openCountdownCreationDialog(context);
+          },
+          onCountdownEdit: () {
+            if (!hasCountdownAccess) {
+              openSubscription();
+              return;
+            }
+            navigator.pop();
+            _showCountdownEditPicker(context, ref);
+          },
+          onGoalAdd: () {
+            navigator.pop();
+            showDialog(
+              context: context,
+              builder: (context) => const GoalSettingDialog(),
+            );
+          },
+          onGoalEdit: () {
+            navigator.pop();
+            _showGoalEditPicker(context, ref);
+          },
+        );
+      },
     );
   }
 
@@ -796,12 +860,16 @@ class _AddEditSelectionDialog extends StatelessWidget {
   final VoidCallback onCountdownEdit;
   final VoidCallback onGoalAdd;
   final VoidCallback onGoalEdit;
+  final bool countdownLocked;
+  final bool countdownEditLocked;
 
   const _AddEditSelectionDialog({
     required this.onCountdownAdd,
     required this.onCountdownEdit,
     required this.onGoalAdd,
     required this.onGoalEdit,
+    this.countdownLocked = false,
+    this.countdownEditLocked = false,
   });
 
   @override
@@ -828,6 +896,7 @@ class _AddEditSelectionDialog extends StatelessWidget {
               label: 'Add Countdown',
               iconColor: AppColors.blue,
               onTap: onCountdownAdd,
+              isLocked: countdownLocked,
             ),
             SizedBox(height: AppSpacing.md),
             _buildOptionButton(
@@ -836,6 +905,7 @@ class _AddEditSelectionDialog extends StatelessWidget {
               label: 'Edit Countdown',
               iconColor: AppColors.purple,
               onTap: onCountdownEdit,
+              isLocked: countdownEditLocked,
             ),
             SizedBox(height: AppSpacing.md),
             _buildOptionButton(
@@ -897,6 +967,7 @@ class _AddEditSelectionDialog extends StatelessWidget {
     required String label,
     required Color iconColor,
     required VoidCallback onTap,
+    bool isLocked = false,
   }) {
     return Material(
       color: Colors.transparent,
@@ -906,10 +977,14 @@ class _AddEditSelectionDialog extends StatelessWidget {
         child: Container(
           padding: EdgeInsets.all(AppSpacing.md),
           decoration: BoxDecoration(
-            color: AppColors.lightblackgray,
+            color: isLocked
+                ? AppColors.lightblackgray.withValues(alpha: 0.5)
+                : AppColors.lightblackgray,
             borderRadius: BorderRadius.circular(30),
             border: Border.all(
-              color: AppColors.gray.withValues(alpha: 0.3),
+              color: isLocked
+                  ? AppColors.gray.withValues(alpha: 0.2)
+                  : AppColors.gray.withValues(alpha: 0.3),
               width: 1,
             ),
           ),
@@ -917,7 +992,7 @@ class _AddEditSelectionDialog extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                color: iconColor,
+                color: isLocked ? AppColors.textSecondary : iconColor,
                 size: 24,
               ),
               SizedBox(width: AppSpacing.md),
@@ -925,12 +1000,14 @@ class _AddEditSelectionDialog extends StatelessWidget {
                 child: Text(
                   label,
                   style: AppTextStyles.body1.copyWith(
-                    color: AppColors.white,
+                    color: isLocked
+                        ? AppColors.textSecondary
+                        : AppColors.white,
                   ),
                 ),
               ),
               Icon(
-                Icons.chevron_right,
+                isLocked ? Icons.lock : Icons.chevron_right,
                 color: AppColors.textSecondary,
                 size: 20,
               ),

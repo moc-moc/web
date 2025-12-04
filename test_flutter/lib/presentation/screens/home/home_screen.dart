@@ -19,6 +19,8 @@ import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
 import 'package:test_flutter/feature/leveling/level_functions.dart';
 import 'package:test_flutter/feature/leveling/level_reset_service.dart';
 import 'package:test_flutter/presentation/widgets/level_progress_card.dart';
+import 'package:test_flutter/feature/tracking/tracking_limit_providers.dart';
+import 'package:test_flutter/feature/subscription/subscription_providers.dart';
 
 /// ホーム画面（新デザインシステム版）
 class HomeScreenNew extends ConsumerStatefulWidget {
@@ -721,6 +723,10 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   /// スタートボタン
   Widget _buildStartButton(BuildContext context) {
     final borderRadius = BorderRadius.circular(AppRadius.large);
+    final subscriptionStatus = ref.watch(subscriptionStatusProvider);
+    final remainingCount = ref.watch(remainingTrackingCountProvider);
+    final canStart = ref.watch(canStartTrackingProvider);
+    
     return Padding(
       padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Material(
@@ -728,7 +734,12 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         child: InkWell(
           borderRadius: borderRadius,
           onTap: () {
-            NavigationHelper.push(context, AppRoutes.trackingNew);
+            if (!canStart) {
+              // 4回目（制限超過）の場合は課金画面に遷移
+              NavigationHelper.push(context, AppRoutes.subscriptionNew);
+            } else {
+              NavigationHelper.push(context, AppRoutes.trackingNew);
+            }
           },
           child: Container(
             decoration: BoxDecoration(
@@ -743,36 +754,66 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
               horizontal: AppSpacing.lg,
               vertical: AppSpacing.md,
             ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
+            child: Stack(
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(26),
-                    gradient: const LinearGradient(
-                      colors: [
-                        AppColors.blue,
-                        AppColors.purple,
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(26),
+                        gradient: const LinearGradient(
+                          colors: [
+                            AppColors.blue,
+                            AppColors.purple,
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: AppColors.white,
+                        size: 28,
+                      ),
+                    ),
+                    SizedBox(width: AppSpacing.md),
+                    Text(
+                      'Start Tracking',
+                      style: AppTextStyles.h3.copyWith(
+                        color: AppColors.white,
+                      ),
+                    ),
+                  ],
+                ),
+                // 残り回数表示（無料プランの場合のみ）
+                if (!subscriptionStatus.hasPremiumAccess && remainingCount >= 0)
+                  Positioned(
+                    top: 0,
+                    right: 0,
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.xs,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: remainingCount > 0
+                            ? AppColors.blue.withValues(alpha: 0.8)
+                            : AppColors.error.withValues(alpha: 0.8),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        remainingCount > 0 ? '$remainingCount' : '0',
+                        style: AppTextStyles.caption.copyWith(
+                          color: AppColors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
-                  child: const Icon(
-                    Icons.play_arrow_rounded,
-                    color: AppColors.white,
-                    size: 28,
-                  ),
-                ),
-                SizedBox(width: AppSpacing.md),
-                Text(
-                  'Start Tracking',
-                  style: AppTextStyles.h3.copyWith(
-                    color: AppColors.white,
-                  ),
-                ),
               ],
             ),
           ),
@@ -950,7 +991,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         controller: controller,
         currentMemo: currentMemo,
         ref: ref,
-        onSave: (success) {
+        onSave: (success) async {
           // 保存完了後にメッセージを表示
           if (mounted) {
             scaffoldMessenger.showSnackBar(
@@ -959,6 +1000,10 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
                 backgroundColor: success ? AppColors.success : AppColors.error,
               ),
             );
+          }
+          // 保存成功時は再読み込みして最新データを取得
+          if (success && mounted) {
+            await _loadGoalMemo();
           }
         },
       ),

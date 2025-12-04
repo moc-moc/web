@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>開発中 - 認証が必要です</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      padding: 20px;
+    }
+    
+    .container {
+      background: white;
+      padding: 2.5rem;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      text-align: center;
+      max-width: 420px;
+      width: 100%;
+      animation: fadeIn 0.5s ease-in;
+    }
+    
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .lock-icon {
+      font-size: 4rem;
+      margin-bottom: 1rem;
+    }
+    
+    h2 {
+      color: #333;
+      margin-bottom: 0.5rem;
+      font-size: 1.8rem;
+    }
+    
+    p {
+      color: #666;
+      margin-bottom: 2rem;
+      line-height: 1.6;
+    }
+    
+    input {
+      width: 100%;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 16px;
+      transition: all 0.3s ease;
+      outline: none;
+    }
+    
+    input:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+    
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+    }
+    
+    button:active {
+      transform: translateY(0);
+    }
+    
+    .error {
+      color: #e74c3c;
+      margin-top: 16px;
+      padding: 12px;
+      background: #ffeaa7;
+      border-radius: 8px;
+      display: none;
+      animation: shake 0.5s ease;
+    }
+    
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-10px); }
+      75% { transform: translateX(10px); }
+    }
+    
+    .error.show {
+      display: block;
+    }
+    
+    .footer {
+      margin-top: 2rem;
+      color: #999;
+      font-size: 0.85rem;
+    }
+    
+    @media (max-width: 480px) {
+      .container {
+        padding: 2rem;
+      }
+      
+      h2 {
+        font-size: 1.5rem;
+      }
+      
+      .lock-icon {
+        font-size: 3rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="lock-icon">🔒</div>
+    <h2>開発中</h2>
+    <p>このアプリは現在開発中です。<br>アクセスするにはパスワードが必要です。</p>
+    <input 
+      type="password" 
+      id="password" 
+      placeholder="パスワードを入力してください" 
+      autocomplete="off"
+      autofocus
+    >
+    <button onclick="checkPassword()">アクセス</button>
+    <div class="error" id="error">
+      ❌ パスワードが正しくありません
+    </div>
+    <div class="footer">
+      開発者向けプレビュー
+    </div>
+  </div>
+  
+  <script>
+    // 開発用パスワード
+    // 本番環境では環境変数やCloud Functionsから取得することを推奨
+    // このパスワードを変更してください
+    const DEV_PASSWORD = 'dev2024';
+    
+    function checkPassword() {
+      const input = document.getElementById('password');
+      const error = document.getElementById('error');
+      const button = document.querySelector('button');
+      
+      // ボタンを無効化（連打防止）
+      button.disabled = true;
+      button.textContent = '確認中...';
+      
+      setTimeout(() => {
+        if (input.value === DEV_PASSWORD) {
+          // 成功時の処理
+          error.classList.remove('show');
+          button.style.background = 'linear-gradient(135deg, #2ecc71 0%, #27ae60 100%)';
+          button.textContent = '✓ 認証成功';
+          
+          // セッションストレージに認証済みフラグを保存
+          sessionStorage.setItem('dev_authenticated', 'true');
+          
+          // メインアプリにリダイレクト
+          setTimeout(() => {
+            window.location.href = '/';
+          }, 500);
+        } else {
+          // エラー時の処理
+          error.classList.add('show');
+          input.value = '';
+          input.focus();
+          button.disabled = false;
+          button.textContent = 'アクセス';
+        }
+      }, 300);
+    }
+    
+    // Enterキーで送信
+    document.getElementById('password').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') {
+        checkPassword();
+      }
+    });
+    
+    // 既に認証済みの場合はメインアプリにリダイレクト
+    if (sessionStorage.getItem('dev_authenticated') === 'true') {
+      window.location.href = '/';
+    }
+  </script>
+</body>
+</html>
+

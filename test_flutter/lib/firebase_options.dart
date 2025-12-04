@@ -30,7 +30,7 @@ class DefaultFirebaseOptions {
     appId: '1:451402739791:web:20142f01659f02b9f0fa3a',
     messagingSenderId: '451402739791',
     projectId: 'test-flutter-4b625',
-    authDomain: 'test-flutter-4b625.firebaseapp.com',
+    authDomain: 'www.locomort.com',
     storageBucket: 'test-flutter-4b625.firebasestorage.app',
   );
 
@@ -68,6 +68,6 @@ class DefaultFirebaseOptions {
     messagingSenderId: '451402739791',
     projectId: 'test-flutter-4b625',
     storageBucket: 'test-flutter-4b625.firebasestorage.app',
-    authDomain: 'test-flutter-4b625.firebaseapp.com',
+    authDomain: 'www.locomort.com',
   );
 }

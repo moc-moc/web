@@ -12,11 +12,11 @@ class LevelingDataManager extends BaseDataManager<LevelingState> {
 
   @override
   LevelingState convertFromFirestore(Map<String, dynamic> data) {
-    final timestampToDate = (dynamic value) {
+    DateTime timestampToDate(dynamic value) {
       if (value is Timestamp) return value.toDate();
       if (value is DateTime) return value;
       return DateTime.now();
-    };
+    }
 
     return LevelingState(
       id: data['id'] as String? ?? _docId,

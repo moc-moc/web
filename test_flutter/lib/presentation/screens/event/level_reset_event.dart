@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:test_flutter/core/theme.dart';
-import 'package:test_flutter/feature/leveling/level_model.dart';
 import 'package:test_flutter/feature/leveling/level_visuals.dart';
 import 'package:test_flutter/presentation/screens/event/event_screen_base.dart';
 import 'package:test_flutter/presentation/widgets/event_content_builder.dart';
@@ -15,7 +14,6 @@ class LevelResetEventScreen extends StatefulWidget {
 class _LevelResetEventScreenState extends State<LevelResetEventScreen> {
   int _previousLevel = 0;
   int _personSeconds = 0;
-  LevelRankTier _rank = LevelRankTier.apprentice;
   String _periodId = '';
 
   @override
@@ -27,18 +25,13 @@ class _LevelResetEventScreenState extends State<LevelResetEventScreen> {
         _previousLevel = (arguments['previousLevel'] as num?)?.round() ?? 0;
         _personSeconds = (arguments['personSeconds'] as num?)?.round() ?? 0;
         _periodId = arguments['periodId'] as String? ?? '';
-        final rankName = arguments['rank'] as String?;
-        _rank = LevelRankTier.values.firstWhere(
-          (tier) => tier.name == rankName,
-          orElse: () => LevelRankTier.apprentice,
-        );
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final style = LevelRankVisuals.resolve(_rank);
+    final style = LevelRankVisuals.resolveForLevel(_previousLevel);
     final hours = (_personSeconds / 3600).toStringAsFixed(1);
 
     return EventScreenBase(

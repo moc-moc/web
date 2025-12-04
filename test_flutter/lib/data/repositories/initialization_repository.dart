@@ -570,8 +570,6 @@ class AppInitUN {
       debugPrint('🔄 [initialize] 開始');
       if (user == null) {
         debugPrint('❌ [initialize] ユーザーがログインしていません');
-        _isInitializing = false;
-        _initializingUserId = null;
         throw Exception('ユーザーがログインしていません。先にログインしてください。');
       }
       debugPrint('✅ [initialize] ユーザー取得完了: ${user.uid}');
@@ -636,9 +634,10 @@ class AppInitUN {
     } catch (e, stackTrace) {
       debugPrint('❌ [initialize] アプリ初期化エラー: $e');
       debugPrint('   - スタックトレース: $stackTrace');
+      rethrow;
+    } finally {
       _isInitializing = false;
       _initializingUserId = null;
-      rethrow;
     }
   }
 }

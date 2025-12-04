@@ -223,14 +223,23 @@ class _FriendScreenNewState extends State<FriendScreenNew> {
             ),
           ),
           const Spacer(),
-          IconButton(
-            icon: const Icon(
-              Icons.emoji_events,
-              color: AppColors.white,
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: AppColors.gray.withValues(alpha: 0.4),
+                width: 1,
+              ),
             ),
-            onPressed: () {
-              Navigator.pushNamed(context, AppRoutes.friendLeaderboard);
-            },
+            child: IconButton(
+              icon: const Icon(
+                Icons.emoji_events,
+                color: AppColors.white,
+              ),
+              onPressed: () {
+                Navigator.pushNamed(context, AppRoutes.friendLeaderboard);
+              },
+            ),
           ),
           SizedBox(width: AppSpacing.sm),
           // 右上のボタン（フレンドリスト画面へ遷移）

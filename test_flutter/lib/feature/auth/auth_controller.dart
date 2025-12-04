@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart' show FirebaseException;
 import 'package:flutter/foundation.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/data/models/app_user.dart';
@@ -133,10 +132,11 @@ class AuthController extends Notifier<AuthState> {
       if (previousUserId != null && previousUserId != user.uid) {
         await AuthServiceUN.clearLocalDataForUser(previousUserId);
       }
+      // Firestoreにユーザードキュメントを作成（メール認証前でも作成可能に変更）
       await AuthServiceUN.persistSessionForUser(
         user,
         providerId: 'password',
-        persistRemoteData: false,
+        persistRemoteData: true,
       );
 
       await authService.sendVerificationEmail();

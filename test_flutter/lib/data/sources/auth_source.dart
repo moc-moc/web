@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/data/services/error_handler.dart';
 
@@ -13,7 +14,7 @@ class AuthMk {
   /// 
   /// プラットフォームに応じた認証方式を自動選択：
   /// - Web: Redirect方式（Popupより安定）
-  /// - モバイル: google_sign_inパッケージ使用（未実装）
+  /// - モバイル: google_sign_inパッケージ使用
   /// 
   /// 成功時はFirebase Userを返す
   static Future<User?> signInWithGoogle() async {
@@ -25,8 +26,7 @@ class AuthMk {
       if (kIsWeb) {
         return await _signInWithGoogleWeb(provider);
       } else {
-        debugPrint('❌ [AuthMk] モバイル版のGoogle認証は未実装です');
-        return null;
+        return await _signInWithGoogleMobile();
       }
     } catch (e, stackTrace) {
       debugPrint('💥 [AuthMk] signInWithGoogle()で予期しないエラー: $e');
@@ -95,6 +95,65 @@ class AuthMk {
       // その他のエラー
       debugPrint('❌ [AuthMk] Web認証エラー（FirebaseAuthException以外）');
       debugPrint('   - エラーメッセージ: $errorMessage');
+      return null;
+    }
+  }
+
+  /// モバイル(iOS/Android)のGoogle認証
+  ///
+  /// google_sign_in経由でGoogleアカウントを取得し、FirebaseAuthに連携する
+  static Future<User?> _signInWithGoogleMobile() async {
+    try {
+      final googleSignIn = GoogleSignIn.instance;
+      await googleSignIn.initialize();
+
+      // 連続サインイン時に常にアカウント選択を出すため一度サインアウト
+      await googleSignIn.signOut();
+
+      GoogleSignInAccount? googleUser;
+      if (googleSignIn.supportsAuthenticate()) {
+        googleUser = await googleSignIn.authenticate(scopeHint: const ['email']);
+      } else {
+        final futureAccount = googleSignIn.attemptLightweightAuthentication(
+          reportAllExceptions: true,
+        );
+        if (futureAccount == null) {
+          debugPrint('⚠️ [AuthMk] このプラットフォームではGoogle認証UIを表示できません');
+          return null;
+        }
+        googleUser = await futureAccount;
+      }
+
+      if (googleUser == null) {
+        debugPrint('⚠️ [AuthMk] Google認証がユーザー操作でキャンセルされました');
+        return null;
+      }
+
+      final googleAuth = googleUser.authentication;
+      if (googleAuth.idToken == null) {
+        debugPrint('❌ [AuthMk] Google認証トークンの取得に失敗しました');
+        return null;
+      }
+      final credential = GoogleAuthProvider.credential(
+        idToken: googleAuth.idToken,
+      );
+
+      final result = await FirebaseAuth.instance.signInWithCredential(credential);
+      if (result.user != null) {
+        debugPrint('✅ [AuthMk] Google認証成功(iOS/Android): ${result.user!.email}');
+      }
+      return result.user;
+    } on FirebaseAuthException catch (e, stackTrace) {
+      debugPrint('❌ [AuthMk] FirebaseAuthException(モバイル) code=${e.code}, message=${e.message}');
+      debugPrint('   - スタックトレース: $stackTrace');
+      return null;
+    } on GoogleSignInException catch (e, stackTrace) {
+      debugPrint('❌ [AuthMk] GoogleSignInException(モバイル) code=${e.code}, message=${e.description}');
+      debugPrint('   - スタックトレース: $stackTrace');
+      return null;
+    } on Exception catch (e, stackTrace) {
+      debugPrint('💥 [AuthMk] Googleサインイン失敗: $e');
+      debugPrint('   - スタックトレース: $stackTrace');
       return null;
     }
   }

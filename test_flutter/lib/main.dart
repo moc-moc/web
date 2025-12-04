@@ -4,6 +4,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:hooks_riverpod/hooks_riverpod.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'core/route.dart';
 import 'core/route_generator.dart';
 import 'package:test_flutter/data/repositories/initialization_repository.dart';
@@ -23,6 +24,10 @@ void main() async {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
+
+    if (!kIsWeb) {
+      await MobileAds.instance.initialize();
+    }
 
     final container = ProviderContainer();
     AppInitUN.setGlobalContainer(container);

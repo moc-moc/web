@@ -1,6 +1,12 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 認証済みユーザー（メール認証なし）
+    function isAuthenticatedUser(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // メール認証済みユーザー
     function isVerifiedUser(userId) {
       return request.auth != null &&
           request.auth.uid == userId &&
@@ -8,51 +14,53 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read, write: if isVerifiedUser(userId);
+      // 認証済みユーザーは自分のドキュメントを読み書き可能
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/goals/{goalId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      // 認証済みユーザーは自分の目標を読み書き可能
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/countdowns/{countdownId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/tracking_sessions/{sessionId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/daily_statistics/{docId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/weekly_statistics/{docId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/monthly_statistics/{docId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/yearly_statistics/{docId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/total/{docId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/streak/{docId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/leveling/{docId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      allow read, write: if isAuthenticatedUser(userId);
     }
 
     match /users/{userId}/settings/{settingId} {
-      allow read, write, delete: if isVerifiedUser(userId);
+      allow read, write: if isAuthenticatedUser(userId);
     }
   }
 }

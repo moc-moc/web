@@ -26,6 +26,9 @@ import 'package:test_flutter/feature/statistics/session_info_model.dart';
 import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
 import 'package:test_flutter/feature/leveling/level_functions.dart';
 import 'package:test_flutter/presentation/widgets/level_progress_card.dart';
+import 'package:test_flutter/feature/subscription/subscription_providers.dart';
+import 'package:test_flutter/presentation/widgets/entitlement_gate.dart';
+import 'package:test_flutter/feature/tracking/tracking_limit_providers.dart';
 
 enum _TrackingSetupStatus {
   loading,
@@ -95,8 +98,29 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   @override
   void initState() {
     super.initState();
+    _checkTrackingLimit();
     _loadTrackingSettings();
     _startAutoSaveTimer();
+  }
+
+  /// トラッキング制限をチェック
+  void _checkTrackingLimit() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final subscriptionStatus = ref.read(subscriptionStatusProvider);
+      // プレミアムユーザーは制限なし
+      if (subscriptionStatus.hasPremiumAccess) {
+        return;
+      }
+      // Providerを無効化して再読み込み
+      ref.invalidate(dailyTrackingCountProvider);
+      final canStart = ref.read(canStartTrackingProvider);
+      if (!canStart) {
+        // 制限超過の場合は課金画面に遷移
+        Navigator.of(context).pop();
+        NavigationHelper.push(context, AppRoutes.subscriptionNew);
+      }
+    });
   }
 
   /// トラッキング設定を読み込む
@@ -700,9 +724,23 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   }
 
   void _ensureSessionTimingStarted() {
+    final wasNotStarted = _sessionStartTime == null;
     _sessionStartTime ??= DateTime.now();
     if (_timer == null) {
       _startTimer();
+    }
+    // セッション開始時に回数をカウント（初回のみ）
+    if (wasNotStarted) {
+      final subscriptionStatus = ref.read(subscriptionStatusProvider);
+      // 無料プランの場合のみカウント
+      if (!subscriptionStatus.hasPremiumAccess) {
+        DailyTrackingCountHelper.increment().then((_) {
+          if (mounted) {
+            // Providerを無効化して再読み込み
+            ref.invalidate(dailyTrackingCountProvider);
+          }
+        });
+      }
     }
   }
   
@@ -1116,6 +1154,12 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   }
 
   Widget _buildCameraArea() {
+    final subscriptionStatus = ref.watch(subscriptionStatusProvider);
+    final powerSavingUnlocked = EntitlementRules.canUse(
+      subscriptionStatus,
+      PremiumFeature.powerSavingMode,
+    );
+
     return Container(
       height: 280,
       decoration: BoxDecoration(
@@ -1253,7 +1297,12 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
                   icon: Icons.battery_saver,
                   isActive: _isPowerSavingMode,
                   isPowerSaving: true,
+                  isLocked: !powerSavingUnlocked,
                   onTap: () async {
+                    if (!powerSavingUnlocked) {
+                      Navigator.of(context).pushNamed(AppRoutes.subscriptionNew);
+                      return;
+                    }
                     setState(() {
                       _isPowerSavingMode = !_isPowerSavingMode;
                     });
@@ -1326,6 +1375,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     required bool isActive,
     required VoidCallback onTap,
     bool isPowerSaving = false,
+    bool isLocked = false,
   }) {
     final activeColor = isPowerSaving ? AppColors.green : AppColors.blue;
     
@@ -1334,26 +1384,49 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(AppRadius.small),
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: isActive
-                ? activeColor.withValues(alpha: 0.2)
-                : AppColors.backgroundCard.withValues(alpha: 0.8),
-            borderRadius: BorderRadius.circular(AppRadius.small),
-            border: Border.all(
-              color: isActive
-                  ? activeColor
-                  : AppColors.textSecondary.withValues(alpha: 0.3),
-              width: 1,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: isLocked
+                    ? AppColors.backgroundCard.withValues(alpha: 0.5)
+                    : isActive
+                        ? activeColor.withValues(alpha: 0.2)
+                        : AppColors.backgroundCard.withValues(alpha: 0.8),
+                borderRadius: BorderRadius.circular(AppRadius.small),
+                border: Border.all(
+                  color: isLocked
+                      ? AppColors.textSecondary.withValues(alpha: 0.3)
+                      : isActive
+                          ? activeColor
+                          : AppColors.textSecondary.withValues(alpha: 0.3),
+                  width: 1,
+                ),
+              ),
+              child: Icon(
+                icon,
+                color: isLocked
+                    ? AppColors.textSecondary
+                    : isActive
+                        ? activeColor
+                        : AppColors.textSecondary,
+                size: 20,
+              ),
             ),
-          ),
-          child: Icon(
-            icon,
-            color: isActive ? activeColor : AppColors.textSecondary,
-            size: 20,
-          ),
+            if (isLocked)
+              const Positioned(
+                right: 4,
+                top: 4,
+                child: Icon(
+                  Icons.lock,
+                  size: 12,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+          ],
         ),
       ),
     );

@@ -233,7 +233,7 @@ class _AccountSettingsScreenNewState
 
   Widget _buildLevelOverview() {
     final levelState = ref.watch(levelingStateProvider);
-    final visuals = LevelRankVisuals.resolve(levelState.rank);
+    final visuals = LevelRankVisuals.resolveForLevel(levelState.level);
     final hours = (levelState.personSeconds / 3600).toStringAsFixed(1);
 
     return Container(
@@ -277,7 +277,7 @@ class _AccountSettingsScreenNewState
                 ),
               ],
             ),
-          ),
+            ),
         ],
       ),
     );

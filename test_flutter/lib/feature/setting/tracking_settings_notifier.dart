@@ -118,15 +118,24 @@ Future<bool> saveTrackingSettingsHelper(dynamic ref, TrackingSettings settings) 
     final userId = AuthMk.getCurrentUserId();
     final trackingNotifier = ref.read(trackingSettingsProvider.notifier);
     
+    debugPrint('🔄 [saveTrackingSettingsHelper] 設定を保存します: userId=$userId');
+    debugPrint('   - smartphoneAlertEnabled: ${settings.smartphoneAlertEnabled}');
+    debugPrint('   - smartphoneAlertMinutes: ${settings.smartphoneAlertMinutes}');
+    debugPrint('   - isCameraOn: ${settings.isCameraOn}');
+    debugPrint('   - isPowerSavingMode: ${settings.isPowerSavingMode}');
+    
     // 最終更新日時を更新
     final updatedSettings = settings.copyWith(lastModified: DateTime.now());
     
-    // データマネージャーで保存
+    // データマネージャーで保存（Firestoreに保存）
     final success = await trackingSettingsManager.saveWithRetry(userId, updatedSettings);
     
     if (success) {
       // Notifierを使用してProviderを更新
       trackingNotifier.updateSettings(updatedSettings);
+      debugPrint('✅ [saveTrackingSettingsHelper] Firestoreへの保存に成功しました');
+    } else {
+      debugPrint('⚠️ [saveTrackingSettingsHelper] Firestoreへの保存に失敗しました（リトライキューに追加済み）');
     }
     
     return success;

@@ -13,6 +13,7 @@ import 'package:test_flutter/feature/total/total_functions.dart';
 import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
 import 'package:test_flutter/feature/statistics/statistics_functions.dart';
 import 'package:test_flutter/feature/leveling/level_functions.dart';
+import 'package:test_flutter/feature/setting/goal_memo_notifier.dart';
 
 /// アプリ全体で1回だけ呼び出すグローバル初期化関数
 class AppInitUN {
@@ -188,6 +189,21 @@ class AppInitUN {
               debugPrint('❌ [loadCriticalData] レベルエラー: $e');
               debugPrint('   - スタックトレース: $stackTrace');
               return {'レベル': false};
+            }),
+        _syncGoalMemoData(container)
+            .timeout(timeoutDuration, onTimeout: () {
+              debugPrint('⏱️ [loadCriticalData] 目標メモタイムアウト（20秒）');
+              throw TimeoutException('目標メモ同期がタイムアウトしました', timeoutDuration);
+            })
+            .then((_) {
+              debugPrint('✅ [loadCriticalData] 目標メモ完了');
+              return {'目標メモ': true};
+            })
+            .catchError((e, stackTrace) {
+              errors['目標メモ'] = e.toString();
+              debugPrint('❌ [loadCriticalData] 目標メモエラー: $e');
+              debugPrint('   - スタックトレース: $stackTrace');
+              return {'目標メモ': false};
             }),
       ];
 
@@ -462,6 +478,9 @@ class AppInitUN {
   }
 
   /// ストリークデータを差分同期
+  /// 
+  /// アプリ起動時はFirestoreから情報を取得するだけ（更新はしない）
+  /// streak daysの更新はトラッキング終了時のみ実行される
   static Future<void> _syncStreakData() async {
     debugPrint('🔄 [_syncStreakData] 開始');
     final container = getGlobalContainer();
@@ -469,7 +488,9 @@ class AppInitUN {
       debugPrint('❌ [_syncStreakData] Container is null');
       throw Exception('Container is null');
     }
+    // Firestoreから情報を取得してProviderに反映（更新はしない）
     await syncStreakDataHelper(container);
+    
     debugPrint('✅ [_syncStreakData] 完了');
   }
 
@@ -515,6 +536,13 @@ class AppInitUN {
     debugPrint('🔄 [_syncLevelData] 開始');
     await loadLevelingStateHelper(container);
     debugPrint('✅ [_syncLevelData] 完了');
+  }
+
+  /// 目標メモデータを読み込み
+  static Future<void> _syncGoalMemoData(ProviderContainer container) async {
+    debugPrint('🔄 [_syncGoalMemoData] 開始');
+    await loadGoalMemoWithBackgroundRefreshHelper(container);
+    debugPrint('✅ [_syncGoalMemoData] 完了');
   }
 
   /// 統計データを差分同期

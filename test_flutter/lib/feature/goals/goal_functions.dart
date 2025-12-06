@@ -84,7 +84,7 @@ Future<List<Goal>> loadGoalsHelper(dynamic ref) async {
   );
 
   // リセットチェックを実行（内部でローカルデータも更新される）
-  await manager.resetTodayAchievedTimeIfNeeded(goals);
+  await manager.resetTodayAchievedTimeIfNeeded(goals, ref: ref);
 
   // リセット後のローカルデータを取得してProviderを更新
   // （Firestoreへの更新は非同期で実行されるため、ローカルデータを使用）
@@ -121,7 +121,7 @@ Future<List<Goal>> loadGoalsWithBackgroundRefreshHelper(dynamic ref) async {
   );
 
   // リセットチェックを実行（バックグラウンドで実行）
-  manager.resetTodayAchievedTimeIfNeeded(goals).then((_) {
+  manager.resetTodayAchievedTimeIfNeeded(goals, ref: ref).then((_) {
     // リセット後のローカルデータを取得してProviderを更新
     // （Firestoreへの更新は非同期で実行されるため、ローカルデータを使用）
     manager.getLocalGoals().then((updatedGoals) {
@@ -151,7 +151,7 @@ Future<List<Goal>> syncGoalsHelper(dynamic ref) async {
   );
 
   // リセットチェックを実行（内部でローカルデータも更新される）
-  await manager.resetTodayAchievedTimeIfNeeded(goals);
+  await manager.resetTodayAchievedTimeIfNeeded(goals, ref: ref);
 
   // リセット後のローカルデータを取得してProviderを更新
   // （Firestoreへの更新は非同期で実行されるため、ローカルデータを使用）

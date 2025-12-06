@@ -92,6 +92,9 @@ _TrackingSettings _$TrackingSettingsFromJson(Map<String, dynamic> json) =>
       selectedStudyGoalId: json['selectedStudyGoalId'] as String?,
       selectedPcGoalId: json['selectedPcGoalId'] as String?,
       selectedSmartphoneGoalId: json['selectedSmartphoneGoalId'] as String?,
+      smartphoneAlertEnabled: json['smartphoneAlertEnabled'] as bool,
+      smartphoneAlertMinutes: (json['smartphoneAlertMinutes'] as num).toInt(),
+      smartphoneAlertSeconds: (json['smartphoneAlertSeconds'] as num).toInt(),
       lastModified: DateTime.parse(json['lastModified'] as String),
     );
 
@@ -103,6 +106,9 @@ Map<String, dynamic> _$TrackingSettingsToJson(_TrackingSettings instance) =>
       'selectedStudyGoalId': instance.selectedStudyGoalId,
       'selectedPcGoalId': instance.selectedPcGoalId,
       'selectedSmartphoneGoalId': instance.selectedSmartphoneGoalId,
+      'smartphoneAlertEnabled': instance.smartphoneAlertEnabled,
+      'smartphoneAlertMinutes': instance.smartphoneAlertMinutes,
+      'smartphoneAlertSeconds': instance.smartphoneAlertSeconds,
       'lastModified': instance.lastModified.toIso8601String(),
     };
 

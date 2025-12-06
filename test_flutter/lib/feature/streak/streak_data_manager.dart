@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:test_flutter/data/repositories/base/base_data_manager.dart';
 import 'package:test_flutter/feature/streak/streak_model.dart';
+import 'package:test_flutter/data/sources/date_utils.dart';
 
 /// 連続継続日数用データマネージャー
 /// 
@@ -127,6 +128,72 @@ class StreakDataManager extends BaseDataManager<StreakData> {
     );
   }
 
+  /// アプリ起動時にstreak daysを更新（最後のトラッキングから1日以上空いているかチェック）
+  /// 
+  /// **処理フロー**:
+  /// 1. ローカルから現在のStreakDataを取得
+  /// 2. データが存在しない場合は何もしない（初回トラッキング待ち）
+  /// 3. 最後のトラッキング日から1日以上空いているかチェック
+  /// 4. 1日以上空いていたらリセット（currentStreak=0）
+  /// 5. 新しいStreakDataを作成してローカルに保存
+  /// 6. ログイン済みならFirestoreにも保存
+  /// 
+  /// **戻り値**: 更新された場合true、そうでない場合false
+  Future<bool> checkAndUpdateStreakOnAppLaunch() async {
+    try {
+      // 1. ローカルから現在のStreakDataを取得
+      StreakData? currentData = await getLocalStreakData();
+      
+      if (currentData == null) {
+        // データが存在しない場合は何もしない（初回トラッキング待ち）
+        return false;
+      }
+      
+      final now = DateTime.now();
+      final lastTrackedDate = currentData.lastTrackedDate;
+      
+      // 2. 最後のトラッキング日から1日以上空いているかチェック
+      final daysSinceLastTrack = now.difference(lastTrackedDate).inDays;
+      
+      if (daysSinceLastTrack < 1) {
+        // 1日未満の場合は更新不要
+        return false;
+      }
+      
+      // 3. 1日以上空いていたらリセット（currentStreak=0）
+      final updatedData = currentData.copyWith(
+        currentStreak: 0,
+        lastModified: now,
+      );
+      
+      // 4. ローカルに保存
+      await updateLocalStreakData(updatedData);
+      debugPrint('✅ [checkAndUpdateStreakOnAppLaunch] ストリークリセット: currentStreak=0 (${daysSinceLastTrack}日空いていました)');
+      
+      // 5. Firestoreへの保存（awaitして確実に実行）
+      final currentUser = FirebaseAuth.instance.currentUser;
+      if (currentUser != null) {
+        final userId = currentUser.uid;
+        try {
+          debugPrint('🔄 [checkAndUpdateStreakOnAppLaunch] Firestore保存開始');
+          final success = await manager.saveWithRetry(userId, updatedData);
+          if (success) {
+            debugPrint('✅ [checkAndUpdateStreakOnAppLaunch] Firestore保存成功');
+          } else {
+            debugPrint('⚠️ [checkAndUpdateStreakOnAppLaunch] Firestore保存失敗（リトライキューに追加済み）');
+          }
+        } catch (e) {
+          debugPrint('❌ [checkAndUpdateStreakOnAppLaunch] Firestore保存エラー: $e');
+        }
+      }
+      
+      return true;
+    } catch (e) {
+      debugPrint('❌ [checkAndUpdateStreakOnAppLaunch] エラー: $e');
+      return false;
+    }
+  }
+
   /// トラッキング完了時の記録
   /// 
   /// **処理フロー**:
@@ -139,8 +206,11 @@ class StreakDataManager extends BaseDataManager<StreakData> {
   /// 7. 新しいStreakDataを作成してローカルに保存
   /// 8. ログイン済みならFirestoreにも保存
   /// 
+  /// **パラメータ**:
+  /// - `ref`: WidgetRef（Provider操作用、日付判定に使用、オプション）
+  /// 
   /// **戻り値**: {'success': bool, 'message': String, 'streak': int}
-  Future<Map<String, dynamic>> trackFinished() async {
+  Future<Map<String, dynamic>> trackFinished({dynamic ref}) async {
     try {
       // 1. ローカルから現在のStreakDataを取得
       StreakData? currentData = await getLocalStreakData();
@@ -191,7 +261,9 @@ class StreakDataManager extends BaseDataManager<StreakData> {
       
       // 日付比較結果をキャッシュ（同じ日付の比較を避ける）
       final lastTrackedDate = currentData.lastTrackedDate;
-      final isSameDayResult = _isSameDay(lastTrackedDate, now);
+      final isSameDayResult = ref != null
+          ? DateUtils.isSameDay(ref, lastTrackedDate, now)
+          : _isSameDay(lastTrackedDate, now);
       
       // 3. 同じ日かチェック
       if (isSameDayResult) {
@@ -231,7 +303,9 @@ class StreakDataManager extends BaseDataManager<StreakData> {
       int newStreak;
       
       // 4. 前日なら連続日数+1（日付比較結果を再利用）
-      final isYesterdayResult = _isYesterday(lastTrackedDate, now);
+      final isYesterdayResult = ref != null
+          ? DateUtils.isYesterday(ref, lastTrackedDate)
+          : _isYesterday(lastTrackedDate, now);
       if (isYesterdayResult) {
         newStreak = currentData.currentStreak + 1;
       } else {

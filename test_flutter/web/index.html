@@ -50,6 +50,13 @@
   <title>test_flutter</title>
   <link rel="manifest" href="manifest.json">
   
+  <!-- 
+    flutter_secure_storage_web の要件:
+    - HTTPS環境またはlocalhost環境でのみ動作します
+    - WebCrypto APIがサポートされているブラウザが必要です
+    - それ以外の環境では、OperationErrorが発生する可能性があります
+  -->
+  
   <!-- ONNX Runtime Web for YOLO11 object detection -->
   <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
   <!-- Google AdSense -->

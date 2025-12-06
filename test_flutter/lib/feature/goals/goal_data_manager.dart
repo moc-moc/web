@@ -5,6 +5,7 @@ import 'package:test_flutter/data/repositories/base/base_data_manager.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/setting/settings_data_manager.dart';
 import 'package:test_flutter/data/models/settings_models.dart';
+import 'package:test_flutter/data/sources/date_utils.dart';
 
 /// 目標用データマネージャー
 /// 
@@ -241,7 +242,11 @@ class GoalDataManager extends BaseDataManager<Goal> {
   /// 
   /// TimeSettings.dayBoundaryTimeに基づいて、リセット時刻を過ぎていたら
   /// todayAchievedTimeを0にリセットします。
-  Future<void> resetTodayAchievedTimeIfNeeded(List<Goal> goals) async {
+  /// 
+  /// **パラメータ**:
+  /// - `goals`: リセット対象の目標リスト
+  /// - `ref`: WidgetRef（Provider操作用、日付判定に使用）
+  Future<void> resetTodayAchievedTimeIfNeeded(List<Goal> goals, {dynamic ref}) async {
     try {
       // TimeSettingsを取得
       final timeSettingsManager = TimeSettingsDataManager();
@@ -264,13 +269,18 @@ class GoalDataManager extends BaseDataManager<Goal> {
       final now = DateTime.now();
       final goalsToReset = <Goal>[];
       
+      // DateUtilsを使用する場合（refが提供されている場合）
+      final useDateUtils = ref != null;
+      
       for (final goal in goals) {
-        final shouldReset = _shouldResetTodayAchievedTime(
-          goal.lastResetDate,
-          now,
-          resetHour,
-          resetMinute,
-        );
+        final shouldReset = useDateUtils
+            ? DateUtils.needsReset(ref, goal.lastResetDate)
+            : _shouldResetTodayAchievedTime(
+                goal.lastResetDate,
+                now,
+                resetHour,
+                resetMinute,
+              );
         
         if (shouldReset) {
           final updatedGoal = goal.copyWith(

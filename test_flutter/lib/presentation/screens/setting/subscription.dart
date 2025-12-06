@@ -89,24 +89,41 @@ class _SubscriptionScreenNewState
               // 現在のステータス
               _buildCurrentStatusCard(subscriptionStatus, effectivePlans),
 
-              // プラン選択
-              if (remotePlansAsync.isLoading && remotePlans.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(AppSpacing.lg),
-                    child: const CircularProgressIndicator(color: AppColors.blue),
+              // プラン選択（フォールバックプランを即座に表示、リモートプランはバックグラウンドで読み込み）
+              Stack(
+                children: [
+                  _buildPlanSelection(
+                    subscriptionStatus,
+                    effectivePlans,
+                    currencyCode,
+                    highlightedPlan,
+                    isProcessing,
+                    purchaseManager,
+                    stripeManager,
                   ),
-                )
-              else
-                _buildPlanSelection(
-                  subscriptionStatus,
-                  effectivePlans,
-                  currencyCode,
-                  highlightedPlan,
-                  isProcessing,
-                  purchaseManager,
-                  stripeManager,
-                ),
+                  // リモートプラン読み込み中のインジケーター（小さく表示）
+                  if (remotePlansAsync.isLoading && remotePlans.isEmpty)
+                    Positioned(
+                      top: 0,
+                      right: 0,
+                      child: Container(
+                        padding: EdgeInsets.all(AppSpacing.xs),
+                        decoration: BoxDecoration(
+                          color: AppColors.blackgray.withValues(alpha: 0.9),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            color: AppColors.blue,
+                            strokeWidth: 2,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
 
               _buildManagementSection(
                 isProcessing || _isManagingPlan,

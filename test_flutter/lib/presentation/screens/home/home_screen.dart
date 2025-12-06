@@ -21,6 +21,7 @@ import 'package:test_flutter/feature/leveling/level_reset_service.dart';
 import 'package:test_flutter/presentation/widgets/level_progress_card.dart';
 import 'package:test_flutter/feature/tracking/tracking_limit_providers.dart';
 import 'package:test_flutter/feature/subscription/subscription_providers.dart';
+import 'package:test_flutter/data/services/tracking_count_debug_service.dart';
 
 /// ホーム画面（新デザインシステム版）
 class HomeScreenNew extends ConsumerStatefulWidget {
@@ -44,6 +45,10 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   @override
   void initState() {
     super.initState();
+    
+    // 一度だけリトライキューをクリア（古い不正なデータを削除）
+    TrackingCountDebugService.clearRetryQueue();
+    
     // 初期状態をチェック（最初のフレーム後）
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && !_hasInitialized) {
@@ -795,22 +800,36 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
                     right: 0,
                     child: Container(
                       padding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xs,
-                        vertical: 2,
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
                       ),
                       decoration: BoxDecoration(
                         color: remainingCount > 0
                             ? AppColors.blue.withValues(alpha: 0.8)
                             : AppColors.error.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(AppRadius.large),
                       ),
-                      child: Text(
-                        remainingCount > 0 ? '$remainingCount' : '0',
-                        style: AppTextStyles.caption.copyWith(
-                          color: AppColors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '残り回数',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          SizedBox(width: AppSpacing.xs),
+                          Text(
+                            remainingCount > 0 ? '$remainingCount' : '0',
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),

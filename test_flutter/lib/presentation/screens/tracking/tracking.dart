@@ -20,15 +20,19 @@ import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/setting/settings_functions.dart';
 import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
-import 'package:test_flutter/feature/statistics/daily_statistics_data_manager.dart';
-import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
-import 'package:test_flutter/feature/statistics/session_info_model.dart';
 import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
 import 'package:test_flutter/feature/leveling/level_functions.dart';
 import 'package:test_flutter/presentation/widgets/level_progress_card.dart';
 import 'package:test_flutter/feature/subscription/subscription_providers.dart';
 import 'package:test_flutter/presentation/widgets/entitlement_gate.dart';
 import 'package:test_flutter/feature/tracking/tracking_limit_providers.dart';
+import 'package:test_flutter/data/sources/date_utils.dart' as DateUtilsHelper;
+import 'package:test_flutter/presentation/widgets/dialogs.dart';
+import 'package:test_flutter/data/services/audio_service.dart';
+import 'package:test_flutter/presentation/widgets/toggles_chips.dart';
+import 'package:test_flutter/presentation/widgets/buttons.dart';
+import 'package:test_flutter/data/models/settings_models.dart';
+import 'package:test_flutter/data/services/tracking_count_debug_service.dart';
 
 enum _TrackingSetupStatus {
   loading,
@@ -80,7 +84,6 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   // セッション管理
   DateTime? _sessionStartTime;
   final List<DetectionPeriod> _detectionPeriods = [];
-  final DailyStatisticsDataManager _dailyStatsManager = DailyStatisticsDataManager();
   final TrackingSessionDataManager _trackingSessionManager = TrackingSessionDataManager();
   
   // 最後の検出結果の信頼度（セッション終了時に使用）
@@ -88,6 +91,18 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
 
   // 停止処理中フラグ
   bool _isStopping = false;
+
+  // スマホアラート関連
+  Timer? _alertCheckTimer;
+  final AudioService _audioService = AudioService();
+  
+  // 連続検出時間管理（30秒以内の途切れは連続とみなす）
+  static const int _smartphoneGapToleranceSeconds = 30; // 許容範囲（秒）
+  int _continuousSmartphoneSeconds = 0; // 連続検出時間（秒）
+  DateTime? _lastSmartphoneDetectionTime; // 最後にスマホが検出された時刻
+  DateTime? _smartphoneGapStartTime; // スマホ検出が途切れた開始時刻（nullの場合は検出中）
+  bool _isAlertShowing = false; // アラートダイアログが表示中かどうか
+  BuildContext? _alertDialogContext; // アラートダイアログのコンテキスト（自動閉じるため）
 
   // カテゴリのテーマカラー
   static const Color _studyColor = AppColors.green; // 緑
@@ -134,6 +149,9 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         _isCameraOn = settings.isCameraOn;
         _isPowerSavingMode = settings.isPowerSavingMode;
       });
+
+      // アラート監視を開始
+      _startAlertMonitoring(settings);
 
       CameraPerformanceConfig.configure(
         lowResolutionPreview: _isPowerSavingMode,
@@ -193,6 +211,8 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         _timer = null;
         _autoSaveTimer?.cancel();
         _autoSaveTimer = null;
+        _alertCheckTimer?.cancel();
+        _alertCheckTimer = null;
         LogMk.logDebug(
           '✅ タイマーを停止しました',
           tag: 'TrackingScreen._forceStopCamera',
@@ -501,6 +521,42 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     // 現在の期間の終了時刻を更新（検出結果が来るたびに）
     _updateCurrentPeriodEndTime(now, categoryString, result.confidence);
 
+    // スマホ検出時の連続検出時間管理
+    if (categoryString == 'smartphone') {
+      // スマホが検出された
+      if (_smartphoneGapStartTime != null) {
+        // 検出が途切れていた場合
+        final gapDuration = now.difference(_smartphoneGapStartTime!);
+        if (gapDuration.inSeconds <= _smartphoneGapToleranceSeconds) {
+          // 30秒以内の途切れなら連続として扱う（連続検出時間は維持）
+          LogMk.logDebug(
+            'スマホ検出再開（${gapDuration.inSeconds}秒の途切れ、連続として扱う、連続検出時間: ${_continuousSmartphoneSeconds}秒）',
+            tag: 'TrackingScreen._handleDetectionResult',
+          );
+          // 注意: アラート表示はタイマー処理で行う（次回のタイマー処理でチェックされる）
+        } else {
+          // 30秒超の途切れなら連続検出時間をリセット
+          LogMk.logDebug(
+            'スマホ検出再開（${gapDuration.inSeconds}秒の途切れ、連続検出時間をリセット）',
+            tag: 'TrackingScreen._handleDetectionResult',
+          );
+          _continuousSmartphoneSeconds = 0;
+        }
+        _smartphoneGapStartTime = null; // 検出中に戻す
+      }
+      _lastSmartphoneDetectionTime = now;
+    } else {
+      // スマホ以外が検出された
+      if (_lastSmartphoneDetectionTime != null && _smartphoneGapStartTime == null) {
+        // 前回スマホが検出されていた場合、途切れ開始時刻を記録
+        _smartphoneGapStartTime = now;
+        LogMk.logDebug(
+          'スマホ検出が途切れました',
+          tag: 'TrackingScreen._handleDetectionResult',
+        );
+      }
+    }
+
     // UI更新
     setState(() {
       _currentDetection = categoryString;
@@ -589,6 +645,494 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     }
   }
 
+  /// アラート監視を開始
+  void _startAlertMonitoring(TrackingSettings settings) {
+    if (!settings.smartphoneAlertEnabled) {
+      LogMk.logDebug('アラートが無効化されているため、監視を開始しません', tag: 'TrackingScreen._startAlertMonitoring');
+      return;
+    }
+
+    _alertCheckTimer?.cancel();
+    _continuousSmartphoneSeconds = 0;
+    _isAlertShowing = false;
+
+    final totalSeconds = settings.smartphoneAlertMinutes * 60 + settings.smartphoneAlertSeconds;
+    LogMk.logDebug(
+      'アラート監視を開始: ${settings.smartphoneAlertMinutes}分${settings.smartphoneAlertSeconds}秒（合計${totalSeconds}秒、連続検出時間ベース）',
+      tag: 'TrackingScreen._startAlertMonitoring',
+    );
+
+    _alertCheckTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        _alertCheckTimer = null;
+        return;
+      }
+
+      final currentSettings = ref.read(trackingSettingsProvider);
+      if (!currentSettings.smartphoneAlertEnabled) {
+        timer.cancel();
+        _alertCheckTimer = null;
+        LogMk.logDebug('アラートが無効化されたため、監視を停止しました', tag: 'TrackingScreen._startAlertMonitoring');
+        return;
+      }
+
+      final now = DateTime.now();
+      final alertMinutes = currentSettings.smartphoneAlertMinutes;
+      final alertSeconds = currentSettings.smartphoneAlertMinutes * 60 + currentSettings.smartphoneAlertSeconds;
+      
+      // 連続検出時間の更新
+      final timeSinceLastDetection = _lastSmartphoneDetectionTime != null
+          ? now.difference(_lastSmartphoneDetectionTime!).inSeconds
+          : 999;
+      
+      // 現在スマホが検出されているかどうか
+      final isCurrentlyDetectingSmartphone = _currentDetection == 'smartphone';
+      
+      // 検出が途切れているかどうかを判定
+      // 1. _smartphoneGapStartTimeが設定されている（検出が途切れている）
+      // 2. _lastSmartphoneDetectionTimeが設定されていて、現在の検出がスマホでない
+      // 3. _lastSmartphoneDetectionTimeが設定されていて、最後の検出から時間が経過している（検出結果が来ていない）
+      final isDetectionGapped = _smartphoneGapStartTime != null || 
+                                 (_lastSmartphoneDetectionTime != null && 
+                                  !isCurrentlyDetectingSmartphone &&
+                                  timeSinceLastDetection > 1); // 1秒以上経過していれば検出が途切れている
+
+      // アラート表示中に検出が途切れたら、すぐにアラートを解除
+      bool wasDismissed = false;
+      if (_isAlertShowing && isDetectionGapped) {
+        LogMk.logDebug(
+          'アラート表示中にスマホ検出が途切れました（現在の検出: $_currentDetection, gapStartTime: $_smartphoneGapStartTime, timeSinceLastDetection: ${timeSinceLastDetection}秒）。アラートを解除します。',
+          tag: 'TrackingScreen._startAlertMonitoring',
+        );
+        _dismissAlertIfNeeded();
+        wasDismissed = true;
+      }
+
+      // 最後の検出から30秒以内：連続として扱う
+      if (timeSinceLastDetection <= _smartphoneGapToleranceSeconds) {
+        // 現在検出中の場合のみ連続検出時間を増やす
+        if (_lastSmartphoneDetectionTime != null && isCurrentlyDetectingSmartphone) {
+          _continuousSmartphoneSeconds++;
+          
+          // デバッグログ（10秒ごと）
+          if (_continuousSmartphoneSeconds % 10 == 0 && _continuousSmartphoneSeconds > 0) {
+            LogMk.logDebug(
+              '連続検出時間: ${_continuousSmartphoneSeconds}秒 / ${alertSeconds}秒 (${(_continuousSmartphoneSeconds / alertSeconds * 100).toStringAsFixed(1)}%)',
+              tag: 'TrackingScreen._startAlertMonitoring',
+            );
+          }
+          
+          // アラート表示条件をチェック
+          // アラート解除後、30秒以内に再検出された場合も含む
+          // wasDismissedがtrueの場合でも、30秒以内に再検出されていればアラートを再表示
+          if (_continuousSmartphoneSeconds >= alertSeconds && !_isAlertShowing) {
+            LogMk.logDebug(
+              'アラート条件を満たしました: ${_continuousSmartphoneSeconds}秒 >= ${alertSeconds}秒（wasDismissed: $wasDismissed）',
+              tag: 'TrackingScreen._startAlertMonitoring',
+            );
+            // 非同期実行前に再度チェック（_dismissAlertIfNeededが実行された可能性があるため）
+            if (!_isAlertShowing) {
+              _showSmartphoneAlert(alertMinutes);
+            }
+          }
+        }
+      } else {
+        // 30秒以上経過：アラート表示中なら自動で閉じる（連続検出時間は維持）
+        if (_isAlertShowing) {
+          LogMk.logDebug(
+            'スマホ検出が途切れました（${timeSinceLastDetection}秒経過、現在の検出: $_currentDetection）。アラートを解除します。',
+            tag: 'TrackingScreen._startAlertMonitoring',
+          );
+          _dismissAlertIfNeeded();
+        }
+        
+        // 連続検出時間をリセットする条件：
+        // 1. アラートが表示されていない
+        // 2. 連続検出時間が0より大きい
+        // 3. _smartphoneGapStartTimeが設定されている（検出が途切れている状態）
+        //    （_smartphoneGapStartTimeがnullの場合は、「連続として扱う」と判断された状態なのでリセットしない）
+        if (!_isAlertShowing && 
+            _continuousSmartphoneSeconds > 0 && 
+            _smartphoneGapStartTime != null) {
+          LogMk.logDebug(
+            '連続検出時間をリセット（${timeSinceLastDetection}秒経過、アラート未表示、gapStartTime: $_smartphoneGapStartTime）',
+            tag: 'TrackingScreen._startAlertMonitoring',
+          );
+          _continuousSmartphoneSeconds = 0;
+        } else if (!_isAlertShowing && 
+                   _continuousSmartphoneSeconds > 0 && 
+                   _smartphoneGapStartTime == null) {
+          // 「連続として扱う」と判断された状態なので、リセットしない
+          LogMk.logDebug(
+            '連続検出時間を維持（${timeSinceLastDetection}秒経過、gapStartTime: null、連続として扱う）',
+            tag: 'TrackingScreen._startAlertMonitoring',
+          );
+        }
+      }
+    });
+  }
+
+  /// スマホアラートを表示
+  Future<void> _showSmartphoneAlert(int alertMinutes) async {
+    if (!mounted) return;
+
+    // 現在の設定から秒数を取得
+    final currentSettings = ref.read(trackingSettingsProvider);
+    final alertSeconds = currentSettings.smartphoneAlertSeconds;
+    final totalSeconds = alertMinutes * 60 + alertSeconds;
+    
+    // 表示用の時間文字列を生成
+    String timeDisplay;
+    if (alertMinutes > 0 && alertSeconds > 0) {
+      timeDisplay = '${alertMinutes}分${alertSeconds}秒';
+    } else if (alertMinutes > 0) {
+      timeDisplay = '${alertMinutes}分';
+    } else if (alertSeconds > 0) {
+      timeDisplay = '${alertSeconds}秒';
+    } else {
+      timeDisplay = '${totalSeconds}秒';
+    }
+
+    LogMk.logDebug(
+      'スマホアラートを表示します: $timeDisplay（合計${totalSeconds}秒）',
+      tag: 'TrackingScreen._showSmartphoneAlert',
+    );
+
+    // 音声アラートをループ再生
+    try {
+      await _audioService.playAlertSoundLoop();
+      LogMk.logDebug('音声アラートをループ再生しました', tag: 'TrackingScreen._showSmartphoneAlert');
+    } catch (e) {
+      LogMk.logError(
+        '音声アラートの再生エラー: $e',
+        tag: 'TrackingScreen._showSmartphoneAlert',
+        error: e,
+      );
+    }
+
+    // ダイアログを表示
+    if (!mounted) return;
+    
+    // 既にアラートが表示されている場合はスキップ
+    if (_isAlertShowing) {
+      LogMk.logDebug(
+        'アラートは既に表示中のため、スキップします',
+        tag: 'TrackingScreen._showSmartphoneAlert',
+      );
+      return;
+    }
+    
+    try {
+      _isAlertShowing = true;
+      LogMk.logDebug(
+        'アラートダイアログを表示しました（_isAlertShowing: true）',
+        tag: 'TrackingScreen._showSmartphoneAlert',
+      );
+      
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        // バリアを透明にして、カメラプレビューが見えるようにする
+        // これにより、ブラウザがカメラストリームを継続して処理し続ける
+        barrierColor: Colors.black.withValues(alpha: 0.3),
+        builder: (dialogContext) {
+          // ダイアログコンテキストを保存（自動閉じるため）
+          _alertDialogContext = dialogContext;
+          return BlinkingAlertDialog(
+            message: 'スマホを$timeDisplay以上使用しています。\n休憩を取ることをお勧めします。',
+            onDismiss: () {
+              // ユーザーが手動で閉じた場合のみここが呼ばれる
+              // (_dismissAlertIfNeededで自動で閉じた場合は、既に状態がリセットされている)
+              if (_isAlertShowing) {
+                _isAlertShowing = false;
+                _alertDialogContext = null;
+                LogMk.logDebug(
+                  'アラートダイアログをユーザーが手動で閉じました',
+                  tag: 'TrackingScreen._showSmartphoneAlert',
+                );
+              }
+            },
+          );
+        },
+      );
+      
+      // await完了後の処理は削除（状態はonDismissまたは_dismissAlertIfNeededで管理される）
+      LogMk.logDebug(
+        'showDialog完了（状態: _isAlertShowing=$_isAlertShowing）',
+        tag: 'TrackingScreen._showSmartphoneAlert',
+      );
+    } catch (e) {
+      LogMk.logError(
+        'アラートダイアログの表示エラー: $e',
+        tag: 'TrackingScreen._showSmartphoneAlert',
+        error: e,
+      );
+      _isAlertShowing = false;
+      _alertDialogContext = null;
+    }
+  }
+
+  /// アラート表示中にスマホが検出されなくなった場合に自動で閉じる
+  /// 
+  /// 注意: 連続検出時間はリセットしない（30秒以内に再検出された場合は
+  /// 連続として扱い、設定時間を超えていたらすぐにアラートを再表示するため）
+  void _dismissAlertIfNeeded() {
+    if (!_isAlertShowing || _alertDialogContext == null) {
+      LogMk.logDebug(
+        'アラート解除をスキップ（_isAlertShowing: $_isAlertShowing, _alertDialogContext: $_alertDialogContext）',
+        tag: 'TrackingScreen._dismissAlertIfNeeded',
+      );
+      return;
+    }
+
+    try {
+      LogMk.logDebug(
+        'スマホ検出が途切れたため、アラートを自動で閉じます（連続検出時間は維持: ${_continuousSmartphoneSeconds}秒）',
+        tag: 'TrackingScreen._dismissAlertIfNeeded',
+      );
+      
+      // 状態を先にリセット（Navigator.pop()の前に、重複実行を防ぐ）
+      final dialogContext = _alertDialogContext;
+      _isAlertShowing = false;
+      _alertDialogContext = null;
+      
+      // ダイアログを閉じる
+      if (dialogContext != null && Navigator.canPop(dialogContext)) {
+        Navigator.of(dialogContext).pop();
+      }
+      
+      // 音声アラートも停止
+      _audioService.stop();
+      
+      LogMk.logDebug(
+        'アラートを自動で閉じました（連続検出時間: ${_continuousSmartphoneSeconds}秒）',
+        tag: 'TrackingScreen._dismissAlertIfNeeded',
+      );
+    } catch (e) {
+      LogMk.logError(
+        'アラート自動閉じ処理エラー: $e',
+        tag: 'TrackingScreen._dismissAlertIfNeeded',
+        error: e,
+      );
+      // エラーが発生しても状態はリセット（連続検出時間は維持）
+      _isAlertShowing = false;
+      _alertDialogContext = null;
+    }
+  }
+
+  /// スマホアラート設定ダイアログを表示
+  Future<void> _showSmartphoneAlertSettingsDialog() async {
+    if (!mounted) return;
+
+    final currentSettings = ref.read(trackingSettingsProvider);
+    bool alertEnabled = currentSettings.smartphoneAlertEnabled;
+    int alertMinutes = currentSettings.smartphoneAlertMinutes;
+    int alertSeconds = currentSettings.smartphoneAlertSeconds;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AppDialogBase(
+          title: 'スマホ使用時間アラート設定',
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'アラートを有効にする',
+                    style: AppTextStyles.body1,
+                  ),
+                  AppToggleSwitch(
+                    value: alertEnabled,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        alertEnabled = value;
+                      });
+                    },
+                    activeColor: AppColors.orange,
+                  ),
+                ],
+              ),
+              if (alertEnabled) ...[
+                SizedBox(height: AppSpacing.md),
+                Text(
+                  'アラート時間',
+                  style: AppTextStyles.body2.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                SizedBox(height: AppSpacing.sm),
+                // 分の設定
+                Text(
+                  '分',
+                  style: AppTextStyles.body2.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Slider(
+                        value: alertMinutes.toDouble(),
+                        min: 0,
+                        max: 60,
+                        divisions: 60,
+                        label: '$alertMinutes分',
+                        activeColor: AppColors.orange,
+                        inactiveColor: AppColors.gray.withValues(alpha: 0.3),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            alertMinutes = value.round();
+                          });
+                        },
+                      ),
+                    ),
+                    SizedBox(width: AppSpacing.md),
+                    Container(
+                      width: 60,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.xs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.orange.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(AppRadius.medium),
+                      ),
+                      child: Text(
+                        '${alertMinutes}分',
+                        style: AppTextStyles.body2.copyWith(
+                          color: AppColors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: AppSpacing.md),
+                // 秒の設定
+                Text(
+                  '秒',
+                  style: AppTextStyles.body2.copyWith(
+                    color: AppColors.textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                SizedBox(height: AppSpacing.xs),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Slider(
+                        value: alertSeconds.toDouble(),
+                        min: 0,
+                        max: 59,
+                        divisions: 59,
+                        label: '$alertSeconds秒',
+                        activeColor: AppColors.orange,
+                        inactiveColor: AppColors.gray.withValues(alpha: 0.3),
+                        onChanged: (value) {
+                          setDialogState(() {
+                            alertSeconds = value.round();
+                          });
+                        },
+                      ),
+                    ),
+                    SizedBox(width: AppSpacing.md),
+                    Container(
+                      width: 60,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                        vertical: AppSpacing.xs,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppColors.orange.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(AppRadius.medium),
+                      ),
+                      child: Text(
+                        '${alertSeconds}秒',
+                        style: AppTextStyles.body2.copyWith(
+                          color: AppColors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(height: AppSpacing.sm),
+                // 合計時間の表示
+                Container(
+                  padding: EdgeInsets.all(AppSpacing.sm),
+                  decoration: BoxDecoration(
+                    color: AppColors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(AppRadius.medium),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '合計: ',
+                        style: AppTextStyles.body2.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      Text(
+                        alertMinutes > 0 || alertSeconds > 0
+                            ? '${alertMinutes * 60 + alertSeconds}秒'
+                            : '0秒',
+                        style: AppTextStyles.body2.copyWith(
+                          color: AppColors.orange,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+          actions: [
+            SecondaryButton(
+              text: 'キャンセル',
+              onPressed: () {
+                Navigator.of(dialogContext).pop();
+              },
+              size: ButtonSize.small,
+              borderRadius: 30,
+            ),
+            SizedBox(width: AppSpacing.sm),
+            PrimaryButton(
+              text: '保存',
+              onPressed: () async {
+                final updatedSettings = currentSettings.copyWith(
+                  smartphoneAlertEnabled: alertEnabled,
+                  smartphoneAlertMinutes: alertMinutes,
+                  smartphoneAlertSeconds: alertSeconds,
+                );
+                await saveTrackingSettingsHelper(ref, updatedSettings);
+                
+                // アラート監視を再開
+                _startAlertMonitoring(updatedSettings);
+                
+                if (mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              },
+              size: ButtonSize.small,
+              borderRadius: 30,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _startTimer() {
     if (_timer != null) {
       return;
@@ -623,74 +1167,10 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     if (_sessionStartTime == null) return;
     
     try {
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      
-      // セッション開始時の選択目標IDを取得
-      final settings = ref.read(trackingSettingsProvider);
-      final selectedGoalIds = {
-        'study': settings.selectedStudyGoalId,
-        'pc': settings.selectedPcGoalId,
-        'smartphone': settings.selectedSmartphoneGoalId,
-      };
-      
-      // 現在のセッション情報をSessionInfoに変換
-      final sessionInfo = SessionInfo(
-        id: '${_sessionStartTime!.millisecondsSinceEpoch}',
-        startTime: _sessionStartTime!,
-        endTime: now,
-        categorySeconds: {
-          'study': _studySeconds,
-          'pc': _pcSeconds,
-          'smartphone': _smartphoneSeconds,
-          'personOnly': _personOnlySeconds,
-        },
-        detectionPeriods: List<DetectionPeriod>.from(_detectionPeriods),
-        selectedGoalIds: selectedGoalIds,
-        lastModified: now,
-      );
-      
-      // 今日の日次統計を取得または作成（getByDateWithAuthを使用）
-      final existingDailyStats = await _dailyStatsManager.getByDateWithAuth(today);
-      
-      DailyStatistics dailyStatsToSave;
-      if (existingDailyStats != null) {
-        // 既存のセッションリストを更新（同じIDのセッションがあれば置き換え、なければ追加）
-        final updatedSessions = List<SessionInfo>.from(existingDailyStats.sessions);
-        final existingIndex = updatedSessions.indexWhere((s) => s.id == sessionInfo.id);
-        if (existingIndex >= 0) {
-          updatedSessions[existingIndex] = sessionInfo;
-        } else {
-          updatedSessions.add(sessionInfo);
-        }
-        
-        // 日次統計を更新（sessionsのみ更新、categorySeconds等はsaveOrUpdateWithAuth内で計算）
-        dailyStatsToSave = existingDailyStats.copyWith(
-          sessions: updatedSessions,
-          lastModified: now,
-        );
-      } else {
-        // 新規作成
-        final year = today.year.toString();
-        final month = today.month.toString().padLeft(2, '0');
-        final day = today.day.toString().padLeft(2, '0');
-        final id = '$year-$month-$day';
-        
-        dailyStatsToSave = DailyStatistics(
-          id: id,
-          date: today,
-          categorySeconds: {},
-          totalWorkTimeSeconds: 0,
-          sessions: [sessionInfo],
-          lastModified: now,
-        );
-      }
-      
-      // 保存（saveOrUpdateWithAuth内でupdateFromSessionsが呼ばれる）
-      await _dailyStatsManager.saveOrUpdateWithAuth(dailyStatsToSave);
-      
+      // セッション情報は削除されたため、途中保存は行わない
+      // 統計データはトラッキング終了時にStatisticsAggregationServiceで集計される
       LogMk.logDebug(
-        '✅ セッション途中保存完了: ${sessionInfo.id}',
+        'ℹ️ セッション途中保存はスキップ（統計データはトラッキング終了時に集計）',
         tag: 'TrackingScreen._saveSessionProgress',
       );
     } catch (e, stackTrace) {
@@ -731,14 +1211,36 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     }
     // セッション開始時に回数をカウント（初回のみ）
     if (wasNotStarted) {
+      // トラッキング開始時にカテゴリ別の秒数をリセット
+      _studySeconds = 0;
+      _pcSeconds = 0;
+      _smartphoneSeconds = 0;
+      _personOnlySeconds = 0;
+      
+      // 連続検出時間関連の変数をリセット
+      _continuousSmartphoneSeconds = 0;
+      _lastSmartphoneDetectionTime = null;
+      _smartphoneGapStartTime = null;
+      _isAlertShowing = false;
+      _alertDialogContext = null;
+      
       final subscriptionStatus = ref.read(subscriptionStatusProvider);
       // 無料プランの場合のみカウント
       if (!subscriptionStatus.hasPremiumAccess) {
-        DailyTrackingCountHelper.increment().then((_) {
+        LogMk.logDebug('トラッキング回数をインクリメントします', tag: 'TrackingScreen._startTracking');
+        
+        DailyTrackingCountHelper.increment(ref).then((newCount) async {
+          LogMk.logDebug('トラッキング回数をインクリメントしました: $newCount', tag: 'TrackingScreen._startTracking');
+          
+          // デバッグ: Firestore保存状態を確認
+          await TrackingCountDebugService.checkTrackingCountStatus();
+          
           if (mounted) {
             // Providerを無効化して再読み込み
             ref.invalidate(dailyTrackingCountProvider);
           }
+        }).catchError((e, stackTrace) {
+          LogMk.logError('トラッキング回数のインクリメントエラー', tag: 'TrackingScreen._startTracking', error: e, stackTrace: stackTrace);
         });
       }
     }
@@ -798,8 +1300,8 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       // 最後のカテゴリの期間を確定して時間を加算
       _finalizeCurrentPeriod(sessionEndTime);
 
-      // SessionInfoを作成してDailyStatisticsに保存
-      SessionInfo? sessionInfo;
+      // TrackingSessionを作成
+      TrackingSession? trackingSession;
       if (_sessionStartTime != null) {
         // デバッグ: カテゴリ別時間をログに出力
         LogMk.logDebug(
@@ -833,26 +1335,9 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
           'smartphone': settings.selectedSmartphoneGoalId,
         };
         
-        // SessionInfoを作成
+        // TrackingSessionを作成
         final sessionId = '${_sessionStartTime!.millisecondsSinceEpoch}';
-        final createdSessionInfo = SessionInfo(
-          id: sessionId,
-          startTime: _sessionStartTime!,
-          endTime: sessionEndTime,
-          categorySeconds: {
-            'study': _studySeconds,
-            'pc': _pcSeconds,
-            'smartphone': _smartphoneSeconds,
-            'personOnly': _personOnlySeconds,
-          },
-          detectionPeriods: List<DetectionPeriod>.from(_detectionPeriods),
-          selectedGoalIds: selectedGoalIds,
-          lastModified: DateTime.now(),
-        );
-        sessionInfo = createdSessionInfo;
-
-        // TrackingSessionも作成（ログ出力用）
-        final trackingSession = TrackingSession(
+        trackingSession = TrackingSession(
           id: sessionId,
           startTime: _sessionStartTime!,
           endTime: sessionEndTime,
@@ -872,26 +1357,21 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
           tag: 'TrackingScreen._handleStop',
         );
 
-        // トラッキングセッションをローカル/Firestoreに保存し、Providerを更新
+        // トラッキングセッションをローカルのみに保存（Firestoreには保存しない）
+        // 統計データはdaily statisticsに集計済みのため、tracking sessionsはFirestoreに保存しない
         try {
           final sessionSaveStopwatch = Stopwatch()..start();
-          final saveSuccess = await _trackingSessionManager.addSessionWithAuth(
-            trackingSession,
-            awaitRemote: false,
-          );
+          // ローカルのみに保存（Firestore保存はスキップ）
+          final allSessions = await _trackingSessionManager.getLocalAll();
+          final filteredSessions = allSessions.where((item) => item.id != trackingSession!.id).toList();
+          final updatedSessions = [trackingSession, ...filteredSessions];
+          await _trackingSessionManager.saveLocal(updatedSessions);
+          ref.read(trackingSessionsProvider.notifier).upsertSession(trackingSession);
           sessionSaveStopwatch.stop();
-          if (saveSuccess) {
-            ref.read(trackingSessionsProvider.notifier).upsertSession(trackingSession);
-            LogMk.logDebug(
-              '✅ トラッキングセッション保存完了: ${trackingSession.id} (${sessionSaveStopwatch.elapsedMilliseconds}ms)',
-              tag: 'TrackingScreen._handleStop',
-            );
-          } else {
-            LogMk.logWarning(
-              '⚠️ トラッキングセッションの保存に失敗しました: ${trackingSession.id}',
-              tag: 'TrackingScreen._handleStop',
-            );
-          }
+          LogMk.logDebug(
+            '✅ トラッキングセッション（ローカルのみ）保存完了: ${trackingSession.id} (${sessionSaveStopwatch.elapsedMilliseconds}ms)',
+            tag: 'TrackingScreen._handleStop',
+          );
         } catch (e, stackTrace) {
           LogMk.logError(
             '❌ トラッキングセッション保存処理エラー: $e',
@@ -904,12 +1384,12 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         _logSessionData(trackingSession);
       }
       
-      // 次の画面へ遷移（SessionInfoを引数として渡す）
+      // 次の画面へ遷移（TrackingSessionを引数として渡す）
       if (mounted) {
         NavigationHelper.push(
           context,
           AppRoutes.trackingFinishedNew,
-          arguments: sessionInfo,
+          arguments: trackingSession,
         );
       }
     } catch (e, stackTrace) {
@@ -1317,6 +1797,21 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
                     _saveTrackingSettings();
                   },
                 ),
+                SizedBox(height: AppSpacing.sm),
+                Consumer(
+                  builder: (context, ref, child) {
+                    final settings = ref.watch(trackingSettingsProvider);
+                    return _buildSmallControlButton(
+                      icon: Icons.notifications_active,
+                      isActive: settings.smartphoneAlertEnabled,
+                      isPowerSaving: false,
+                      isLocked: false,
+                      onTap: () async {
+                        await _showSmartphoneAlertSettingsDialog();
+                      },
+                    );
+                  },
+                ),
               ],
             ),
           ),
@@ -1580,7 +2075,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     final smartphoneGoals = goals.where((g) => g.detectionItem == DetectionItem.smartphone).toList();
     
     // 選択された目標を取得（存在しない場合は最初の目標を自動選択）
-    final now = DateTime.now();
+    final todayDate = DateUtilsHelper.DateUtils.getTodayDate(ref);
     final todaysGoals = <Goal>[];
     
     // Study目標
@@ -1595,11 +2090,13 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         studyGoal = studyGoals[0];
       }
       
-      // 期間が今日を含むかチェック
+      // 期間が今日を含むかチェック（reset time settingを考慮）
       final endDate = studyGoal.periodEndDate ??
           studyGoal.startDate.add(Duration(days: studyGoal.durationDays));
-      if (now.isAfter(studyGoal.startDate.subtract(const Duration(days: 1))) &&
-          now.isBefore(endDate.add(const Duration(days: 1)))) {
+      final startDateOnly = DateTime(studyGoal.startDate.year, studyGoal.startDate.month, studyGoal.startDate.day);
+      final endDateOnly = DateTime(endDate.year, endDate.month, endDate.day);
+      if (todayDate.isAfter(startDateOnly.subtract(const Duration(days: 1))) &&
+          todayDate.isBefore(endDateOnly.add(const Duration(days: 1)))) {
         todaysGoals.add(studyGoal);
       }
     }
@@ -1616,11 +2113,13 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         pcGoal = pcGoals[0];
       }
       
-      // 期間が今日を含むかチェック
+      // 期間が今日を含むかチェック（reset time settingを考慮）
       final endDate = pcGoal.periodEndDate ??
           pcGoal.startDate.add(Duration(days: pcGoal.durationDays));
-      if (now.isAfter(pcGoal.startDate.subtract(const Duration(days: 1))) &&
-          now.isBefore(endDate.add(const Duration(days: 1)))) {
+      final startDateOnly = DateTime(pcGoal.startDate.year, pcGoal.startDate.month, pcGoal.startDate.day);
+      final endDateOnly = DateTime(endDate.year, endDate.month, endDate.day);
+      if (todayDate.isAfter(startDateOnly.subtract(const Duration(days: 1))) &&
+          todayDate.isBefore(endDateOnly.add(const Duration(days: 1)))) {
         todaysGoals.add(pcGoal);
       }
     }
@@ -1637,11 +2136,13 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
         smartphoneGoal = smartphoneGoals[0];
       }
       
-      // 期間が今日を含むかチェック
+      // 期間が今日を含むかチェック（reset time settingを考慮）
       final endDate = smartphoneGoal.periodEndDate ??
           smartphoneGoal.startDate.add(Duration(days: smartphoneGoal.durationDays));
-      if (now.isAfter(smartphoneGoal.startDate.subtract(const Duration(days: 1))) &&
-          now.isBefore(endDate.add(const Duration(days: 1)))) {
+      final startDateOnly = DateTime(smartphoneGoal.startDate.year, smartphoneGoal.startDate.month, smartphoneGoal.startDate.day);
+      final endDateOnly = DateTime(endDate.year, endDate.month, endDate.day);
+      if (todayDate.isAfter(startDateOnly.subtract(const Duration(days: 1))) &&
+          todayDate.isBefore(endDateOnly.add(const Duration(days: 1)))) {
         todaysGoals.add(smartphoneGoal);
       }
     }

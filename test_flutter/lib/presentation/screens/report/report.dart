@@ -7,8 +7,6 @@ import 'package:test_flutter/presentation/widgets/layouts.dart';
 import 'package:test_flutter/presentation/widgets/charts.dart';
 import 'package:test_flutter/presentation/widgets/navigation.dart';
 import 'package:test_flutter/presentation/widgets/navigation/navigation_helper.dart';
-import 'package:test_flutter/feature/tracking/tracking_data_functions.dart';
-import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_data_manager.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/weekly_statistics_data_manager.dart';
@@ -23,6 +21,9 @@ import 'package:test_flutter/feature/leveling/level_visuals.dart';
 import 'package:test_flutter/feature/subscription/subscription_providers.dart';
 import 'package:test_flutter/presentation/widgets/entitlement_gate.dart';
 import 'package:test_flutter/presentation/widgets/level_badge.dart';
+import 'package:test_flutter/data/sources/date_utils.dart' as DateUtilsHelper;
+import 'package:test_flutter/feature/setting/settings_data_manager.dart';
+import 'package:test_flutter/data/sources/auth_source.dart';
 
 /// レポート画面（新デザインシステム版）
 class ReportScreenNew extends ConsumerStatefulWidget {
@@ -34,12 +35,20 @@ class ReportScreenNew extends ConsumerStatefulWidget {
 
 class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
   int _selectedPeriodIndex = 0; // 0: Day, 1: Week, 2: Month, 3: Year
-  DateTime _selectedDate = DateTime.now();
-
+  late DateTime _selectedDate;
+  
   @override
   void initState() {
     super.initState();
     // Firestore取得はアプリ起動時のみ（画面を開くたびには取得しない）
+    // reset time settingに基づいて「今日」の日付を取得
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() {
+          _selectedDate = DateUtilsHelper.DateUtils.getTodayDate(ref);
+        });
+      }
+    });
   }
 
   @override
@@ -424,134 +433,8 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
       debugPrint('❌ [report.dart] 前期間Firestore統計データ取得エラー: $e');
     }
     
-    // Firestoreから取得できない場合は、ローカルのデータから計算（pc + studyのみ）
-    final sessions = ref.read(trackingSessionsProvider);
-    
-    if (sessions.isEmpty) {
-      return 0.0;
-    }
-    
-    int totalSeconds = 0;
-    switch (_selectedPeriodIndex) {
-      case 0: // Daily: 前日
-        final previousDate = _selectedDate.subtract(const Duration(days: 1));
-        totalSeconds = _getTotalWorkTimeSecondsForDate(sessions, previousDate);
-        break;
-      case 1: // Weekly: 先週
-        final previousDate = _selectedDate.subtract(const Duration(days: 7));
-        totalSeconds = _getTotalWorkTimeSecondsForWeek(sessions, previousDate);
-        break;
-      case 2: // Monthly: 先月
-        final previousMonth = DateTime(
-          _selectedDate.year,
-          _selectedDate.month - 1,
-          _selectedDate.day,
-        );
-        totalSeconds = _getTotalWorkTimeSecondsForMonth(sessions, previousMonth);
-        break;
-      case 3: // Yearly: 前年
-        final previousYear = DateTime(
-          _selectedDate.year - 1,
-          _selectedDate.month,
-          _selectedDate.day,
-        );
-        totalSeconds = _getTotalWorkTimeSecondsForYear(sessions, previousYear);
-        break;
-    }
-    
-    return totalSeconds / 3600.0; // 秒を時間に変換
-  }
-  
-  /// 指定日の作業時間合計を取得（pc + studyのみ、秒単位）
-  int _getTotalWorkTimeSecondsForDate(List<TrackingSession> sessions, DateTime date) {
-    final dayStart = DateTime(date.year, date.month, date.day);
-    final dayEnd = dayStart.add(const Duration(days: 1));
-    
-    final daySessions = sessions.where((s) =>
-      s.startTime.isAfter(dayStart.subtract(const Duration(seconds: 1))) &&
-      s.startTime.isBefore(dayEnd)
-    ).toList();
-    
-    int totalSeconds = 0;
-    for (final session in daySessions) {
-      for (final period in session.detectionPeriods) {
-        // pc + studyのみをカウント
-        if (period.category == 'pc' || period.category == 'study') {
-          final durationSeconds = period.endTime.difference(period.startTime).inSeconds;
-          totalSeconds += durationSeconds;
-        }
-      }
-    }
-    return totalSeconds;
-  }
-  
-  /// 指定週の作業時間合計を取得（pc + studyのみ、秒単位）
-  int _getTotalWorkTimeSecondsForWeek(List<TrackingSession> sessions, DateTime date) {
-    final weekStart = date.subtract(Duration(days: date.weekday - 1));
-    final weekEnd = weekStart.add(const Duration(days: 7));
-    
-    final weekSessions = sessions.where((s) =>
-      s.startTime.isAfter(weekStart.subtract(const Duration(seconds: 1))) &&
-      s.startTime.isBefore(weekEnd)
-    ).toList();
-    
-    int totalSeconds = 0;
-    for (final session in weekSessions) {
-      for (final period in session.detectionPeriods) {
-        // pc + studyのみをカウント
-        if (period.category == 'pc' || period.category == 'study') {
-          final durationSeconds = period.endTime.difference(period.startTime).inSeconds;
-          totalSeconds += durationSeconds;
-        }
-      }
-    }
-    return totalSeconds;
-  }
-  
-  /// 指定月の作業時間合計を取得（pc + studyのみ、秒単位）
-  int _getTotalWorkTimeSecondsForMonth(List<TrackingSession> sessions, DateTime date) {
-    final monthStart = DateTime(date.year, date.month, 1);
-    final monthEnd = DateTime(date.year, date.month + 1, 1);
-    
-    final monthSessions = sessions.where((s) =>
-      s.startTime.isAfter(monthStart.subtract(const Duration(seconds: 1))) &&
-      s.startTime.isBefore(monthEnd)
-    ).toList();
-    
-    int totalSeconds = 0;
-    for (final session in monthSessions) {
-      for (final period in session.detectionPeriods) {
-        // pc + studyのみをカウント
-        if (period.category == 'pc' || period.category == 'study') {
-          final durationSeconds = period.endTime.difference(period.startTime).inSeconds;
-          totalSeconds += durationSeconds;
-        }
-      }
-    }
-    return totalSeconds;
-  }
-  
-  /// 指定年の作業時間合計を取得（pc + studyのみ、秒単位）
-  int _getTotalWorkTimeSecondsForYear(List<TrackingSession> sessions, DateTime date) {
-    final yearStart = DateTime(date.year, 1, 1);
-    final yearEnd = DateTime(date.year + 1, 1, 1);
-    
-    final yearSessions = sessions.where((s) =>
-      s.startTime.isAfter(yearStart.subtract(const Duration(seconds: 1))) &&
-      s.startTime.isBefore(yearEnd)
-    ).toList();
-    
-    int totalSeconds = 0;
-    for (final session in yearSessions) {
-      for (final period in session.detectionPeriods) {
-        // pc + studyのみをカウント
-        if (period.category == 'pc' || period.category == 'study') {
-          final durationSeconds = period.endTime.difference(period.startTime).inSeconds;
-          totalSeconds += durationSeconds;
-        }
-      }
-    }
-    return totalSeconds;
+    // 統計データが取得できない場合は0を返す
+    return 0.0;
   }
   
   /// 変化率を計算（パーセンテージ）
@@ -752,30 +635,7 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
       debugPrint('❌ [report.dart] Firestore統計データ取得エラー: $e');
     }
     
-    // Firestoreから取得できない場合は、ローカルのデータから計算（pc + studyのみ）
-    final sessions = ref.read(trackingSessionsProvider);
-    
-    if (sessions.isNotEmpty) {
-      int totalSeconds = 0;
-      
-      switch (_selectedPeriodIndex) {
-        case 0: // Daily
-          totalSeconds = _getTotalWorkTimeSecondsForDate(sessions, _selectedDate);
-          break;
-        case 1: // Weekly
-          totalSeconds = _getTotalWorkTimeSecondsForWeek(sessions, _selectedDate);
-          break;
-        case 2: // Monthly
-          totalSeconds = _getTotalWorkTimeSecondsForMonth(sessions, _selectedDate);
-          break;
-        case 3: // Yearly
-          totalSeconds = _getTotalWorkTimeSecondsForYear(sessions, _selectedDate);
-          break;
-      }
-      
-      return totalSeconds / 3600.0; // 秒を時間に変換
-    }
-    
+    // 統計データが取得できない場合は0を返す
     return 0.0;
   }
 
@@ -795,7 +655,10 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     }
   }
 
-  /// 日次統計からグラフデータを生成
+  /// 日次統計からグラフデータを生成（時間ごとの検出時間をもとに棒グラフを作成）
+  /// 
+  /// daily statisticsのhourlyCategorySecondsフィールドから時間ごとの検出時間を取得し、
+  /// reset time基準で並び替えて棒グラフ用のデータポイントを生成します。
   Future<List<CategoryDataPoint>> _getDataPointsFromDailyStatistics(DateTime date) async {
     try {
       // 1. Firestoreから取得を試みる
@@ -807,15 +670,43 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
       stats ??= await dailyManager.getByDateLocal(dateOnly);
       
       // 3. データがない場合は空のリストを返す
-      if (stats == null || stats.hourlyCategorySeconds.isEmpty) {
+      if (stats == null) {
         return [];
       }
       
-      // 4. hourlyCategorySecondsからCategoryDataPointリストを生成
+      // 4. hourlyCategorySecondsが空の場合は空のリストを返す
+      if (stats.hourlyCategorySeconds.isEmpty) {
+        return [];
+      }
+      
+      // 5. reset timeを取得
+      int resetHour = 0;
+      try {
+        final currentUser = AuthMk.getCurrentUser();
+        if (currentUser != null) {
+          final userId = currentUser.uid;
+          final timeSettingsManager = TimeSettingsDataManager();
+          final timeSettings = await timeSettingsManager.getById(userId, 'time_settings');
+          if (timeSettings != null) {
+            final resetTimeParts = timeSettings.dayBoundaryTime.split(':');
+            resetHour = int.tryParse(resetTimeParts[0]) ?? 0;
+          }
+        }
+      } catch (e) {
+        debugPrint('⚠️ [report.dart] reset time取得エラー: $e');
+        // エラー時はデフォルトで0時を使用
+      }
+      
+      // 6. reset time基準で時間を並び替え（reset timeから始まる）
+      // 例: reset timeが4時の場合 → 4, 5, 6, ..., 23, 0, 1, 2, 3
+      // hourlyCategorySecondsから時間ごとの検出時間を取得して棒グラフ用のデータポイントを生成
       final dataPoints = <CategoryDataPoint>[];
-      for (int hour = 0; hour < 24; hour++) {
+      for (int i = 0; i < 24; i++) {
+        final hour = (resetHour + i) % 24;
         final hourKey = hour.toString();
         final hourData = stats.hourlyCategorySeconds[hourKey] ?? {};
+        
+        // 時間ごとの検出時間（秒）を時間単位に変換
         final values = <String, double>{
           'study': (hourData['study'] ?? 0) / 3600.0,
           'pc': (hourData['pc'] ?? 0) / 3600.0,
@@ -823,14 +714,16 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
           'personOnly': (hourData['personOnly'] ?? 0) / 3600.0,
           'nothingDetected': (hourData['nothingDetected'] ?? 0) / 3600.0,
         };
+        
         dataPoints.add(CategoryDataPoint(
           label: '$hour:00',
           values: values,
         ));
       }
       return dataPoints;
-    } catch (e) {
+    } catch (e, stackTrace) {
       debugPrint('❌ [report.dart] 日次統計データ取得エラー: $e');
+      debugPrint('   スタックトレース: $stackTrace');
       return [];
     }
   }

@@ -353,6 +353,12 @@ abstract class TrackingSettings with _$TrackingSettings {
     String? selectedPcGoalId,
     /// 選択されたSmartphone目標のID
     String? selectedSmartphoneGoalId,
+    /// スマホ使用時間アラートの有効/無効
+    required bool smartphoneAlertEnabled,
+    /// スマホ使用時間アラートの時間（分）
+    required int smartphoneAlertMinutes,
+    /// スマホ使用時間アラートの時間（秒）
+    required int smartphoneAlertSeconds,
     /// 最終更新日時
     required DateTime lastModified,
   }) = _TrackingSettings;
@@ -365,6 +371,9 @@ abstract class TrackingSettings with _$TrackingSettings {
         selectedStudyGoalId: null,
         selectedPcGoalId: null,
         selectedSmartphoneGoalId: null,
+        smartphoneAlertEnabled: false,
+        smartphoneAlertMinutes: 5,
+        smartphoneAlertSeconds: 0,
         lastModified: DateTime.now(),
       );
 
@@ -387,6 +396,9 @@ abstract class TrackingSettings with _$TrackingSettings {
         selectedStudyGoalId: json['selectedStudyGoalId'] as String?,
         selectedPcGoalId: json['selectedPcGoalId'] as String?,
         selectedSmartphoneGoalId: json['selectedSmartphoneGoalId'] as String?,
+        smartphoneAlertEnabled: json['smartphoneAlertEnabled'] as bool? ?? false,
+        smartphoneAlertMinutes: json['smartphoneAlertMinutes'] as int? ?? 5,
+        smartphoneAlertSeconds: json['smartphoneAlertSeconds'] as int? ?? 0,
         lastModified: json['lastModified'] != null
             ? (json['lastModified'] is String
                 ? DateTime.tryParse(json['lastModified'] as String) ?? DateTime.now()
@@ -405,6 +417,9 @@ abstract class TrackingSettings with _$TrackingSettings {
       selectedStudyGoalId: data['selectedStudyGoalId'] as String?,
       selectedPcGoalId: data['selectedPcGoalId'] as String?,
       selectedSmartphoneGoalId: data['selectedSmartphoneGoalId'] as String?,
+      smartphoneAlertEnabled: data['smartphoneAlertEnabled'] as bool? ?? false,
+      smartphoneAlertMinutes: data['smartphoneAlertMinutes'] as int? ?? 5,
+      smartphoneAlertSeconds: data['smartphoneAlertSeconds'] as int? ?? 0,
       lastModified: (data['lastModified'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
@@ -418,6 +433,9 @@ abstract class TrackingSettings with _$TrackingSettings {
       'selectedStudyGoalId': selectedStudyGoalId,
       'selectedPcGoalId': selectedPcGoalId,
       'selectedSmartphoneGoalId': selectedSmartphoneGoalId,
+      'smartphoneAlertEnabled': smartphoneAlertEnabled,
+      'smartphoneAlertMinutes': smartphoneAlertMinutes,
+      'smartphoneAlertSeconds': smartphoneAlertSeconds,
       'lastModified': Timestamp.fromDate(lastModified),
     };
   }

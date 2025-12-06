@@ -11,10 +11,16 @@ import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/statistics/statistics_aggregation_service.dart';
 import 'package:test_flutter/feature/tracking/state_management.dart';
 import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
-import 'package:test_flutter/feature/statistics/session_info_model.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/data/services/goal_event_service.dart';
 import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
+import 'package:test_flutter/feature/leveling/level_functions.dart';
+import 'package:test_flutter/feature/tracking/tracking_limit_providers.dart';
+import 'package:test_flutter/presentation/widgets/dialogs.dart';
+import 'package:test_flutter/data/repositories/survey_data_manager.dart';
+import 'package:test_flutter/data/models/survey_model.dart';
+import 'package:test_flutter/data/sources/auth_source.dart';
+import 'package:uuid/uuid.dart';
 
 /// トラッキング終了画面（新デザインシステム版）
 class TrackingFinishedScreenNew extends ConsumerStatefulWidget {
@@ -25,7 +31,7 @@ class TrackingFinishedScreenNew extends ConsumerStatefulWidget {
 }
 
 class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScreenNew> {
-  SessionInfo? _sessionInfo;
+  TrackingSession? _trackingSession;
   bool _isLoading = true;
   final StatisticsAggregationService _aggregationService = StatisticsAggregationService();
   bool _isAggregating = false;
@@ -48,11 +54,11 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // Navigator引数からSessionInfoを取得
+    // Navigator引数からTrackingSessionを取得
     final arguments = ModalRoute.of(context)?.settings.arguments;
-    if (arguments is SessionInfo) {
-      final isDifferentSession = _sessionInfo?.id != arguments.id;
-      _sessionInfo = arguments;
+    if (arguments is TrackingSession) {
+      final isDifferentSession = _trackingSession?.id != arguments.id;
+      _trackingSession = arguments;
       if (isDifferentSession) {
         _hasScheduledAggregation = false;
       }
@@ -64,7 +70,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
         if (!_hasScheduledAggregation) {
           _hasScheduledAggregation = true;
           // 画面表示後に集計処理を開始（バックグラウンドで実行）
-          _aggregationFuture = _aggregateSessionData(_sessionInfo!);
+          _aggregationFuture = _aggregateSessionData(_trackingSession!);
         }
       }
     } else {
@@ -80,7 +86,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
   /// セッションデータの集計処理
   /// 
   /// 画面表示後にバックグラウンドで実行されます。
-  Future<void> _aggregateSessionData(SessionInfo sessionInfo) async {
+  Future<void> _aggregateSessionData(TrackingSession trackingSession) async {
     if (_isAggregating) return;
     
     setState(() {
@@ -95,25 +101,43 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     });
 
     try {
-      // SessionInfoをTrackingSessionに変換（統計集計サービス用）
-      final trackingSession = TrackingSession(
-        id: sessionInfo.id,
-        startTime: sessionInfo.startTime,
-        endTime: sessionInfo.endTime,
-        categorySeconds: Map<String, int>.from(sessionInfo.categorySeconds),
-        detectionPeriods: List<DetectionPeriod>.from(sessionInfo.detectionPeriods),
-        selectedGoalIds: Map<String, String?>.from(sessionInfo.selectedGoalIds),
-        lastModified: sessionInfo.lastModified,
-      );
+      // TrackingSessionを直接使用（統計集計サービス用）
+      final trackingSession = _trackingSession;
+      if (trackingSession == null) {
+        LogMk.logError(
+          '❌ TrackingSessionがnullです',
+          tag: 'TrackingFinishedScreen._aggregateSessionData',
+        );
+        return;
+      }
       
       LogMk.logDebug(
         '⏱️ Phase1計測開始: sessionId=${trackingSession.id}',
         tag: 'TrackingFinishedScreen._aggregateSessionData',
       );
 
+      // トラッキング終了時に現在のtrackingCountを取得
+      final currentTrackingCount = await DailyTrackingCountHelper.loadCount(ref);
+      LogMk.logDebug(
+        '📊 現在のtrackingCount: $currentTrackingCount',
+        tag: 'TrackingFinishedScreen._aggregateSessionData',
+      );
+
       // 統計集計処理を実行（Phase 1のみ同期的に実行、Phase 2はバックグラウンド）
-      final aggregationResult = await _aggregationService.aggregateSessionData(trackingSession);
+      final aggregationResult = await _aggregationService.aggregateSessionData(
+        trackingSession,
+        trackingCount: currentTrackingCount,
+      );
       triggerTrackingCompleted(ref);
+      
+      // レベルデータを再読み込みしてホーム画面のプログレスバーを更新
+      try {
+        await loadLevelingStateHelper(ref);
+        debugPrint('✅ [TrackingFinishedScreen] レベルデータ再読み込み完了');
+      } catch (e) {
+        debugPrint('⚠️ [TrackingFinishedScreen] レベルデータ再読み込みエラー: $e');
+        // エラーは無視して続行
+      }
 
       _phase1FinishedAt = DateTime.now();
       final phase1Duration = _phase1FinishedAt!.difference(_phase1StartedAt!);
@@ -276,6 +300,9 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
       }
 
       await _processPendingEvents();
+
+      // 初回3回終了時のアンケート表示
+      await _showSurveyIfNeeded();
 
       // すべてのイベントが閉じられた後にホームへ遷移
       if (mounted) {
@@ -448,8 +475,8 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
       );
     }
 
-    final sessionInfo = _sessionInfo;
-    if (sessionInfo == null) {
+    final session = _trackingSession;
+    if (session == null) {
       return AppScaffold(
         backgroundColor: AppColors.backgroundSecondary,
         body: Center(
@@ -460,16 +487,6 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
         ),
       );
     }
-    
-    // SessionInfoをTrackingSessionに変換（表示用）
-    final session = TrackingSession(
-      id: sessionInfo.id,
-      startTime: sessionInfo.startTime,
-      endTime: sessionInfo.endTime,
-      categorySeconds: Map<String, int>.from(sessionInfo.categorySeconds),
-      detectionPeriods: List<DetectionPeriod>.from(sessionInfo.detectionPeriods),
-      lastModified: sessionInfo.lastModified,
-    );
 
     return AppScaffold(
       backgroundColor: AppColors.backgroundSecondary,
@@ -827,7 +844,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
           ),
           SizedBox(height: AppSpacing.xs),
           Text(
-            '${(data.hours * 3600).round()}秒',
+            _formatSecondsToHMS((data.hours * 3600).round()),
             style: AppTextStyles.body1.copyWith(
               fontWeight: FontWeight.bold,
               color: data.color,
@@ -1224,6 +1241,73 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     );
   }
 
+  /// 初回3回終了時のアンケートを表示（必要に応じて）
+  Future<void> _showSurveyIfNeeded() async {
+    try {
+      LogMk.logDebug('アンケート表示チェック開始', tag: 'TrackingFinishedScreen._showSurveyIfNeeded');
+      
+      // 3回目のトラッキング終了かどうかを確認
+      final isThird = await DailyTrackingCountHelper.isThirdTrackingCompletion(ref);
+      LogMk.logDebug('3回目のトラッキング: $isThird', tag: 'TrackingFinishedScreen._showSurveyIfNeeded');
+      
+      if (!isThird) {
+        return;
+      }
+
+      // 既にアンケートを表示済みかどうかを確認
+      final hasShown = await DailyTrackingCountHelper.hasShownFirstSurvey();
+      LogMk.logDebug('アンケート表示済み: $hasShown', tag: 'TrackingFinishedScreen._showSurveyIfNeeded');
+      
+      if (hasShown) {
+        return;
+      }
+      
+      LogMk.logDebug('アンケートを表示します', tag: 'TrackingFinishedScreen._showSurveyIfNeeded');
+
+      // アンケートを表示
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => SurveyDialog(
+          onSubmit: (rating, feedback) async {
+            // アンケート結果をFirestoreに保存
+            try {
+              final currentUser = AuthMk.getCurrentUser();
+              if (currentUser != null) {
+                final survey = Survey(
+                  id: const Uuid().v4(),
+                  rating: rating,
+                  feedback: feedback,
+                  createdAt: DateTime.now(),
+                );
+                // saveWithRetryAuthを使用してFirestoreとローカルの両方に保存
+                final success = await surveyDataManager.saveWithRetryAuth(survey);
+                if (success) {
+                  LogMk.logDebug('アンケート結果をFirestoreに保存しました', tag: 'TrackingFinishedScreen._showSurveyIfNeeded');
+                } else {
+                  LogMk.logWarning('アンケート結果の保存に失敗しました（リトライキューに追加済み）', tag: 'TrackingFinishedScreen._showSurveyIfNeeded');
+                }
+              }
+            } catch (e) {
+              LogMk.logError(
+                'アンケート結果の保存エラー: $e',
+                tag: 'TrackingFinishedScreen._showSurveyIfNeeded',
+              );
+            }
+
+            // 表示済みフラグを設定
+            await DailyTrackingCountHelper.markFirstSurveyAsShown();
+          },
+        ),
+      );
+    } catch (e) {
+      LogMk.logError(
+        'アンケート表示処理エラー: $e',
+        tag: 'TrackingFinishedScreen._showSurveyIfNeeded',
+      );
+    }
+  }
+
   String _getCategoryFromDetectionItem(DetectionItem item) {
     switch (item) {
       case DetectionItem.book:
@@ -1258,6 +1342,31 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     final hour = dateTime.hour.toString().padLeft(2, '0');
     final minute = dateTime.minute.toString().padLeft(2, '0');
     return '$hour:$minute';
+  }
+
+  /// 秒数を時間・分・秒の形式に変換（例: "1時間23分45秒"）
+  String _formatSecondsToHMS(int totalSeconds) {
+    if (totalSeconds < 0) {
+      return '0秒';
+    }
+    
+    final hours = totalSeconds ~/ 3600;
+    final minutes = (totalSeconds % 3600) ~/ 60;
+    final seconds = totalSeconds % 60;
+    
+    final parts = <String>[];
+    
+    if (hours > 0) {
+      parts.add('${hours}時間');
+    }
+    if (minutes > 0) {
+      parts.add('${minutes}分');
+    }
+    if (seconds > 0 || parts.isEmpty) {
+      parts.add('${seconds}秒');
+    }
+    
+    return parts.join('');
   }
 }
 

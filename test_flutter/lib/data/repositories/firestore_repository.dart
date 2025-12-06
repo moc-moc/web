@@ -1042,8 +1042,10 @@ class FirestoreDataManager<T> {
   Future<bool> _processAddItem(String userId, RetryItem item) async {
     try {
       final scopedKey = _scopedStorageKeyForUser(userId);
-      // Firestoreに追加
-      final data = Map<String, dynamic>.from(item.data);
+      
+      // JSONからモデルに変換してからFirestore形式に変換
+      final model = fromJson(item.data);
+      final data = toFirestore(model);
       data[lastModifiedField] = FirestoreMk.createTimestamp();
       
       final itemId = data[idField] as String;
@@ -1063,8 +1065,8 @@ class FirestoreDataManager<T> {
         return true;
       }
       return false;
-    } catch (e) {
-      await LogMk.logError(' 追加アイテム処理エラー: $e');
+    } catch (e, stackTrace) {
+      await LogMk.logError(' 追加アイテム処理エラー: $e', error: e, stackTrace: stackTrace);
       return false;
     }
   }
@@ -1074,8 +1076,10 @@ class FirestoreDataManager<T> {
   Future<bool> _processUpdateItem(String userId, RetryItem item) async {
     try {
       final scopedKey = _scopedStorageKeyForUser(userId);
-      // Firestoreに更新
-      final data = Map<String, dynamic>.from(item.data);
+      
+      // JSONからモデルに変換してからFirestore形式に変換
+      final model = fromJson(item.data);
+      final data = toFirestore(model);
       data[lastModifiedField] = FirestoreMk.createTimestamp();
       
       final itemId = data[idField] as String;
@@ -1095,8 +1099,8 @@ class FirestoreDataManager<T> {
         return true;
       }
       return false;
-    } catch (e) {
-      await LogMk.logError(' 更新アイテム処理エラー: $e');
+    } catch (e, stackTrace) {
+      await LogMk.logError(' 更新アイテム処理エラー: $e', error: e, stackTrace: stackTrace);
       return false;
     }
   }

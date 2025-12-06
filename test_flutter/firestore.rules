@@ -62,6 +62,21 @@ service cloud.firestore {
     match /users/{userId}/settings/{settingId} {
       allow read, write: if isAuthenticatedUser(userId);
     }
+
+    match /users/{userId}/tracking_counts/{dateId} {
+      // 認証済みユーザーは自分のトラッキング回数を読み書き可能
+      allow read, write: if isAuthenticatedUser(userId);
+    }
+
+    match /users/{userId}/surveys/{surveyId} {
+      // 認証済みユーザーは自分のアンケート結果を読み書き可能
+      allow read, write: if isAuthenticatedUser(userId);
+    }
+
+    match /users/{userId}/survey_flags/{flagId} {
+      // 認証済みユーザーは自分のアンケートフラグを読み書き可能
+      allow read, write: if isAuthenticatedUser(userId);
+    }
   }
 }
 

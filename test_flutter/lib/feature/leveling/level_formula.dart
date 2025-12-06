@@ -21,19 +21,52 @@ class LevelComputationResult {
 /// レベル計算ユーティリティ
 class LevelFormula {
   static const double _targetHoursForLv100 = 250.0;
-  static const double _exponent = 0.72;
+  static const double _exponentLow = 0.5; // 低いレベルの時の指数（より早く上がる）
+  static const double _exponentHigh = 0.72; // 高いレベルの時の指数
+  static const int _transitionLevel = 20; // 指数を切り替えるレベル
+
+  /// レベルに応じた指数を取得（低いレベルほど小さな指数で早く上がる）
+  static double _getExponentForLevel(int level) {
+    if (level < _transitionLevel) {
+      // 低いレベルの時は線形補間で指数を調整
+      final ratio = level / _transitionLevel;
+      return _exponentLow + ((_exponentHigh - _exponentLow) * ratio);
+    }
+    return _exponentHigh;
+  }
 
   /// 現在の人検出時間（秒）からレベルを計算
   static LevelComputationResult computeLevel(int personSeconds) {
     final personHours = personSeconds / 3600.0;
     final normalized = max(personHours / _targetHoursForLv100, 0);
 
-    // exact level（100を上限）
-    final double exactLevel = (normalized <= 0)
+    // 低いレベルの時はより早く上がるように、段階的に指数を調整
+    // まず低い指数で計算して、その後高い指数で計算し、レベルに応じて補間
+    final double exactLevelLow = (normalized <= 0)
         ? 0.0
-        : (pow(normalized, _exponent) * 100)
+        : (pow(normalized, _exponentLow) * 100)
             .toDouble()
             .clamp(0.0, 100.0);
+    
+    final double exactLevelHigh = (normalized <= 0)
+        ? 0.0
+        : (pow(normalized, _exponentHigh) * 100)
+            .toDouble()
+            .clamp(0.0, 100.0);
+    
+    // 低いレベルの時は低い指数の結果をより多く使用
+    double exactLevel;
+    if (exactLevelLow < _transitionLevel) {
+      // 低いレベルの時は低い指数の結果を優先（より早く上がる）
+      final ratio = exactLevelLow / _transitionLevel;
+      // 低いレベルの時は低い指数の結果を70%、高い指数の結果を30%使用
+      exactLevel = exactLevelLow * (1.0 - ratio * 0.3) + exactLevelHigh * (ratio * 0.3);
+    } else {
+      // 高いレベルの時は高い指数の結果を使用
+      exactLevel = exactLevelHigh;
+    }
+    
+    exactLevel = exactLevel.clamp(0.0, 100.0);
 
     final level = exactLevel.floor();
     final progress =
@@ -58,8 +91,11 @@ class LevelFormula {
   static double _secondsForLevel(int level) {
     final targetLevel = level.clamp(0, 100);
     if (targetLevel == 0) return 0;
+    
+    // レベルに応じた指数を使用
+    final exponent = _getExponentForLevel(targetLevel);
     final ratio = targetLevel / 100;
-    final hours = _targetHoursForLv100 * pow(ratio, 1 / _exponent);
+    final hours = _targetHoursForLv100 * pow(ratio, 1 / exponent);
     return hours * 3600;
   }
 

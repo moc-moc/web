@@ -4,7 +4,6 @@ import 'package:test_flutter/data/repositories/base/base_data_manager.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/data/sources/auth_source.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
-import 'package:test_flutter/feature/statistics/session_info_model.dart';
 
 /// 日次統計用データマネージャー
 /// 
@@ -71,11 +70,144 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
     }
   }
 
+  /// 日次統計を直接保存（マージせずに上書き）
+  /// 
+  /// 既にマージ済みのデータを直接保存します。既存データとのマージは行いません。
+  /// データの整合性を保証するため、保存前にvalidateAndFix()を実行します。
+  /// エラー発生時はロールバック処理を実行します。
+  /// 
+  /// **パラメータ**:
+  /// - `statistics`: 保存する日次統計データ（既にマージ済み）
+  /// 
+  /// **戻り値**: 保存成功時true、失敗時false
+  Future<bool> saveDirectly(DailyStatistics statistics) async {
+    // ロールバック用に既存データを保存
+    DailyStatistics? backupData;
+    try {
+      // 既存データを取得（ロールバック用に保存）
+      final existing = await getByDateWithAuth(statistics.date);
+      if (existing != null) {
+        backupData = existing;
+      }
+      
+      // デバッグ: hourlyCategorySecondsの状態を確認
+      final hourlyCount = statistics.hourlyCategorySeconds.entries
+          .where((e) => e.value.values.any((v) => v > 0))
+          .length;
+      LogMk.logDebug(
+        '📊 [saveDirectly] 保存前のhourlyCategorySeconds: ${hourlyCount}時間帯にデータあり',
+        tag: 'DailyStatisticsDataManager',
+      );
+      
+      // categorySecondsからデータを更新（マージせずに直接）
+      var dataToSave = await updateFromCategorySeconds(statistics);
+      
+      // デバッグ: updateFromCategorySeconds後のhourlyCategorySecondsの状態を確認
+      final hourlyCountAfter = dataToSave.hourlyCategorySeconds.entries
+          .where((e) => e.value.values.any((v) => v > 0))
+          .length;
+      LogMk.logDebug(
+        '📊 [saveDirectly] updateFromCategorySeconds後のhourlyCategorySeconds: ${hourlyCountAfter}時間帯にデータあり',
+        tag: 'DailyStatisticsDataManager',
+      );
+      
+      // データ整合性チェック
+      dataToSave = await validateAndFix(dataToSave);
+      
+      // ローカルに保存（即座に完了）
+      try {
+        await manager.addLocal(dataToSave);
+        LogMk.logDebug(
+          '✅ [saveDirectly] ローカル保存成功: ${dataToSave.id}',
+          tag: 'DailyStatisticsDataManager',
+        );
+      } catch (e, stackTrace) {
+        // ローカル保存失敗時はロールバック
+        LogMk.logError(
+          '❌ [saveDirectly] ローカル保存エラー: $e',
+          tag: 'DailyStatisticsDataManager',
+          stackTrace: stackTrace,
+        );
+        if (backupData != null) {
+          try {
+            await manager.addLocal(backupData);
+            LogMk.logInfo(
+              '🔄 [saveDirectly] ロールバック完了',
+              tag: 'DailyStatisticsDataManager',
+            );
+          } catch (rollbackError) {
+            LogMk.logError(
+              '❌ [saveDirectly] ロールバック失敗: $rollbackError',
+              tag: 'DailyStatisticsDataManager',
+            );
+          }
+        }
+        return false;
+      }
+      
+      // Firestoreへの保存（awaitして確実に実行）
+      try {
+        LogMk.logDebug(
+          '🔄 [saveDirectly] Firestore保存開始: ${dataToSave.id}',
+          tag: 'DailyStatisticsDataManager',
+        );
+        final firestoreSuccess = await manager.saveWithRetryAuth(dataToSave);
+        if (firestoreSuccess) {
+          LogMk.logDebug(
+            '✅ [saveDirectly] Firestore保存成功: ${dataToSave.id}',
+            tag: 'DailyStatisticsDataManager',
+          );
+        } else {
+          LogMk.logWarning(
+            '⚠️ [saveDirectly] Firestore保存失敗（リトライキューに追加済み）: ${dataToSave.id}',
+            tag: 'DailyStatisticsDataManager',
+          );
+        }
+      } catch (e, stackTrace) {
+        LogMk.logError(
+          '❌ [saveDirectly] Firestore保存エラー: $e',
+          tag: 'DailyStatisticsDataManager',
+          stackTrace: stackTrace,
+        );
+        // ローカル保存は成功しているのでtrueを返す（Firestoreは次回同期時に再試行される）
+      }
+      
+      return true;
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        '❌ [saveDirectly] 保存エラー: $e',
+        tag: 'DailyStatisticsDataManager',
+        stackTrace: stackTrace,
+      );
+      
+      // エラー発生時はロールバック
+      if (backupData != null) {
+        try {
+          await manager.addLocal(backupData);
+          LogMk.logInfo(
+            '🔄 [saveDirectly] エラー後のロールバック完了',
+            tag: 'DailyStatisticsDataManager',
+          );
+        } catch (rollbackError) {
+          LogMk.logError(
+            '❌ [saveDirectly] エラー後のロールバック失敗: $rollbackError',
+            tag: 'DailyStatisticsDataManager',
+          );
+        }
+      }
+      
+      return false;
+    }
+  }
+
   /// 日次統計を保存または更新（認証自動取得版）
   /// 
   /// 既存データがあればマージして更新、なければ新規作成します。
   /// データの整合性を保証するため、保存前にvalidateAndFix()を実行します。
   /// エラー発生時はロールバック処理を実行します。
+  /// 
+  /// **注意**: このメソッドは既存データとマージ（加算）します。
+  /// 既にマージ済みのデータを保存する場合は、saveDirectly()を使用してください。
   /// 
   /// **パラメータ**:
   /// - `statistics`: 保存する日次統計データ
@@ -93,29 +225,55 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
       
       DailyStatistics dataToSave;
       if (existing != null) {
-        // 既存データとマージ
-        // セッション情報をマージ（同じIDのセッションがあれば置き換え、なければ追加）
-        final mergedSessions = List<SessionInfo>.from(existing.sessions);
-        for (final session in statistics.sessions) {
-          final existingIndex = mergedSessions.indexWhere((s) => s.id == session.id);
-          if (existingIndex >= 0) {
-            mergedSessions[existingIndex] = session;
-          } else {
-            mergedSessions.add(session);
-          }
+        // 既存データとマージ（categorySecondsを加算）
+        final mergedCategorySeconds = <String, int>{};
+        for (final key in ['study', 'pc', 'smartphone', 'personOnly', 'nothingDetected']) {
+          mergedCategorySeconds[key] = (existing.categorySeconds[key] ?? 0) + 
+                                      (statistics.categorySeconds[key] ?? 0);
         }
         
-        // マージしたセッションからデータを再計算
+        // hourlyCategorySecondsもマージ（既存の値と新しい値を加算）
+        final mergedHourlyCategorySeconds = Map<String, Map<String, int>>.from(existing.hourlyCategorySeconds);
+        
+        // 新しいデータのhourlyCategorySecondsを既存のデータに加算
+        for (final entry in statistics.hourlyCategorySeconds.entries) {
+          final hourKey = entry.key;
+          final hourData = entry.value;
+          
+          // 既存の時間帯データを取得（なければ空のMapを作成）
+          final existingHourData = mergedHourlyCategorySeconds[hourKey] ?? <String, int>{};
+          
+          // 既存のデータと新しいデータをマージ（加算）
+          final mergedHourData = <String, int>{};
+          for (final key in ['study', 'pc', 'smartphone', 'personOnly', 'nothingDetected']) {
+            mergedHourData[key] = (existingHourData[key] ?? 0) + (hourData[key] ?? 0);
+          }
+          
+          mergedHourlyCategorySeconds[hourKey] = mergedHourData;
+        }
+        
+        // trackingCountは最新の値を設定
+        // statistics.trackingCountが0の場合は、既存の値を保持（取得に失敗した場合など）
+        // statistics.trackingCountが既存の値より大きい場合は、最新の値を設定
+        final mergedTrackingCount = statistics.trackingCount > existing.trackingCount
+            ? statistics.trackingCount
+            : (statistics.trackingCount == 0 && existing.trackingCount > 0
+                ? existing.trackingCount
+                : statistics.trackingCount);
+        
+        // マージしたデータを作成
         final mergedData = existing.copyWith(
-          sessions: mergedSessions,
+          categorySeconds: mergedCategorySeconds,
+          hourlyCategorySeconds: mergedHourlyCategorySeconds,
+          trackingCount: mergedTrackingCount,
           lastModified: DateTime.now(),
         );
         
-        // セッションからデータを更新
-        dataToSave = await updateFromSessions(mergedData);
+        // categorySecondsからデータを更新
+        dataToSave = await updateFromCategorySeconds(mergedData);
       } else {
-        // 新規データの場合も、セッションからデータを更新
-        dataToSave = await updateFromSessions(statistics);
+        // 新規データの場合も、categorySecondsからデータを更新
+        dataToSave = await updateFromCategorySeconds(statistics);
       }
       
       // データ整合性チェック
@@ -234,115 +392,33 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
     return '$year-$month-$day';
   }
 
-  /// セッション情報から日次統計データを更新
+  /// 日次統計データを更新（categorySecondsから計算）
   /// 
-  /// sessionsからcategorySeconds、totalWorkTimeSeconds、hourlyCategorySeconds、
-  /// pieChartDataを計算して更新します。
+  /// categorySecondsからtotalWorkTimeSeconds、pieChartDataを計算して更新します。
+  /// hourlyCategorySecondsは既存の値を保持します（セッション情報がないため計算不可）。
   /// 
   /// **パラメータ**:
-  /// - `statistics`: 更新する日次統計データ（sessionsが含まれている必要がある）
+  /// - `statistics`: 更新する日次統計データ
   /// 
   /// **戻り値**: 更新された日次統計データ
-  Future<DailyStatistics> updateFromSessions(DailyStatistics statistics) async {
+  Future<DailyStatistics> updateFromCategorySeconds(DailyStatistics statistics) async {
     try {
-      // カテゴリ別時間を集計
-      final categorySeconds = <String, int>{
-        'study': 0,
-        'pc': 0,
-        'smartphone': 0,
-        'personOnly': 0,
-        'nothingDetected': 0,
-      };
-      
-      // 時間ごとのカテゴリ別秒数を集計
-      final hourlyCategorySeconds = <String, Map<String, int>>{};
-      
-      // 24時間分の初期化
-      for (int hour = 0; hour < 24; hour++) {
-        hourlyCategorySeconds[hour.toString()] = {
-          'study': 0,
-          'pc': 0,
-          'smartphone': 0,
-          'personOnly': 0,
-          'nothingDetected': 0,
-        };
-      }
-      
-      // 各セッションからデータを集計
-      for (final session in statistics.sessions) {
-        // categorySecondsを加算
-        for (final entry in session.categorySeconds.entries) {
-          if (categorySeconds.containsKey(entry.key)) {
-            categorySeconds[entry.key] = 
-                (categorySeconds[entry.key] ?? 0) + entry.value;
-          }
-        }
-        
-        // detectionPeriodsから時間ごとに集計
-        final date = DateTime(
-          statistics.date.year,
-          statistics.date.month,
-          statistics.date.day,
-        );
-        
-        for (final period in session.detectionPeriods) {
-          final periodStart = period.startTime.isAfter(date)
-              ? period.startTime
-              : date;
-          final periodEnd = period.endTime;
-          
-          // 期間が複数の時間帯にまたがる場合を処理
-          var currentTime = periodStart;
-          while (currentTime.isBefore(periodEnd)) {
-            final hour = currentTime.hour;
-            final hourStart = DateTime(
-              currentTime.year,
-              currentTime.month,
-              currentTime.day,
-              hour,
-            );
-            final hourEnd = hourStart.add(const Duration(hours: 1));
-            
-            // この時間帯に該当する期間の開始と終了を計算
-            final segmentStart = currentTime.isAfter(hourStart) ? currentTime : hourStart;
-            final segmentEnd = periodEnd.isBefore(hourEnd) ? periodEnd : hourEnd;
-            
-            if (segmentStart.isBefore(segmentEnd)) {
-              final durationSeconds = segmentEnd.difference(segmentStart).inSeconds;
-              final hourKey = hour.toString();
-              
-              if (hourlyCategorySeconds.containsKey(hourKey)) {
-                final category = period.category;
-                if (hourlyCategorySeconds[hourKey]!.containsKey(category)) {
-                  hourlyCategorySeconds[hourKey]![category] = 
-                      (hourlyCategorySeconds[hourKey]![category] ?? 0) + durationSeconds;
-                }
-              }
-            }
-            
-            currentTime = hourEnd;
-          }
-        }
-      }
-      
       // 作業時間を計算（study + pc）
-      final totalWorkTimeSeconds = (categorySeconds['study'] ?? 0) + 
-                                   (categorySeconds['pc'] ?? 0);
+      final totalWorkTimeSeconds = (statistics.categorySeconds['study'] ?? 0) + 
+                                   (statistics.categorySeconds['pc'] ?? 0);
       
       // 円グラフデータを計算
-      final pieChartData = _calculatePieChartData(categorySeconds, includeAllCategories: true);
+      final pieChartData = _calculatePieChartData(statistics.categorySeconds, includeAllCategories: true);
       
-      // 更新されたデータを返す
+      // 更新されたデータを返す（hourlyCategorySecondsは既存の値を保持）
       return statistics.copyWith(
-        categorySeconds: categorySeconds,
         totalWorkTimeSeconds: totalWorkTimeSeconds,
-        hourlyCategorySeconds: hourlyCategorySeconds,
         pieChartData: pieChartData,
         lastModified: DateTime.now(),
       );
     } catch (e, stackTrace) {
       LogMk.logError(
-        '❌ [updateFromSessions] 更新エラー: $e',
+        '❌ [updateFromCategorySeconds] 更新エラー: $e',
         tag: 'DailyStatisticsDataManager',
         stackTrace: stackTrace,
       );
@@ -352,7 +428,7 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
 
   /// データ整合性チェックと自動修復
   /// 
-  /// sessionsから計算した値とcategorySeconds等を比較し、
+  /// categorySecondsから計算した値とtotalWorkTimeSeconds等を比較し、
   /// 不整合があれば自動修復します。
   /// 
   /// **パラメータ**:
@@ -361,23 +437,11 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
   /// **戻り値**: 修復された日次統計データ
   Future<DailyStatistics> validateAndFix(DailyStatistics statistics) async {
     try {
-      // sessionsからデータを再計算
-      final recalculated = await updateFromSessions(statistics);
+      // categorySecondsからデータを再計算
+      final recalculated = await updateFromCategorySeconds(statistics);
       
       // 整合性チェック
       bool needsFix = false;
-      
-      // categorySecondsの整合性チェック
-      for (final entry in recalculated.categorySeconds.entries) {
-        final existing = statistics.categorySeconds[entry.key] ?? 0;
-        if (existing != entry.value) {
-          needsFix = true;
-          debugPrint(
-            '⚠️ [validateAndFix] categorySeconds不整合検出: '
-            '${entry.key} = $existing (期待値: ${entry.value})',
-          );
-        }
-      }
       
       // totalWorkTimeSecondsの整合性チェック
       if (statistics.totalWorkTimeSeconds != recalculated.totalWorkTimeSeconds) {

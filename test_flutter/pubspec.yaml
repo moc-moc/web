@@ -66,6 +66,7 @@ dependencies:
   async_locks: ^3.1.0
   uuid: ^4.5.1
   google_mobile_ads: ^5.1.0
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test: 
@@ -87,3 +88,4 @@ flutter:
   
   assets:
     - assets/models/
+    - assets/sounds/80921__justinbw__buttonchime02up.wav

@@ -1093,3 +1093,240 @@ void showErrorSnackBar(BuildContext context, String message) {
     ),
   );
 }
+
+/// アンケートダイアログ
+/// 
+/// アプリの満足度とフィードバックを収集するためのダイアログです。
+class SurveyDialog extends ConsumerStatefulWidget {
+  final Function(int rating, String feedback)? onSubmit;
+
+  const SurveyDialog({
+    super.key,
+    this.onSubmit,
+  });
+
+  @override
+  ConsumerState<SurveyDialog> createState() => _SurveyDialogState();
+}
+
+class _SurveyDialogState extends ConsumerState<SurveyDialog> {
+  int _selectedRating = 0;
+  final TextEditingController _feedbackController = TextEditingController();
+
+  @override
+  void dispose() {
+    _feedbackController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AppDialogBase(
+      title: 'アンケート',
+      content: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'アプリの満足度を教えてください',
+            style: AppTextStyles.body1.copyWith(
+              color: AppColors.textSecondary,
+            ),
+          ),
+          SizedBox(height: AppSpacing.md),
+          // 星評価
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(5, (index) {
+              final rating = index + 1;
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedRating = rating;
+                  });
+                },
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.xs),
+                  child: Icon(
+                    rating <= _selectedRating ? Icons.star : Icons.star_border,
+                    color: rating <= _selectedRating
+                        ? AppColors.orange
+                        : AppColors.textSecondary,
+                    size: 40,
+                  ),
+                ),
+              );
+            }),
+          ),
+          SizedBox(height: AppSpacing.lg),
+          // 自由記述欄
+          AppTextField(
+            label: 'フィードバック（任意）',
+            controller: _feedbackController,
+            placeholder: '欲しい機能、良かったところ、改善して欲しい点など、自由にご記入ください',
+            fillColor: AppColors.lightblackgray,
+            maxLines: 5,
+          ),
+        ],
+      ),
+      actions: [
+        SecondaryButton(
+          text: 'スキップ',
+          onPressed: () {
+            Navigator.of(context).pop();
+          },
+          size: ButtonSize.small,
+          borderRadius: 30,
+        ),
+        SizedBox(width: AppSpacing.sm),
+        Opacity(
+          opacity: _selectedRating > 0 ? 1.0 : 0.5,
+          child: PrimaryButton(
+            text: '送信',
+            onPressed: () {
+              if (_selectedRating > 0) {
+                widget.onSubmit?.call(_selectedRating, _feedbackController.text.trim());
+                Navigator.of(context).pop();
+              }
+            },
+            size: ButtonSize.small,
+            borderRadius: 30,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// アンケートダイアログを表示する
+  static Future<void> show(
+    BuildContext context, {
+    Function(int rating, String feedback)? onSubmit,
+  }) {
+    return AppDialogBase.show<void>(
+      context,
+      SurveyDialog(onSubmit: onSubmit),
+    );
+  }
+}
+
+/// 点滅するアラートダイアログ
+/// 
+/// スマホ使用時間が設定時間を超えた際に表示されるアラートダイアログです。
+class BlinkingAlertDialog extends StatefulWidget {
+  final String message;
+  final VoidCallback? onDismiss;
+
+  const BlinkingAlertDialog({
+    super.key,
+    required this.message,
+    this.onDismiss,
+  });
+
+  @override
+  State<BlinkingAlertDialog> createState() => _BlinkingAlertDialogState();
+}
+
+class _BlinkingAlertDialogState extends State<BlinkingAlertDialog>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _animation;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    )..repeat(reverse: true);
+    _animation = Tween<double>(begin: 0.3, end: 1.0).animate(_controller);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animation,
+      builder: (context, child) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          child: Container(
+            padding: EdgeInsets.all(AppSpacing.lg),
+            decoration: BoxDecoration(
+              color: AppColors.orange.withValues(alpha: _animation.value),
+              borderRadius: BorderRadius.circular(AppRadius.large),
+              border: Border.all(
+                color: AppColors.orange,
+                width: 3,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.orange.withValues(alpha: _animation.value * 0.5),
+                  blurRadius: 20,
+                  spreadRadius: 5,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.warning_amber_rounded,
+                  color: AppColors.white,
+                  size: 64,
+                ),
+                SizedBox(height: AppSpacing.md),
+                Text(
+                  'スマホ使用時間アラート',
+                  style: AppTextStyles.h2.copyWith(
+                    color: AppColors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: AppSpacing.sm),
+                Text(
+                  widget.message,
+                  style: AppTextStyles.body1.copyWith(
+                    color: AppColors.white,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                SizedBox(height: AppSpacing.lg),
+                PrimaryButton(
+                  text: '了解',
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onDismiss?.call();
+                  },
+                  size: ButtonSize.medium,
+                  borderRadius: 30,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// アラートダイアログを表示する
+  static Future<void> show(
+    BuildContext context, {
+    required String message,
+    VoidCallback? onDismiss,
+  }) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => BlinkingAlertDialog(
+        message: message,
+        onDismiss: onDismiss,
+      ),
+    );
+  }
+}

@@ -49,6 +49,27 @@ class CameraManagerWeb implements CameraManager {
         tag: 'CameraManagerWeb.initialize',
       );
       
+      // HTTPS接続の確認（getUserMediaはHTTPS必須、localhostは例外）
+      final location = html.window.location;
+      final isSecureContext = location.protocol == 'https:' || 
+                              location.hostname == 'localhost' ||
+                              location.hostname == '127.0.0.1';
+      
+      if (!isSecureContext) {
+        final currentUrl = '${location.protocol}//${location.host}${location.pathname}';
+        LogMk.logError(
+          '❌ [CameraManagerWeb] HTTPS接続が必要です。現在のURL: $currentUrl\n'
+          '   カメラ機能を使用するには、HTTPS接続（またはlocalhost）が必要です。',
+          tag: 'CameraManagerWeb.initialize',
+        );
+        return false;
+      }
+      
+      LogMk.logDebug(
+        '✅ [CameraManagerWeb] セキュアコンテキスト確認完了 (${location.protocol}//${location.host})',
+        tag: 'CameraManagerWeb.initialize',
+      );
+      
       // ブラウザのgetUserMedia APIを使用してカメラにアクセス
       LogMk.logDebug(
         '📷 [CameraManagerWeb] mediaDevices確認中...',
@@ -57,7 +78,8 @@ class CameraManagerWeb implements CameraManager {
       
       if (html.window.navigator.mediaDevices == null) {
         LogMk.logError(
-          '❌ [CameraManagerWeb] このブラウザはカメラアクセスをサポートしていません',
+          '❌ [CameraManagerWeb] このブラウザはカメラアクセスをサポートしていません\n'
+          '   mediaDevices APIが利用できません。ブラウザのバージョンを確認してください。',
           tag: 'CameraManagerWeb.initialize',
         );
         return false;
@@ -71,14 +93,52 @@ class CameraManagerWeb implements CameraManager {
       // カメラ権限の要求（ブラウザが自動でダイアログを表示）
       final requestStartTime = DateTime.now();
       final constraints = CameraPerformanceConfig.webVideoConstraints();
-      _stream = await html.window.navigator.mediaDevices!
-          .getUserMedia(constraints);
-      final requestDuration = DateTime.now().difference(requestStartTime).inMilliseconds;
       
-      LogMk.logDebug(
-        '✅ [CameraManagerWeb] getUserMedia成功 (所要時間: ${requestDuration}ms)',
-        tag: 'CameraManagerWeb.initialize',
-      );
+      try {
+        _stream = await html.window.navigator.mediaDevices!
+            .getUserMedia(constraints);
+        final requestDuration = DateTime.now().difference(requestStartTime).inMilliseconds;
+        
+        LogMk.logDebug(
+          '✅ [CameraManagerWeb] getUserMedia成功 (所要時間: ${requestDuration}ms)',
+          tag: 'CameraManagerWeb.initialize',
+        );
+      } catch (e) {
+        final requestDuration = DateTime.now().difference(requestStartTime).inMilliseconds;
+        final errorMessage = e.toString();
+        
+        // エラーの種類を判定して詳細なメッセージを出力
+        String detailedMessage = '❌ [CameraManagerWeb] getUserMedia失敗 (所要時間: ${requestDuration}ms)\n';
+        
+        if (errorMessage.contains('NotAllowedError') || 
+            errorMessage.contains('Permission denied')) {
+          detailedMessage += '   カメラへのアクセスが拒否されました。\n'
+              '   ブラウザの設定でカメラへのアクセスを許可してください。';
+        } else if (errorMessage.contains('NotFoundError') || 
+                   errorMessage.contains('No device')) {
+          detailedMessage += '   カメラが見つかりませんでした。\n'
+              '   カメラが接続されているか確認してください。';
+        } else if (errorMessage.contains('NotReadableError') || 
+                   errorMessage.contains('Device in use')) {
+          detailedMessage += '   カメラが使用中です。\n'
+              '   他のアプリケーションでカメラを使用していないか確認してください。';
+        } else if (errorMessage.contains('OverconstrainedError') || 
+                   errorMessage.contains('constraint')) {
+          detailedMessage += '   カメラの設定がサポートされていません。\n'
+              '   エラー詳細: $errorMessage';
+        } else {
+          detailedMessage += '   エラー詳細: $errorMessage\n'
+              '   現在のURL: ${location.protocol}//${location.host}${location.pathname}';
+        }
+        
+        LogMk.logError(
+          detailedMessage,
+          tag: 'CameraManagerWeb.initialize',
+          stackTrace: StackTrace.current,
+        );
+        
+        rethrow;
+      }
       
       if (_stream == null) {
         LogMk.logError(

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:test_flutter/data/models/settings_models.dart';
 import 'package:test_flutter/data/repositories/base/base_data_manager.dart';
 import 'package:test_flutter/data/sources/auth_source.dart';

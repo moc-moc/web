@@ -63,13 +63,13 @@ class TrackingSessionDataManager extends BaseHiveDataManager<TrackingSession> {
 
   // ===== カスタム機能（トラッキングセッション特有） =====
 
-  /// トラッキングセッションを追加（ローカル + Firestore）
+  /// トラッキングセッションを追加（ローカルのみ）
   /// 
-  /// 新しいセッションをローカルストレージ（Hive）に保存した後、
-  /// Firestoreにも同じ内容を保存します。
+  /// 新しいセッションをローカルストレージ（Hive）に保存します。
+  /// Firestoreには保存しません（統計データはdaily_statisticsに集計済み）。
   Future<bool> addSessionWithAuth(
     TrackingSession session, {
-    bool awaitRemote = true,
+    bool awaitRemote = true, // 互換性のため残すが使用しない
   }) async {
     try {
       // 既存のセッションを取得し、同じIDのものを除外
@@ -82,29 +82,7 @@ class TrackingSessionDataManager extends BaseHiveDataManager<TrackingSession> {
       await saveLocal(updatedSessions);
       
       debugPrint('✅ [TrackingSessionDataManager] ローカル保存完了: ${session.id}');
-      
-      Future<void> saveRemote() async {
-        try {
-          debugPrint('🔄 [TrackingSessionDataManager] Firestore保存開始: ${session.id}');
-          final firestoreSuccess = await manager.addWithAuth(session);
-          if (firestoreSuccess) {
-            debugPrint('✅ [TrackingSessionDataManager] Firestore保存成功: ${session.id}');
-          } else {
-            debugPrint(
-              '⚠️ [TrackingSessionDataManager] Firestore保存失敗（リトライキューに追加済み）: ${session.id}',
-            );
-          }
-        } catch (e, stackTrace) {
-          debugPrint('❌ [TrackingSessionDataManager] Firestore保存エラー: $e');
-          debugPrint('   - スタックトレース: $stackTrace');
-        }
-      }
-
-      if (awaitRemote) {
-        await saveRemote();
-      } else {
-        unawaited(saveRemote());
-      }
+      debugPrint('ℹ️ [TrackingSessionDataManager] Firestoreには保存しません（統計データはdaily_statisticsに集計済み）');
       
       return true;
     } catch (e, stackTrace) {

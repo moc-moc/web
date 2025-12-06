@@ -10,6 +10,9 @@ import 'package:test_flutter/presentation/widgets/settings_widgets.dart';
 import 'package:test_flutter/presentation/widgets/dialogs.dart';
 import 'package:test_flutter/data/repositories/auth_repository.dart';
 import 'package:test_flutter/feature/auth/auth_controller.dart';
+import 'package:test_flutter/data/models/subscription_status.dart';
+import 'package:test_flutter/feature/subscription/subscription_providers.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 /// メイン設定画面（新デザインシステム版）
 class SettingsScreenNew extends ConsumerStatefulWidget {
@@ -56,55 +59,59 @@ class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
     final avatarColorName = accountSettings.avatarColor;
     final avatarColor = CustomColorPicker.colors[avatarColorName] ?? AppColors.blue;
     
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.blackgray,
-        borderRadius: BorderRadius.circular(AppRadius.large),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          // アバター（左上）- 背景は透明度付きの設定色
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: avatarColor.withValues(alpha: 0.2),
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: avatarColor,
-                width: 2,
-              ),
-            ),
-            child: Center(
-              child: Text(
-                displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
-                style: TextStyle(
-                  color: avatarColor,
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
+    return Column(
+      children: [
+        Container(
+          padding: EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.blackgray,
+            borderRadius: BorderRadius.circular(AppRadius.large),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // アバター（左上）- 背景は透明度付きの設定色
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  color: avatarColor.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: avatarColor,
+                    width: 2,
+                  ),
+                ),
+                child: Center(
+                  child: Text(
+                    displayName.isNotEmpty ? displayName[0].toUpperCase() : 'U',
+                    style: TextStyle(
+                      color: avatarColor,
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ),
-          SizedBox(width: AppSpacing.md),
-          // ユーザー名（右側）
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(displayName, style: AppTextStyles.h2),
-                SizedBox(height: AppSpacing.xs),
-                Text(
-                  userId,
-                  style: AppTextStyles.body2.copyWith(color: AppColors.textSecondary),
+              SizedBox(width: AppSpacing.md),
+              // ユーザー名（右側）
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(displayName, style: AppTextStyles.h2),
+                    SizedBox(height: AppSpacing.xs),
+                    Text(
+                      userId,
+                      style: AppTextStyles.body2.copyWith(color: AppColors.textSecondary),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
@@ -195,6 +202,14 @@ class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
             NavigationHelper.push(context, AppRoutes.eventPreviewNew);
           },
         ),
+
+        SizedBox(height: AppSpacing.lg),
+
+        // デバッグセクション
+        Text('Debug', style: AppTextStyles.h3),
+        SizedBox(height: AppSpacing.md),
+        _buildDebugSubscriptionToggle(context),
+
         SizedBox(height: AppSpacing.lg),
         _buildSignOutItem(context),
       ],
@@ -260,6 +275,182 @@ class _SettingsScreenNewState extends ConsumerState<SettingsScreenNew> {
         ),
       ),
     );
+  }
+
+  Widget _buildDebugSubscriptionToggle(BuildContext context) {
+    final subscriptionStatus = ref.watch(subscriptionStatusProvider);
+    final isPremium = subscriptionStatus.hasPremiumAccess;
+    final currentPlan = subscriptionStatus.planType.name;
+    
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.blackgray,
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: Border.all(
+          color: AppColors.orange.withValues(alpha: 0.4),
+          width: 1.5,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 24,
+                backgroundColor: AppColors.orange.withValues(alpha: 0.2),
+                child: Icon(Icons.bug_report, color: AppColors.orange, size: 24),
+              ),
+              SizedBox(width: AppSpacing.md),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Subscription Debug',
+                      style: AppTextStyles.body1.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    SizedBox(height: AppSpacing.xs / 2),
+                    Text(
+                      'Current: $currentPlan (${isPremium ? "Premium" : "Free"})',
+                      style: AppTextStyles.caption,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.md),
+          Row(
+            children: [
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _switchToFree(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.error.withValues(alpha: 0.2),
+                    foregroundColor: AppColors.error,
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.medium),
+                      side: BorderSide(color: AppColors.error, width: 1),
+                    ),
+                  ),
+                  child: Text('Free', style: AppTextStyles.body2),
+                ),
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () => _switchToPremium(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.success.withValues(alpha: 0.2),
+                    foregroundColor: AppColors.success,
+                    padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.medium),
+                      side: BorderSide(color: AppColors.success, width: 1),
+                    ),
+                  ),
+                  child: Text('Premium', style: AppTextStyles.body2),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _switchToFree(BuildContext context) async {
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: '無料版に切り替え',
+      message: 'サブスクリプションを無料版に切り替えますか？',
+      confirmText: '切り替え',
+      cancelText: 'キャンセル',
+      confirmColor: AppColors.error,
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('ユーザーがログインしていません');
+      }
+
+      final repository = ref.read(userRepositoryProvider);
+      final freeStatus = const SubscriptionStatus.free();
+      
+      await repository.updateSubscriptionStatus(user.uid, freeStatus);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('無料版に切り替えました'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('切り替え中にエラーが発生しました: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _switchToPremium(BuildContext context) async {
+    final confirmed = await ConfirmDialog.show(
+      context,
+      title: '有料版に切り替え',
+      message: 'サブスクリプションを有料版（月額プラン）に切り替えますか？',
+      confirmText: '切り替え',
+      cancelText: 'キャンセル',
+      confirmColor: AppColors.success,
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('ユーザーがログインしていません');
+      }
+
+      final repository = ref.read(userRepositoryProvider);
+      final premiumStatus = SubscriptionStatus(
+        planType: SubscriptionPlanType.monthly,
+        nextBillingAt: DateTime.now().add(const Duration(days: 30)),
+      );
+      
+      await repository.updateSubscriptionStatus(user.uid, premiumStatus);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('有料版に切り替えました'),
+          backgroundColor: AppColors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('切り替え中にエラーが発生しました: $e'),
+          backgroundColor: AppColors.error,
+        ),
+      );
+    }
   }
 
   Widget _buildSignOutItem(BuildContext context) {

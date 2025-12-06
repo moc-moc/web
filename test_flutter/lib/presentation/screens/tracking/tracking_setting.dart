@@ -11,6 +11,7 @@ import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
 import 'package:test_flutter/feature/tracking/tracking_limit_providers.dart';
 import 'package:test_flutter/feature/subscription/subscription_providers.dart';
+import 'package:test_flutter/presentation/widgets/entitlement_gate.dart';
 
 /// トラッキング設定画面（新デザインシステム版）
 class TrackingSettingScreenNew extends ConsumerStatefulWidget {
@@ -29,6 +30,9 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
   // 設定の状態
   bool isPowerSavingMode = false;
   bool isCameraVisible = true;
+  bool _smartphoneAlertEnabled = false;
+  int _smartphoneAlertMinutes = 5;
+  int _smartphoneAlertSeconds = 0;
 
   @override
   void initState() {
@@ -124,6 +128,9 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
       // 設定の状態を読み込む
       isPowerSavingMode = settings.isPowerSavingMode;
       isCameraVisible = settings.isCameraOn;
+      _smartphoneAlertEnabled = settings.smartphoneAlertEnabled;
+      _smartphoneAlertMinutes = settings.smartphoneAlertMinutes;
+      _smartphoneAlertSeconds = settings.smartphoneAlertSeconds;
     });
     
     // 自動選択された場合は保存
@@ -141,9 +148,18 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
       selectedSmartphoneGoalId: selectedSmartphoneGoal,
       isPowerSavingMode: isPowerSavingMode,
       isCameraOn: isCameraVisible,
+      smartphoneAlertEnabled: _smartphoneAlertEnabled,
+      smartphoneAlertMinutes: _smartphoneAlertMinutes,
+      smartphoneAlertSeconds: _smartphoneAlertSeconds,
     );
     
-    await saveTrackingSettingsHelper(ref, updatedSettings);
+    debugPrint('🔄 [TrackingSetting] 設定を保存します: smartphoneAlertEnabled=${updatedSettings.smartphoneAlertEnabled}, smartphoneAlertMinutes=${updatedSettings.smartphoneAlertMinutes}, smartphoneAlertSeconds=${updatedSettings.smartphoneAlertSeconds}');
+    final success = await saveTrackingSettingsHelper(ref, updatedSettings);
+    if (success) {
+      debugPrint('✅ [TrackingSetting] 設定の保存に成功しました');
+    } else {
+      debugPrint('❌ [TrackingSetting] 設定の保存に失敗しました');
+    }
   }
 
   @override
@@ -244,6 +260,11 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
             await _saveSettings();
           },
         ),
+
+        SizedBox(height: AppSpacing.md),
+
+        // スマホ使用時間アラート設定
+        _buildSmartphoneAlertSettings(),
       ],
     );
   }
@@ -409,17 +430,30 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
         SizedBox(height: AppSpacing.sm),
 
         // 省電力モード
-        _buildSettingSwitch(
+        Consumer(
+          builder: (context, ref, child) {
+            final subscriptionStatus = ref.watch(subscriptionStatusProvider);
+            final powerSavingUnlocked = EntitlementRules.canUse(
+              subscriptionStatus,
+              PremiumFeature.powerSavingMode,
+            );
+            
+            return _buildSettingSwitch(
           title: 'Power Saving Mode',
           description: 'Reduce battery consumption during tracking',
           icon: Icons.battery_saver,
           iconColor: AppColors.green,
           value: isPowerSavingMode,
-          onChanged: (value) async {
+              isLocked: !powerSavingUnlocked,
+              onChanged: powerSavingUnlocked ? (value) async {
             setState(() {
               isPowerSavingMode = value;
             });
             await _saveSettings();
+              } : (value) {
+                Navigator.of(context).pushNamed(AppRoutes.subscriptionNew);
+              },
+            );
           },
         ),
 
@@ -451,6 +485,7 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
     required Color iconColor,
     required bool value,
     required ValueChanged<bool> onChanged,
+    bool isLocked = false,
   }) {
     return Container(
       padding: EdgeInsets.all(AppSpacing.md),
@@ -458,7 +493,9 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
         color: AppColors.lightblackgray.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(AppRadius.large),
         border: Border.all(
-          color: iconColor.withValues(alpha: 0.35),
+          color: isLocked
+              ? AppColors.textSecondary.withValues(alpha: 0.3)
+              : iconColor.withValues(alpha: 0.35),
           width: 1.5,
         ),
       ),
@@ -468,15 +505,44 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: value
-                  ? iconColor.withValues(alpha: 0.2)
-                  : AppColors.lightblackgray.withValues(alpha: 0.3),
+              color: isLocked
+                  ? AppColors.lightblackgray.withValues(alpha: 0.3)
+                  : value
+                      ? iconColor.withValues(alpha: 0.2)
+                      : AppColors.lightblackgray.withValues(alpha: 0.3),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              icon,
-              color: value ? iconColor : AppColors.textSecondary,
-              size: 24,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(
+                  icon,
+                  color: isLocked
+                      ? AppColors.textSecondary
+                      : value
+                          ? iconColor
+                          : AppColors.textSecondary,
+                  size: 24,
+                ),
+                if (isLocked)
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 16,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: AppColors.textSecondary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.lock,
+                        size: 10,
+                        color: AppColors.white,
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
           SizedBox(width: AppSpacing.md),
@@ -488,6 +554,9 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
                   title,
                   style: AppTextStyles.body1.copyWith(
                     fontWeight: FontWeight.w600,
+                    color: isLocked
+                        ? AppColors.textSecondary
+                        : AppColors.white,
                   ),
                 ),
                 SizedBox(height: AppSpacing.xs),
@@ -502,9 +571,218 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
           ),
           AppToggleSwitch(
             value: value,
-            onChanged: onChanged,
+            onChanged: isLocked ? (newValue) {
+              // ロックされている場合は、サブスクライブ画面に遷移
+              Navigator.of(context).pushNamed(AppRoutes.subscriptionNew);
+            } : onChanged,
             activeColor: iconColor,
           ),
+        ],
+      ),
+    );
+  }
+
+  /// スマホ使用時間アラート設定
+  Widget _buildSmartphoneAlertSettings() {
+    return Container(
+      padding: EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.lightblackgray.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        border: Border.all(
+          color: AppColors.orange.withValues(alpha: 0.4),
+          width: 1,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.orange.withValues(alpha: 0.2),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.notifications_active, color: AppColors.orange, size: 20),
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Text(
+                'スマホ使用時間アラート',
+                style: AppTextStyles.body1.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.orange,
+                ),
+              ),
+            ],
+          ),
+          SizedBox(height: AppSpacing.md),
+          // アラート有効/無効スイッチ
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'アラートを有効にする',
+                  style: AppTextStyles.body2.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+              ),
+              AppToggleSwitch(
+                value: _smartphoneAlertEnabled,
+                onChanged: (value) async {
+                  setState(() {
+                    _smartphoneAlertEnabled = value;
+                  });
+                  await _saveSettings();
+                },
+                activeColor: AppColors.orange,
+              ),
+            ],
+          ),
+          if (_smartphoneAlertEnabled) ...[
+            SizedBox(height: AppSpacing.md),
+            Text(
+              'アラート時間',
+              style: AppTextStyles.body2.copyWith(
+                color: AppColors.textSecondary,
+              ),
+            ),
+            SizedBox(height: AppSpacing.sm),
+            // 分の設定
+            Text(
+              '分',
+              style: AppTextStyles.body2.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+            SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: _smartphoneAlertMinutes.toDouble(),
+                    min: 0,
+                    max: 60,
+                    divisions: 60,
+                    label: '${_smartphoneAlertMinutes}分',
+                    activeColor: AppColors.orange,
+                    inactiveColor: AppColors.gray.withValues(alpha: 0.3),
+                    onChanged: (value) async {
+                      setState(() {
+                        _smartphoneAlertMinutes = value.round();
+                      });
+                      await _saveSettings();
+                    },
+                  ),
+                ),
+                SizedBox(width: AppSpacing.md),
+                Container(
+                  width: 60,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.orange.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(AppRadius.medium),
+                  ),
+                  child: Text(
+                    '${_smartphoneAlertMinutes}分',
+                    style: AppTextStyles.body2.copyWith(
+                      color: AppColors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppSpacing.md),
+            // 秒の設定
+            Text(
+              '秒',
+              style: AppTextStyles.body2.copyWith(
+                color: AppColors.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+            SizedBox(height: AppSpacing.xs),
+            Row(
+              children: [
+                Expanded(
+                  child: Slider(
+                    value: _smartphoneAlertSeconds.toDouble(),
+                    min: 0,
+                    max: 59,
+                    divisions: 59,
+                    label: '${_smartphoneAlertSeconds}秒',
+                    activeColor: AppColors.orange,
+                    inactiveColor: AppColors.gray.withValues(alpha: 0.3),
+                    onChanged: (value) async {
+                      setState(() {
+                        _smartphoneAlertSeconds = value.round();
+                      });
+                      await _saveSettings();
+                    },
+                  ),
+                ),
+                SizedBox(width: AppSpacing.md),
+                Container(
+                  width: 60,
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: AppSpacing.xs,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.orange.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(AppRadius.medium),
+                  ),
+                  child: Text(
+                    '${_smartphoneAlertSeconds}秒',
+                    style: AppTextStyles.body2.copyWith(
+                      color: AppColors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: AppSpacing.sm),
+            // 合計時間の表示
+            Container(
+              padding: EdgeInsets.all(AppSpacing.sm),
+              decoration: BoxDecoration(
+                color: AppColors.orange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(AppRadius.medium),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    '合計: ',
+                    style: AppTextStyles.body2.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  Text(
+                    _smartphoneAlertMinutes > 0 || _smartphoneAlertSeconds > 0
+                        ? '${_smartphoneAlertMinutes * 60 + _smartphoneAlertSeconds}秒'
+                        : '0秒',
+                    style: AppTextStyles.body2.copyWith(
+                      color: AppColors.orange,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -583,22 +861,36 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
                   right: 0,
                   child: Container(
                     padding: EdgeInsets.symmetric(
-                      horizontal: AppSpacing.xs,
-                      vertical: 2,
+                      horizontal: AppSpacing.md,
+                      vertical: AppSpacing.sm,
                     ),
                     decoration: BoxDecoration(
                       color: remainingCount > 0
                           ? AppColors.blue.withValues(alpha: 0.8)
                           : AppColors.error.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(AppRadius.large),
                     ),
-                    child: Text(
-                      remainingCount > 0 ? '$remainingCount' : '0',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '残り回数',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        SizedBox(width: AppSpacing.xs),
+                        Text(
+                          remainingCount > 0 ? '$remainingCount' : '0',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

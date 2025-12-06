@@ -396,21 +396,48 @@ class ONNXDetectionService implements DetectionService {
       );
 
       // モデルファイルのURLを取得（Flutter Webのassetsパス）
-      // 注意: Flutter Webでは、assetsは /assets/ パスでアクセス可能
-      // modelPathが既に 'assets/' で始まっている場合は削除
-      String cleanPath = modelPath;
-      if (cleanPath.startsWith('assets/')) {
-        cleanPath = cleanPath.substring('assets/'.length);
+      // Flutter Webでは、pubspec.yamlで 'assets/models/' と指定すると
+      // '/assets/assets/models/' に配置される
+      // base hrefを考慮して、複数のパス候補を試す
+      final location = html.window.location;
+      final pathname = location.pathname ?? '';
+      final baseHref = pathname.isEmpty 
+          ? ''
+          : (pathname.endsWith('/') 
+              ? pathname.substring(0, pathname.length - 1)
+              : pathname.substring(0, pathname.lastIndexOf('/')));
+      
+      // パス候補のリスト（優先順位順）
+      final pathCandidates = <String>[];
+      
+      // modelPathが既に 'assets/' で始まっている場合
+      if (modelPath.startsWith('assets/')) {
+        // 絶対パス（base hrefを考慮）
+        pathCandidates.add('$baseHref/assets/$modelPath');
+        // ルートからの絶対パス
+        pathCandidates.add('/assets/$modelPath');
+        // 相対パス
+        pathCandidates.add('assets/$modelPath');
+      } else {
+        // 絶対パス（base hrefを考慮）
+        pathCandidates.add('$baseHref/assets/assets/$modelPath');
+        // ルートからの絶対パス
+        pathCandidates.add('/assets/assets/$modelPath');
+        // 相対パス
+        pathCandidates.add('assets/assets/$modelPath');
       }
-      final modelUrl = '/assets/$cleanPath';
 
       LogMk.logDebug(
-        '🤖 [ONNXDetectionService] モデルURL: $modelUrl',
+        '🤖 [ONNXDetectionService] モデルパス候補: ${pathCandidates.join(", ")}\n'
+        '   現在のURL: ${location.href}\n'
+        '   baseHref: $baseHref',
         tag: 'ONNXDetectionService._loadOnnxModel',
       );
-
-      // InferenceSession.create()を呼び出し
-      // ort.InferenceSession.create(modelUrl) を実行
+      
+      // 複数のパス候補を試す
+      dynamic session;
+      Exception? lastError;
+      
       final createMethod = InferenceSession['create'];
       if (createMethod == null) {
         LogMk.logError(
@@ -419,26 +446,6 @@ class ONNXDetectionService implements DetectionService {
         );
         throw Exception('InferenceSession.createが見つかりません');
       }
-
-      LogMk.logDebug(
-        '✅ [ONNXDetectionService] createメソッド取得成功',
-        tag: 'ONNXDetectionService._loadOnnxModel',
-      );
-
-      // WebGPUバックエンドを有効化するセッションオプションを作成
-      final sessionOptions = js.JsObject.jsify({
-        'executionProviders': [
-          'webgpu', // WebGPU（最優先、利用可能な場合）
-          'wasm', // WebAssembly（フォールバック）
-        ],
-      });
-
-      // JavaScriptの関数を呼び出す
-      // createMethod.apply(InferenceSession, [modelUrl, sessionOptions]) の形式
-      LogMk.logDebug(
-        '🤖 [ONNXDetectionService] WebGPUバックエンドを有効化してInferenceSession.create()呼び出し開始',
-        tag: 'ONNXDetectionService._loadOnnxModel',
-      );
 
       final applyMethod = js.context['Function']['prototype']['apply'];
       if (applyMethod == null) {
@@ -449,27 +456,59 @@ class ONNXDetectionService implements DetectionService {
         throw Exception('Function.prototype.applyが見つかりません');
       }
 
-      final sessionPromise = applyMethod.callMethod('call', [
-        createMethod,
-        InferenceSession,
-        js.JsArray.from([modelUrl, sessionOptions]),
-      ]);
+      // WebGPUバックエンドを有効化するセッションオプションを作成
+      final sessionOptions = js.JsObject.jsify({
+        'executionProviders': [
+          'webgpu', // WebGPU（最優先、利用可能な場合）
+          'wasm', // WebAssembly（フォールバック）
+        ],
+      });
 
-      LogMk.logDebug(
-        '🤖 [ONNXDetectionService] Promise取得成功、待機中...',
-        tag: 'ONNXDetectionService._loadOnnxModel',
-      );
+      for (final modelUrl in pathCandidates) {
+        try {
+          LogMk.logDebug(
+            '🤖 [ONNXDetectionService] モデルURL試行: $modelUrl',
+            tag: 'ONNXDetectionService._loadOnnxModel',
+          );
 
-      final promiseStartTime = DateTime.now();
-      final session = await _promiseToFuture(sessionPromise);
-      final promiseDuration = DateTime.now()
-          .difference(promiseStartTime)
-          .inMilliseconds;
+          final sessionPromise = applyMethod.callMethod('call', [
+            createMethod,
+            InferenceSession,
+            js.JsArray.from([modelUrl, sessionOptions]),
+          ]);
 
-      LogMk.logDebug(
-        '✅ [ONNXDetectionService] セッション作成成功 (所要時間: ${promiseDuration}ms, WebGPU有効)',
-        tag: 'ONNXDetectionService._loadOnnxModel',
-      );
+          final promiseStartTime = DateTime.now();
+          session = await _promiseToFuture(sessionPromise);
+          final promiseDuration = DateTime.now()
+              .difference(promiseStartTime)
+              .inMilliseconds;
+
+          LogMk.logDebug(
+            '✅ [ONNXDetectionService] モデル読み込み成功: $modelUrl (所要時間: ${promiseDuration}ms)',
+            tag: 'ONNXDetectionService._loadOnnxModel',
+          );
+          break; // 成功したらループを抜ける
+        } catch (e) {
+          lastError = e is Exception ? e : Exception(e.toString());
+          LogMk.logWarning(
+            '⚠️ [ONNXDetectionService] モデルURL失敗: $modelUrl\n'
+            '   エラー: $e',
+            tag: 'ONNXDetectionService._loadOnnxModel',
+          );
+          continue; // 次のパス候補を試す
+        }
+      }
+
+      if (session == null) {
+        final errorMessage = 'すべてのパス候補でモデル読み込みに失敗しました。\n'
+            '試行したパス: ${pathCandidates.join(", ")}\n'
+            '最後のエラー: ${lastError?.toString() ?? "不明"}';
+        LogMk.logError(
+          '❌ [ONNXDetectionService] $errorMessage',
+          tag: 'ONNXDetectionService._loadOnnxModel',
+        );
+        throw Exception(errorMessage);
+      }
 
       // セッション情報をログ出力
       try {

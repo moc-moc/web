@@ -4,7 +4,6 @@ import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/daily_statistics_data_manager.dart';
-import 'package:test_flutter/feature/statistics/session_info_model.dart';
 import 'package:test_flutter/feature/statistics/weekly_statistics_model.dart';
 import 'package:test_flutter/feature/statistics/weekly_statistics_data_manager.dart';
 import 'package:test_flutter/feature/statistics/monthly_statistics_model.dart';
@@ -23,11 +22,14 @@ import 'package:test_flutter/feature/total/total_model.dart';
 import 'package:test_flutter/feature/total/total_hours_milestone_manager.dart';
 import 'package:test_flutter/feature/setting/settings_data_manager.dart';
 import 'package:test_flutter/data/models/settings_models.dart';
+import 'package:test_flutter/data/sources/date_utils.dart' as DateUtilsHelper;
+import 'package:test_flutter/data/sources/auth_source.dart';
 import 'package:test_flutter/data/repositories/initialization_repository.dart';
 import 'package:test_flutter/feature/streak/streak_functions.dart';
 import 'package:test_flutter/feature/leveling/level_data_manager.dart';
 import 'package:test_flutter/feature/leveling/level_formula.dart';
 import 'package:test_flutter/feature/leveling/level_model.dart';
+import 'package:test_flutter/feature/leveling/level_functions.dart';
 
 class AggregationPhaseResult {
   const AggregationPhaseResult({
@@ -122,6 +124,7 @@ class StatisticsAggregationService {
   static final TotalDataManager _totalManager = TotalDataManager();
   static final TotalHoursMilestoneManager _milestoneManager = TotalHoursMilestoneManager();
   static final TrackingSettingsDataManager _trackingSettingsManager = TrackingSettingsDataManager();
+  static final TimeSettingsDataManager _timeSettingsManager = TimeSettingsDataManager();
   static final StreakDataManager _streakManager = StreakDataManager();
   static final LevelingDataManager _levelingManager = LevelingDataManager();
   
@@ -142,9 +145,13 @@ class StatisticsAggregationService {
   /// 
   /// **パラメータ**:
   /// - `session`: トラッキングセッション
+  /// - `trackingCount`: 現在のトラッキング回数（トラッキング終了時に取得した値）
   /// 
   /// **戻り値**: Phase1の成否と、Phase2完了時に詳細結果を返すFuture
-  Future<AggregationPhaseResult> aggregateSessionData(TrackingSession session) async {
+  Future<AggregationPhaseResult> aggregateSessionData(
+    TrackingSession session, {
+    int? trackingCount,
+  }) async {
     try {
       if (!_markSessionAsProcessing(session.id)) {
         LogMk.logWarning(
@@ -181,9 +188,10 @@ class StatisticsAggregationService {
       final workSeconds = (session.categorySeconds['study'] ?? 0) +
                          (session.categorySeconds['pc'] ?? 0);
 
-      final date = DateTime(session.startTime.year, session.startTime.month, session.startTime.day);
-      final year = session.startTime.year;
-      final month = session.startTime.month;
+      // 3. reset timeを考慮した日付を取得
+      final date = await _getDateWithResetTime(session.startTime);
+      final year = date.year;
+      final month = date.month;
       
       // ===== Phase 1: 日次統計のみ同期的に実行（画面表示に必須） =====
       LogMk.logDebug(
@@ -197,6 +205,7 @@ class StatisticsAggregationService {
         categorySecondsWithNothing, 
         workSeconds, 
         existingDaily,
+        trackingCount: trackingCount,
       );
       
       if (!dailySuccess) {
@@ -453,6 +462,24 @@ class StatisticsAggregationService {
     );
 
     await _levelingManager.saveCurrentLevel(updatedState);
+    
+    // Providerを更新してホーム画面のプログレスバーを即座に反映
+    final container = AppInitUN.getGlobalContainer();
+    if (container != null) {
+      try {
+        container.read(levelingStateProvider.notifier).updateState(updatedState);
+        LogMk.logDebug(
+          '✅ levelingStateProviderを更新しました: level=${updatedState.level}',
+          tag: 'StatisticsAggregationService',
+        );
+      } catch (e) {
+        LogMk.logWarning(
+          '⚠️ levelingStateProviderの更新に失敗: $e',
+          tag: 'StatisticsAggregationService',
+        );
+      }
+    }
+    
     LogMk.logDebug(
       '🎯 レベル更新: ${currentState.level} -> ${updatedState.level} (人検出 +${gainedSeconds}s)',
       tag: 'StatisticsAggregationService',
@@ -468,79 +495,168 @@ class StatisticsAggregationService {
   /// Phase 1: 日次データの集計・更新（ローカル保存優先、Firestoreは非同期）
   /// 
   /// 既存のセッション情報を考慮して、新しいセッションを追加または更新します。
-  /// saveOrUpdateWithAuth()を使用することで、updateFromSessions()が自動的に呼ばれ、
-  /// すべてのセッションからcategorySeconds等が再計算されます。
+  /// 日次統計を更新（categorySeconds、hourlyCategorySeconds、trackingCountを保存）
+  /// 
+  /// セッションが複数日に跨る場合、それぞれの日のhourlyCategorySecondsに正しく保存されます。
+  /// 
+  /// saveOrUpdateWithAuth()を使用することで、updateFromCategorySeconds()が自動的に呼ばれ、
+  /// categorySecondsからtotalWorkTimeSeconds等が再計算されます。
   Future<bool> _updateDailyStatisticsPhase1(
     TrackingSession session,
     Map<String, int> categorySeconds,
     int workSeconds,
-    DailyStatistics? existing,
-  ) async {
+    DailyStatistics? existing, {
+    int? trackingCount,
+  }) async {
     try {
-      final date = DateTime(session.startTime.year, session.startTime.month, session.startTime.day);
-      final id = _formatDateId(date);
+      // reset timeを考慮した日付を取得（セッション開始時刻の日付）
+      final startDate = await _getDateWithResetTime(session.startTime);
+      final endDate = await _getDateWithResetTime(session.endTime);
       
-      // TrackingSessionをSessionInfoに変換
-      final sessionInfo = SessionInfo(
-        id: session.id,
-        startTime: session.startTime,
-        endTime: session.endTime,
-        categorySeconds: Map<String, int>.from(session.categorySeconds),
-        detectionPeriods: List<DetectionPeriod>.from(session.detectionPeriods),
-        lastModified: session.lastModified,
-      );
-      
-      // 既存データがあればセッションをマージ、なければ新規作成
-      List<SessionInfo> updatedSessions;
-      if (existing != null) {
-        // 既存のセッションリストを取得
-        updatedSessions = List<SessionInfo>.from(existing.sessions);
-        
-        // 同じIDのセッションがあれば置き換え、なければ追加
-        final existingIndex = updatedSessions.indexWhere((s) => s.id == sessionInfo.id);
-        if (existingIndex >= 0) {
-          updatedSessions[existingIndex] = sessionInfo;
-          LogMk.logDebug(
-            '📝 既存セッションを更新: ${sessionInfo.id}',
-            tag: 'StatisticsAggregationService',
-          );
-        } else {
-          updatedSessions.add(sessionInfo);
-          LogMk.logDebug(
-            '➕ 新規セッションを追加: ${sessionInfo.id}',
-            tag: 'StatisticsAggregationService',
-          );
+      // セッションが跨ぐ日をすべて取得
+      final datesToProcess = <DateTime>[];
+      var currentDate = startDate;
+      // 日付が同じか、endDateより前または同じ日までループ
+      while (currentDate.year == endDate.year && 
+             currentDate.month == endDate.month && 
+             currentDate.day == endDate.day ||
+             currentDate.isBefore(endDate)) {
+        datesToProcess.add(currentDate);
+        currentDate = currentDate.add(const Duration(days: 1));
+        // 無限ループ防止（最大2日分まで）
+        if (datesToProcess.length > 2) {
+          break;
         }
-      } else {
-        // 新規作成
-        updatedSessions = [sessionInfo];
-        LogMk.logDebug(
-          '🆕 新規日次統計を作成: $id',
-          tag: 'StatisticsAggregationService',
-        );
       }
       
-      // 日次統計データを作成（sessionsのみ設定、categorySeconds等はsaveOrUpdateWithAuth内で計算）
-      final dailyStats = DailyStatistics(
-        id: id,
-        date: date,
-        categorySeconds: existing?.categorySeconds ?? {},
-        totalWorkTimeSeconds: existing?.totalWorkTimeSeconds ?? 0,
-        pieChartData: existing?.pieChartData,
-        hourlyCategorySeconds: existing?.hourlyCategorySeconds ?? {},
-        sessions: updatedSessions,
-        lastModified: DateTime.now(),
-      );
-      
-      // 保存（saveOrUpdateWithAuth内でupdateFromSessionsが呼ばれ、すべてのセッションから再計算される）
-      await _dailyManager.saveOrUpdateWithAuth(dailyStats);
-      
       LogMk.logDebug(
-        '✅ 日次統計を更新しました（ローカル保存完了）: $id',
+        '📅 セッションが跨ぐ日: ${datesToProcess.length}日（開始: ${_formatDateId(startDate)}, 終了: ${_formatDateId(endDate)}）',
         tag: 'StatisticsAggregationService',
       );
       
-      return true;
+      // 各日に対して処理
+      bool allSuccess = true;
+      for (final date in datesToProcess) {
+        final id = _formatDateId(date);
+        
+        // その日の既存データを取得
+        final existingForDate = await _dailyManager.getByDateWithAuth(date);
+        
+        // trackingCountは開始日の日付の場合のみ使用
+        final isStartDate = date.year == startDate.year && 
+                           date.month == startDate.month && 
+                           date.day == startDate.day;
+        final finalTrackingCount = isStartDate
+            ? (trackingCount ?? existingForDate?.trackingCount ?? 0)
+            : (existingForDate?.trackingCount ?? 0);
+        
+        // 既存データがあればcategorySecondsをマージ、なければ新規作成
+        Map<String, int> mergedCategorySeconds;
+        Map<String, Map<String, int>> mergedHourlyCategorySeconds;
+        int mergedTrackingCount;
+        
+        if (existingForDate != null) {
+          // 既存データとマージ（categorySecondsを加算）
+          // ただし、categorySecondsは開始日の日付の場合のみ加算
+          mergedCategorySeconds = <String, int>{};
+          if (isStartDate) {
+            // 開始日の日付の場合のみ、セッションのcategorySecondsを加算
+            for (final key in ['study', 'pc', 'smartphone', 'personOnly', 'nothingDetected']) {
+              mergedCategorySeconds[key] = (existingForDate.categorySeconds[key] ?? 0) + 
+                                          (categorySeconds[key] ?? 0);
+            }
+          } else {
+            // 他の日の場合は既存の値を保持
+            mergedCategorySeconds = Map<String, int>.from(existingForDate.categorySeconds);
+          }
+          
+          // hourlyCategorySecondsを既存の値からコピー
+          mergedHourlyCategorySeconds = Map<String, Map<String, int>>.from(existingForDate.hourlyCategorySeconds);
+          
+          // trackingCountは開始日の日付の場合のみ更新
+          mergedTrackingCount = finalTrackingCount;
+          
+          LogMk.logDebug(
+            '📝 既存日次統計を更新: $id',
+            tag: 'StatisticsAggregationService',
+          );
+        } else {
+          // 新規作成
+          // categorySecondsは開始日の日付の場合のみ設定
+          if (isStartDate) {
+            mergedCategorySeconds = Map<String, int>.from(categorySeconds);
+          } else {
+            mergedCategorySeconds = <String, int>{
+              'study': 0,
+              'pc': 0,
+              'smartphone': 0,
+              'personOnly': 0,
+              'nothingDetected': 0,
+            };
+          }
+          mergedHourlyCategorySeconds = <String, Map<String, int>>{};
+          mergedTrackingCount = finalTrackingCount;
+          
+          LogMk.logDebug(
+            '🆕 新規日次統計を作成: $id',
+            tag: 'StatisticsAggregationService',
+          );
+        }
+        
+        // セッションのdetectionPeriodsから時間ごとの検出時間を集計してhourlyCategorySecondsに追加
+        // その日に該当する部分だけを集計（reset timeを考慮）
+        final sessionHourlyData = await _aggregateHourlyCategorySecondsForDate(session, date);
+        for (final entry in sessionHourlyData.entries) {
+          final hourKey = entry.key;
+          final hourData = entry.value;
+          
+          // 既存の時間帯データを取得（なければ空のMapを作成）
+          final existingHourData = mergedHourlyCategorySeconds[hourKey] ?? <String, int>{};
+          
+          // 既存のデータと新しいデータをマージ（加算）
+          final mergedHourData = <String, int>{};
+          for (final key in ['study', 'pc', 'smartphone', 'personOnly', 'nothingDetected']) {
+            mergedHourData[key] = (existingHourData[key] ?? 0) + (hourData[key] ?? 0);
+          }
+          
+          mergedHourlyCategorySeconds[hourKey] = mergedHourData;
+        }
+        
+        LogMk.logDebug(
+          '📊 hourlyCategorySecondsを更新: $id, ${sessionHourlyData.length}時間帯',
+          tag: 'StatisticsAggregationService',
+        );
+        
+        // 日次統計データを作成（categorySecondsとtrackingCountを設定、totalWorkTimeSeconds等はsaveOrUpdateWithAuth内で計算）
+        final dailyStats = DailyStatistics(
+          id: id,
+          date: date,
+          categorySeconds: mergedCategorySeconds,
+          totalWorkTimeSeconds: existingForDate?.totalWorkTimeSeconds ?? 0,
+          pieChartData: existingForDate?.pieChartData,
+          hourlyCategorySeconds: mergedHourlyCategorySeconds,
+          trackingCount: mergedTrackingCount,
+          lastModified: DateTime.now(),
+        );
+        
+        // 保存（既にマージ済みなのでsaveDirectlyを使用）
+        // saveOrUpdateWithAuthを使うと二重に加算されてしまうため、saveDirectlyを使用
+        final success = await _dailyManager.saveDirectly(dailyStats);
+        if (!success) {
+          allSuccess = false;
+          LogMk.logWarning(
+            '⚠️ 日次統計の保存に失敗: $id',
+            tag: 'StatisticsAggregationService',
+          );
+        } else {
+          LogMk.logDebug(
+            '✅ 日次統計を更新しました（ローカル保存完了）: $id',
+            tag: 'StatisticsAggregationService',
+          );
+        }
+      }
+      
+      return allSuccess;
     } catch (e, stackTrace) {
       LogMk.logError(
         '❌ 日次統計の更新に失敗しました: $e',
@@ -549,6 +665,138 @@ class StatisticsAggregationService {
       );
       return false;
     }
+  }
+
+  /// セッションから時間ごとのカテゴリ別秒数を集計（日次用・指定日のみ）
+  /// 
+  /// detectionPeriodsから時間ごと（0-23時）のカテゴリ別秒数を集計します。
+  /// reset timeを考慮して、指定された日に該当する部分だけを処理します。
+  /// 
+  /// **パラメータ**:
+  /// - `session`: トラッキングセッション
+  /// - `date`: 集計対象の日付（reset time考慮済み）
+  /// 
+  /// **戻り値**: {"0": {study: 600, pc: 300, ...}, "1": {...}, ..., "23": {...}}
+  Future<Map<String, Map<String, int>>> _aggregateHourlyCategorySecondsForDate(
+    TrackingSession session,
+    DateTime date,
+  ) async {
+    final hourlyData = <String, Map<String, int>>{};
+    
+    // 24時間分のデータを初期化
+    for (int hour = 0; hour < 24; hour++) {
+      hourlyData[hour.toString()] = <String, int>{
+        'study': 0,
+        'pc': 0,
+        'smartphone': 0,
+        'personOnly': 0,
+        'nothingDetected': 0,
+      };
+    }
+    
+    // reset timeを取得して、その日の範囲を計算
+    int resetHour = 0;
+    try {
+      final currentUser = AuthMk.getCurrentUser();
+      if (currentUser != null) {
+        final userId = currentUser.uid;
+        final timeSettings = await _timeSettingsManager.getById(userId, 'time_settings');
+        if (timeSettings != null) {
+          final resetTimeParts = timeSettings.dayBoundaryTime.split(':');
+          resetHour = int.tryParse(resetTimeParts[0]) ?? 0;
+        }
+      }
+    } catch (e) {
+      // エラー時はデフォルト0時を使用
+    }
+    
+    // その日の範囲を計算（reset time考慮）
+    // 例：reset timeが22時の場合、「12月6日」は「12/5 22:00～12/6 22:00」の範囲
+    final dateEnd = DateTime(date.year, date.month, date.day, resetHour);
+    final dateStart = dateEnd.subtract(const Duration(days: 1));
+    
+    LogMk.logDebug(
+      '📅 日付範囲: ${_formatDateId(date)}, reset=${resetHour}時, 範囲=${dateStart.toIso8601String()} ～ ${dateEnd.toIso8601String()}',
+      tag: 'StatisticsAggregationService',
+    );
+    LogMk.logDebug(
+      '📝 セッションのdetectionPeriods数: ${session.detectionPeriods.length}',
+      tag: 'StatisticsAggregationService',
+    );
+    
+    // その日に該当するdetectionPeriodsだけを処理
+    int processedPeriods = 0;
+    for (final period in session.detectionPeriods) {
+      final periodStart = period.startTime;
+      final periodEnd = period.endTime;
+      final category = period.category;
+      
+      // 期間がその日の範囲外の場合はスキップ
+      if (periodEnd.isBefore(dateStart) || 
+          periodEnd.isAtSameMomentAs(dateStart) ||
+          periodStart.isAfter(dateEnd) ||
+          periodStart.isAtSameMomentAs(dateEnd)) {
+        continue;
+      }
+      
+      processedPeriods++;
+      
+      // 期間の開始時刻と終了時刻をその日の範囲内に制限
+      final effectiveStart = periodStart.isBefore(dateStart) ? dateStart : periodStart;
+      final effectiveEnd = periodEnd.isAfter(dateEnd) ? dateEnd : periodEnd;
+      
+      // 時間ごとに分割して集計
+      var currentTime = effectiveStart;
+      while (currentTime.isBefore(effectiveEnd)) {
+        // 現在の時間帯の終了時刻を計算（次の時間の開始時刻、または期間の終了時刻のうち早い方）
+        final currentHour = currentTime.hour;
+        final nextHourStart = DateTime(
+          currentTime.year,
+          currentTime.month,
+          currentTime.day,
+          currentHour + 1,
+        );
+        final segmentEnd = effectiveEnd.isBefore(nextHourStart) ? effectiveEnd : nextHourStart;
+        
+        // この時間帯の秒数を計算
+        final durationSeconds = segmentEnd.difference(currentTime).inSeconds;
+        
+        // 時間帯のキー（0-23の文字列）
+        final hourKey = currentHour.toString();
+        
+        // 時間帯のデータに加算
+        if (hourlyData.containsKey(hourKey) && hourlyData[hourKey]!.containsKey(category)) {
+          hourlyData[hourKey]![category] = (hourlyData[hourKey]![category] ?? 0) + durationSeconds;
+        }
+        
+        // 次の時間帯へ
+        currentTime = segmentEnd;
+      }
+    }
+    
+    LogMk.logDebug(
+      '📊 ${_formatDateId(date)} 時間ごとの集計完了: ${processedPeriods}個の期間を処理（reset time: ${resetHour}時）',
+      tag: 'StatisticsAggregationService',
+    );
+    
+    // デバッグ: 集計結果を確認
+    int totalSeconds = 0;
+    for (final entry in hourlyData.entries) {
+      final hourTotal = entry.value.values.fold(0, (sum, val) => sum + val);
+      if (hourTotal > 0) {
+        totalSeconds += hourTotal;
+        LogMk.logDebug(
+          '  時間帯${entry.key}: 合計${hourTotal}秒 (${entry.value})',
+          tag: 'StatisticsAggregationService',
+        );
+      }
+    }
+    LogMk.logDebug(
+      '📊 集計合計: ${totalSeconds}秒',
+      tag: 'StatisticsAggregationService',
+    );
+    
+    return hourlyData;
   }
 
   /// nothingDetected時間を計算
@@ -1449,6 +1697,35 @@ class StatisticsAggregationService {
     final daysFromMonday = weekday - 1;
     return DateTime(date.year, date.month, date.day)
         .subtract(Duration(days: daysFromMonday));
+  }
+
+  /// reset timeを考慮した日付を取得
+  /// 
+  /// `session.startTime`からreset timeを考慮した日付を計算します。
+  Future<DateTime> _getDateWithResetTime(DateTime sessionStartTime) async {
+    try {
+      final currentUser = AuthMk.getCurrentUser();
+      if (currentUser == null) {
+        // ユーザーがログインしていない場合は、通常の日付を使用
+        return DateTime(sessionStartTime.year, sessionStartTime.month, sessionStartTime.day);
+      }
+      
+      final userId = currentUser.uid;
+      final timeSettings = await _timeSettingsManager.getById(userId, 'time_settings');
+      final dayBoundaryTime = timeSettings?.dayBoundaryTime ?? '24:00';
+      
+      // reset timeを考慮した日付を計算
+      return DateUtilsHelper.DateUtils.getTodayDateFromBoundaryTime(dayBoundaryTime, now: sessionStartTime);
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        'reset timeを考慮した日付取得エラー: $e',
+        tag: 'StatisticsAggregationService._getDateWithResetTime',
+        error: e,
+        stackTrace: stackTrace,
+      );
+      // エラー時は通常の日付を使用
+      return DateTime(sessionStartTime.year, sessionStartTime.month, sessionStartTime.day);
+    }
   }
 
   /// 日付をID形式に変換（例: "2024-01-15"）

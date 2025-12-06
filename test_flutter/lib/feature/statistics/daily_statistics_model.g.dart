@@ -38,9 +38,7 @@ _DailyStatistics _$DailyStatisticsFromJson(Map<String, dynamic> json) =>
             (k, e) => MapEntry(k, Map<String, int>.from(e as Map)),
           ) ??
           const {},
-      sessions: json['sessions'] == null
-          ? const []
-          : _sessionsFromJson(json['sessions'] as List?),
+      trackingCount: (json['trackingCount'] as num?)?.toInt() ?? 0,
       lastModified: DateTime.parse(json['lastModified'] as String),
     );
 
@@ -52,6 +50,6 @@ Map<String, dynamic> _$DailyStatisticsToJson(_DailyStatistics instance) =>
       'totalWorkTimeSeconds': instance.totalWorkTimeSeconds,
       'pieChartData': _pieChartDataToJson(instance.pieChartData),
       'hourlyCategorySeconds': instance.hourlyCategorySeconds,
-      'sessions': _sessionsToJson(instance.sessions),
+      'trackingCount': instance.trackingCount,
       'lastModified': instance.lastModified.toIso8601String(),
     };

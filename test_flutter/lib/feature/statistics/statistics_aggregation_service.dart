@@ -177,12 +177,8 @@ class StatisticsAggregationService {
         tag: 'StatisticsAggregationService',
       );
 
-      // 1. nothingDetected時間を計算
-      final nothingDetectedSeconds = _calculateNothingDetectedSeconds(session);
-      
-      // categorySecondsにnothingDetectedを追加
+      // 1. categorySecondsをそのまま使用（nothingDetectedはhourlyCategorySecondsから計算されるため、ここでは追加しない）
       final categorySecondsWithNothing = Map<String, int>.from(session.categorySeconds);
-      categorySecondsWithNothing['nothingDetected'] = nothingDetectedSeconds;
 
       // 2. 作業時間を計算（study + pc）
       final workSeconds = (session.categorySeconds['study'] ?? 0) +
@@ -627,11 +623,44 @@ class StatisticsAggregationService {
           tag: 'StatisticsAggregationService',
         );
         
+        // hourlyCategorySecondsからcategorySecondsを再計算（nothingDetectedを含む）
+        final recalculatedCategorySeconds = <String, int>{
+          'study': mergedCategorySeconds['study'] ?? 0,
+          'pc': mergedCategorySeconds['pc'] ?? 0,
+          'smartphone': mergedCategorySeconds['smartphone'] ?? 0,
+          'personOnly': mergedCategorySeconds['personOnly'] ?? 0,
+          'nothingDetected': 0,
+        };
+        
+        // hourlyCategorySecondsからnothingDetectedを集計
+        for (final hourData in mergedHourlyCategorySeconds.values) {
+          recalculatedCategorySeconds['nothingDetected'] = 
+              (recalculatedCategorySeconds['nothingDetected'] ?? 0) + 
+              (hourData['nothingDetected'] ?? 0);
+        }
+        
+        // 開始日の日付の場合のみ、セッションのcategorySecondsを加算（nothingDetectedは除く）
+        if (isStartDate) {
+          recalculatedCategorySeconds['study'] = 
+              (recalculatedCategorySeconds['study'] ?? 0) + 
+              (categorySeconds['study'] ?? 0);
+          recalculatedCategorySeconds['pc'] = 
+              (recalculatedCategorySeconds['pc'] ?? 0) + 
+              (categorySeconds['pc'] ?? 0);
+          recalculatedCategorySeconds['smartphone'] = 
+              (recalculatedCategorySeconds['smartphone'] ?? 0) + 
+              (categorySeconds['smartphone'] ?? 0);
+          recalculatedCategorySeconds['personOnly'] = 
+              (recalculatedCategorySeconds['personOnly'] ?? 0) + 
+              (categorySeconds['personOnly'] ?? 0);
+          // nothingDetectedはhourlyCategorySecondsから計算した値を使用（セッションのcategorySecondsには含まれていない）
+        }
+        
         // 日次統計データを作成（categorySecondsとtrackingCountを設定、totalWorkTimeSeconds等はsaveOrUpdateWithAuth内で計算）
         final dailyStats = DailyStatistics(
           id: id,
           date: date,
-          categorySeconds: mergedCategorySeconds,
+          categorySeconds: recalculatedCategorySeconds,
           totalWorkTimeSeconds: existingForDate?.totalWorkTimeSeconds ?? 0,
           pieChartData: existingForDate?.pieChartData,
           hourlyCategorySeconds: mergedHourlyCategorySeconds,
@@ -799,12 +828,6 @@ class StatisticsAggregationService {
     return hourlyData;
   }
 
-  /// nothingDetected時間を計算
-  int _calculateNothingDetectedSeconds(TrackingSession session) {
-    return session.detectionPeriods
-        .where((p) => p.category == 'nothingDetected')
-        .fold(0, (sum, p) => sum + p.endTime.difference(p.startTime).inSeconds);
-  }
 
   /// セッションから日ごとのカテゴリ別秒数を集計（週次・月次用）
   /// 戻り値: {"1": {study: 3600, pc: 1800, ...}, "2": {...}, ...}

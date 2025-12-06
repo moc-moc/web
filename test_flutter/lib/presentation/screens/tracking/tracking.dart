@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
@@ -48,7 +50,7 @@ class TrackingScreenNew extends ConsumerStatefulWidget {
   ConsumerState<TrackingScreenNew> createState() => _TrackingScreenNewState();
 }
 
-class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
+class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with WidgetsBindingObserver {
   Timer? _timer;
   Timer? _autoSaveTimer; // 5分ごとの自動保存タイマー
   int _elapsedSeconds = 0;
@@ -110,12 +112,20 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
   static const Color _smartphoneColor = AppColors.orange; // オレンジ
   static const Color _personColor = AppColors.purple; // パープル（灰色から変更）
 
+  // バックグラウンド検知関連
+  String? _deviceType; // 現在のデバイスタイプ（'pc'または'smartphone'）
+  bool _isAppInBackground = false; // アプリがバックグラウンドにあるかどうか
+  Timer? _backgroundMonitoringTimer; // バックグラウンド時のPC計測用タイマー
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _deviceType = _getDeviceType();
     _checkTrackingLimit();
     _loadTrackingSettings();
     _startAutoSaveTimer();
+    _startBackgroundMonitoring();
   }
 
   /// トラッキング制限をチェック
@@ -310,6 +320,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     // カメラを確実に停止（非同期処理を待つ）
     // dispose()は同期的に実行される必要があるため、Futureを待たずに実行
     // ただし、カメラ停止処理は必ず実行される
@@ -321,7 +332,72 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       return false;
     });
     
+    // バックグラウンド監視関連のリソースを解放
+    _backgroundMonitoringTimer?.cancel();
+    _backgroundMonitoringTimer = null;
+    
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // アプリがバックグラウンドにある場合（別アプリを使用している）
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
+      _isAppInBackground = true;
+      LogMk.logDebug(
+        'アプリがバックグラウンドに移動しました（別アプリ使用中と判断、端末計測を開始）',
+        tag: 'TrackingScreen.didChangeAppLifecycleState',
+      );
+      
+      // バックグラウンド時は端末タイプに応じた計測を開始
+      if (_deviceType == 'pc' && _currentDetection != 'smartphone') {
+        _startBackgroundPcTracking();
+      } else if (_deviceType == 'smartphone' && _currentDetection != 'pc') {
+        _startBackgroundSmartphoneTracking();
+      }
+    } else if (state == AppLifecycleState.resumed) {
+      _isAppInBackground = false;
+      LogMk.logDebug(
+        'アプリがフォアグラウンドに戻りました。端末計測を停止します。',
+        tag: 'TrackingScreen.didChangeAppLifecycleState',
+      );
+      
+      // フォアグラウンドに戻った時は、端末計測を停止
+      final now = DateTime.now();
+      if (_lastCategory == 'pc' && _deviceType == 'pc') {
+        _finalizeCurrentPeriod(now);
+        _lastCategory = null;
+        _categoryStartTime = null;
+        
+        if (mounted) {
+          setState(() {
+            _currentDetection = null;
+          });
+        }
+        
+        LogMk.logDebug(
+          'PC計測を停止しました（フォアグラウンド復帰）',
+          tag: 'TrackingScreen.didChangeAppLifecycleState',
+        );
+      } else if (_lastCategory == 'smartphone' && _deviceType == 'smartphone') {
+        _finalizeCurrentPeriod(now);
+        _lastCategory = null;
+        _categoryStartTime = null;
+        
+        if (mounted) {
+          setState(() {
+            _currentDetection = null;
+          });
+        }
+        
+        LogMk.logDebug(
+          'スマホ計測を停止しました（フォアグラウンド復帰）',
+          tag: 'TrackingScreen.didChangeAppLifecycleState',
+        );
+      }
+    }
   }
 
   /// カメラの初期化
@@ -477,14 +553,212 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     );
   }
 
+  /// デバイスタイプを判定
+  String? _getDeviceType() {
+    if (kIsWeb) {
+      // Web版の場合、デフォルトでPC
+      return 'pc';
+    }
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.windows:
+      case TargetPlatform.macOS:
+      case TargetPlatform.linux:
+        return 'pc';
+      case TargetPlatform.android:
+      case TargetPlatform.iOS:
+        return 'smartphone';
+      default:
+        return null;
+    }
+  }
+
+  /// バックグラウンド時のPC計測を開始
+  void _startBackgroundPcTracking() {
+    if (!mounted || _deviceType != 'pc') return;
+    
+    final now = DateTime.now();
+    
+    // カテゴリが変わった場合
+    if (_lastCategory != 'pc') {
+      // 前のカテゴリの期間を確定して時間を加算
+      _finalizeCurrentPeriod(now);
+      
+      // PCカテゴリの開始
+      _categoryStartTime = now;
+      _lastCategory = 'pc';
+      
+      // UI更新
+      setState(() {
+        _currentDetection = 'pc';
+      });
+      
+      LogMk.logDebug(
+        'バックグラウンドでPC計測を開始しました',
+        tag: 'TrackingScreen._startBackgroundPcTracking',
+      );
+    }
+  }
+
+  /// バックグラウンド時のスマホ計測を開始
+  void _startBackgroundSmartphoneTracking() {
+    if (!mounted || _deviceType != 'smartphone') return;
+    
+    final now = DateTime.now();
+    
+    // カテゴリが変わった場合
+    if (_lastCategory != 'smartphone') {
+      // 前のカテゴリの期間を確定して時間を加算
+      _finalizeCurrentPeriod(now);
+      
+      // スマホカテゴリの開始
+      _categoryStartTime = now;
+      _lastCategory = 'smartphone';
+      
+      // UI更新
+      setState(() {
+        _currentDetection = 'smartphone';
+      });
+      
+      LogMk.logDebug(
+        'バックグラウンドでスマホ計測を開始しました',
+        tag: 'TrackingScreen._startBackgroundSmartphoneTracking',
+      );
+    }
+  }
+
+  /// バックグラウンド監視を開始
+  void _startBackgroundMonitoring() {
+    _backgroundMonitoringTimer?.cancel();
+    
+    _backgroundMonitoringTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        _backgroundMonitoringTimer = null;
+        return;
+      }
+      
+      final now = DateTime.now();
+      
+      // アプリがバックグラウンドにある場合（別アプリを使用している）
+      if (_isAppInBackground && _deviceType != null) {
+        // PCデバイスの場合
+        if (_deviceType == 'pc') {
+          // スマホが検出されている場合は、スマホを優先（PC計測より優先）
+          if (_currentDetection == 'smartphone') {
+            // スマホ検出中は、PC計測を停止
+            if (_lastCategory == 'pc') {
+              _finalizeCurrentPeriod(now);
+              _lastCategory = null;
+              _categoryStartTime = null;
+              
+              setState(() {
+                _currentDetection = 'smartphone';
+              });
+            }
+            // スマホの期間を更新（カメラ検出結果で更新される）
+            return;
+          }
+          
+          // スマホが検出されていない場合は、PC計測を継続
+          if (_lastCategory != 'pc') {
+            _startBackgroundPcTracking();
+          }
+          
+          // PC計測の期間を更新
+          if (_lastCategory == 'pc') {
+            _updateCurrentPeriodEndTime(now, 'pc', 1.0);
+          }
+          return;
+        }
+        
+        // スマホデバイスの場合
+        if (_deviceType == 'smartphone') {
+          // PCが検出されている場合は、PCを優先（スマホ計測より優先）
+          if (_currentDetection == 'pc') {
+            // PC検出中は、スマホ計測を停止
+            if (_lastCategory == 'smartphone') {
+              _finalizeCurrentPeriod(now);
+              _lastCategory = null;
+              _categoryStartTime = null;
+              
+              setState(() {
+                _currentDetection = 'pc';
+              });
+            }
+            // PCの期間を更新（カメラ検出結果で更新される）
+            return;
+          }
+          
+          // PCが検出されていない場合は、スマホ計測を継続
+          if (_lastCategory != 'smartphone') {
+            _startBackgroundSmartphoneTracking();
+          }
+          
+          // スマホ計測の期間を更新
+          if (_lastCategory == 'smartphone') {
+            _updateCurrentPeriodEndTime(now, 'smartphone', 1.0);
+          }
+          return;
+        }
+      }
+      
+      // フォアグラウンド時は何もしない（カメラ検出のみ）
+    });
+  }
+
   /// 検出結果の処理
   /// 
-  /// 同じカテゴリが連続する場合は1つの期間にまとめ、空白期間を防ぐ
+  /// バックグラウンド時はカメラ検出を優先、それ以外はカメラ検出結果を使用
   void _handleDetectionResult(DetectionResult result) {
     if (!mounted) return;
 
     final now = DateTime.now(); // 現在時刻を使用（タイミング問題の解決）
     final categoryString = result.categoryString ?? 'nothingDetected';
+    
+    // バックグラウンド時の処理
+    if (_isAppInBackground) {
+      // PCデバイスの場合
+      if (_deviceType == 'pc') {
+        if (categoryString == 'smartphone') {
+          // スマホが検出された場合は、PC計測を停止してスマホを優先
+          if (_lastCategory == 'pc') {
+            // PC計測がアクティブな場合は、カテゴリを切り替え
+            _finalizeCurrentPeriod(now);
+            _lastCategory = null;
+            _categoryStartTime = null;
+          }
+          // カメラ検出結果の処理を続行（スマホカテゴリを計測）
+        } else {
+          // スマホが検出されていない場合は、PC計測を継続（カメラ検出結果は無視）
+          if (_lastCategory == 'pc') {
+            // PC計測中は、カメラ検出結果を無視
+            return;
+          }
+          // PC計測が停止されている場合は、カメラ検出結果を処理
+        }
+      }
+      // スマホデバイスの場合
+      else if (_deviceType == 'smartphone') {
+        if (categoryString == 'pc') {
+          // PCが検出された場合は、スマホ計測を停止してPCを優先
+          if (_lastCategory == 'smartphone') {
+            // スマホ計測がアクティブな場合は、カテゴリを切り替え
+            _finalizeCurrentPeriod(now);
+            _lastCategory = null;
+            _categoryStartTime = null;
+          }
+          // カメラ検出結果の処理を続行（PCカテゴリを計測）
+        } else {
+          // PCが検出されていない場合は、スマホ計測を継続（カメラ検出結果は無視）
+          if (_lastCategory == 'smartphone') {
+            // スマホ計測中は、カメラ検出結果を無視
+            return;
+          }
+          // スマホ計測が停止されている場合は、カメラ検出結果を処理
+        }
+      }
+    }
+    // フォアグラウンド時は、カメラ検出結果をそのまま処理
     
     // 最後の検出結果の信頼度を保存
     _lastDetectionConfidence = result.confidence;
@@ -1223,6 +1497,8 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
       _smartphoneGapStartTime = null;
       _isAlertShowing = false;
       _alertDialogContext = null;
+      
+      // バックグラウンド監視関連の変数をリセット
       
       final subscriptionStatus = ref.read(subscriptionStatusProvider);
       // 無料プランの場合のみカウント
@@ -2355,3 +2631,4 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> {
     );
   }
 }
+

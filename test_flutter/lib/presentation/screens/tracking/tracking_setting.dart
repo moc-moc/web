@@ -265,6 +265,9 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
 
         // スマホ使用時間アラート設定
         _buildSmartphoneAlertSettings(),
+
+        SizedBox(height: AppSpacing.md),
+
       ],
     );
   }
@@ -787,6 +790,7 @@ class _TrackingSettingScreenNewState extends ConsumerState<TrackingSettingScreen
       ),
     );
   }
+
 
   /// スタートボタン
   Widget _buildStartButton(BuildContext context) {

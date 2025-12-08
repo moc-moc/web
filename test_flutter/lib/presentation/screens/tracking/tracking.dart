@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb, defaultTargetPlatform, TargetPlatform;
-import 'package:flutter/services.dart';
 import 'dart:async';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
@@ -15,7 +14,6 @@ import 'package:test_flutter/feature/tracking/detection/detection_controller.dar
 import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_performance_config.dart';
 import 'package:test_flutter/feature/tracking/detection/detection_result.dart';
-import 'package:test_flutter/feature/tracking/tracking_session_data_manager.dart';
 import 'package:test_flutter/feature/tracking/tracking_session_model.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
@@ -86,7 +84,6 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
   // セッション管理
   DateTime? _sessionStartTime;
   final List<DetectionPeriod> _detectionPeriods = [];
-  final TrackingSessionDataManager _trackingSessionManager = TrackingSessionDataManager();
   
   // 最後の検出結果の信頼度（セッション終了時に使用）
   double? _lastDetectionConfidence;
@@ -122,30 +119,66 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _deviceType = _getDeviceType();
-    _checkTrackingLimit();
-    _loadTrackingSettings();
-    _startAutoSaveTimer();
-    _startBackgroundMonitoring();
+    
+    // 非同期処理を順次実行（SharedPreferencesの並列アクセスを回避）
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        // 1. トラッキング制限をチェック
+        await _checkTrackingLimitAsync();
+        
+        if (!mounted) return;
+        
+        // 2. トラッキング設定を読み込み（カメラ初期化含む）
+        await _loadTrackingSettings();
+        
+        if (!mounted) return;
+        
+        // 3. タイマーを開始
+        _startAutoSaveTimer();
+        _startBackgroundMonitoring();
+      } catch (e, stackTrace) {
+        LogMk.logError(
+          '❌ トラッキング画面初期化エラー: $e',
+          tag: 'TrackingScreen.initState',
+          stackTrace: stackTrace,
+        );
+        
+        // エラー時もタイマーだけは開始（画面が使えなくなるのを防ぐ）
+        if (mounted) {
+          _startAutoSaveTimer();
+          _startBackgroundMonitoring();
+        }
+      }
+    });
   }
 
-  /// トラッキング制限をチェック
-  void _checkTrackingLimit() {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
+  /// トラッキング制限をチェック（非同期版）
+  Future<void> _checkTrackingLimitAsync() async {
+    if (!mounted) return;
+    
+    try {
       final subscriptionStatus = ref.read(subscriptionStatusProvider);
       // プレミアムユーザーは制限なし
       if (subscriptionStatus.hasPremiumAccess) {
         return;
       }
+      
       // Providerを無効化して再読み込み
       ref.invalidate(dailyTrackingCountProvider);
       final canStart = ref.read(canStartTrackingProvider);
-      if (!canStart) {
+      
+      if (!canStart && mounted) {
         // 制限超過の場合は課金画面に遷移
         Navigator.of(context).pop();
         NavigationHelper.push(context, AppRoutes.subscriptionNew);
       }
-    });
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        '❌ トラッキング制限チェックエラー: $e',
+        tag: 'TrackingScreen._checkTrackingLimitAsync',
+        stackTrace: stackTrace,
+      );
+    }
   }
 
   /// トラッキング設定を読み込む
@@ -206,6 +239,13 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
   /// 各停止処理は個別のtry-catchで囲まれているため、
   /// 一部の処理が失敗しても他の処理は実行されます。
   /// 
+  /// **改善点**:
+  /// 1. タイマーを先に停止（新規の検出処理を開始させない）
+  /// 2. 検出を停止（実行中の検出処理の完了を待つ）
+  /// 3. ストリーム購読を停止（検出結果の受信を停止）
+  /// 4. 検出コントローラーを解放
+  /// 5. カメラリソースを解放
+  /// 
   /// **戻り値**: カメラ停止が完了した場合true
   Future<bool> _forceStopCamera({bool stopTimers = true}) async {
     LogMk.logDebug(
@@ -215,6 +255,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
     
     bool allSuccess = true;
     
+    // 1. タイマーを停止（新規の検出処理を開始させない）
     if (stopTimers) {
       try {
         _timer?.cancel();
@@ -236,7 +277,22 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       }
     }
     
-    // ストリーム購読を停止（最優先）
+    // 2. 検出を停止（実行中の検出処理の完了を待つ）
+    try {
+      await _detectionController?.stop();
+      LogMk.logDebug(
+        '✅ 検出を停止しました（実行中の処理の完了を待機済み）',
+        tag: 'TrackingScreen._forceStopCamera',
+      );
+    } catch (e) {
+      LogMk.logError(
+        '❌ 検出停止エラー: $e',
+        tag: 'TrackingScreen._forceStopCamera',
+      );
+      allSuccess = false;
+    }
+    
+    // 3. ストリーム購読を停止（検出結果の受信を停止）
     try {
       await _detectionSubscription?.cancel();
       _detectionSubscription = null;
@@ -252,22 +308,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       allSuccess = false;
     }
     
-    // 検出を停止
-    try {
-      await _detectionController?.stop();
-      LogMk.logDebug(
-        '✅ 検出を停止しました',
-        tag: 'TrackingScreen._forceStopCamera',
-      );
-    } catch (e) {
-      LogMk.logError(
-        '❌ 検出停止エラー: $e',
-        tag: 'TrackingScreen._forceStopCamera',
-      );
-      allSuccess = false;
-    }
-    
-    // 検出コントローラーを解放
+    // 4. 検出コントローラーを解放
     try {
       await _detectionController?.dispose();
       _detectionController = null;
@@ -283,7 +324,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       allSuccess = false;
     }
     
-    // カメラリソースを解放（最重要 - エラーが起きても必ず実行）
+    // 5. カメラリソースを解放（最重要 - エラーが起きても必ず実行）
     try {
       await _cameraManager?.dispose();
       _cameraManager = null;
@@ -430,6 +471,15 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
             });
           },
         ),
+      ).timeout(
+        const Duration(seconds: 45),
+        onTimeout: () {
+          LogMk.logError(
+            '❌ カメラ/AI初期化がタイムアウトしました（45秒）',
+            tag: 'TrackingScreen._initializeCamera',
+          );
+          return null;
+        },
       );
 
       if (!mounted) {
@@ -443,7 +493,11 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
           _cameraError = 'カメラの初期化に失敗しました';
           if (_setupStatus != _TrackingSetupStatus.ready) {
             _setupStatus = _TrackingSetupStatus.error;
-            _setupErrorMessage = 'カメラとAIモデルの初期化に失敗しました。再試行してください。';
+            _setupErrorMessage = 'カメラとAIモデルの初期化に失敗しました。\n\n'
+                '【対処方法】\n'
+                '1. アプリを完全に終了して再起動\n'
+                '2. 端末を再起動\n'
+                '3. カメラ権限を確認';
           }
         });
         return;
@@ -462,36 +516,93 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       });
 
       // 検出を開始
+      LogMk.logDebug(
+        '🚀 検出を開始します（省電力モード: $_isPowerSavingMode）',
+        tag: 'TrackingScreen._initializeCamera',
+      );
       await controller.start(powerSavingMode: _isPowerSavingMode);
       _ensureSessionTimingStarted();
 
       // 検出結果を直接処理
       await _detectionSubscription?.cancel();
-      _detectionSubscription = controller.resultStream.listen((result) {
-        _ensureSessionTimingStarted();
-        _handleDetectionResult(result);
-      });
+      LogMk.logDebug(
+        '📡 検出結果ストリームを購読します',
+        tag: 'TrackingScreen._initializeCamera',
+      );
+      _detectionSubscription = controller.resultStream.listen(
+        (result) {
+          LogMk.logDebug(
+            '📥 検出結果を受信: ${result.categoryString}',
+            tag: 'TrackingScreen',
+          );
+          _ensureSessionTimingStarted();
+          _handleDetectionResult(result);
+        },
+        onError: (error, stackTrace) {
+          LogMk.logError(
+            '❌ 検出結果ストリームエラー: $error',
+            tag: 'TrackingScreen',
+            stackTrace: stackTrace,
+          );
+        },
+        onDone: () {
+          LogMk.logDebug(
+            '🏁 検出結果ストリームが終了しました',
+            tag: 'TrackingScreen',
+          );
+        },
+      );
 
       if (mounted && _setupStatus != _TrackingSetupStatus.ready) {
         setState(() {
           _setupStatus = _TrackingSetupStatus.ready;
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
       LogMk.logError(
         '❌ カメラ/AI初期化エラー: $e',
         tag: 'TrackingScreen._initializeCamera',
+        stackTrace: stackTrace,
       );
       if (!mounted) {
         return;
       }
       setState(() {
         _isCameraInitializing = false;
-        _cameraError = 'カメラエラー: $e';
+        final errorString = e.toString();
+        
+        // エラーメッセージをユーザーフレンドリーに変換
+        String userMessage;
+        String detailedSteps;
+        
+        if (errorString.contains('カメラ権限') || errorString.contains('permission')) {
+          userMessage = 'カメラへのアクセスが許可されていません';
+          detailedSteps = '【対処方法】\n'
+              '1. 設定アプリを開く\n'
+              '2. このアプリを選択\n'
+              '3. カメラへのアクセスを「許可」に変更\n'
+              '4. アプリを再起動';
+        } else if (errorString.contains('Binding has not yet been initialized')) {
+          userMessage = 'AIモデルの読み込みに失敗しました';
+          detailedSteps = '【対処方法】\n'
+              '1. アプリを完全に終了\n'
+              '2. アプリを再起動\n'
+              '3. 問題が続く場合は端末を再起動';
+        } else {
+          userMessage = 'カメラとAIモデルの初期化に失敗しました';
+          detailedSteps = '【対処方法】\n'
+              '1. アプリを完全に終了して再起動\n'
+              '2. 端末を再起動\n'
+              '3. カメラ権限を確認\n\n'
+              'エラー詳細: ${e.toString()}';
+        }
+        
+        _cameraError = userMessage;
+        _initStageStatuses[DetectionInitStage.camera] = DetectionInitStatus.failure;
         _initStageStatuses[DetectionInitStage.ai] = DetectionInitStatus.failure;
         if (_setupStatus != _TrackingSetupStatus.ready) {
           _setupStatus = _TrackingSetupStatus.error;
-          _setupErrorMessage = 'カメラとAIモデルの初期化に失敗しました。再試行してください。';
+          _setupErrorMessage = '$userMessage\n\n$detailedSteps';
         }
       });
     }
@@ -624,6 +735,18 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
         tag: 'TrackingScreen._startBackgroundSmartphoneTracking',
       );
     }
+    
+    // アラート監視のために、最後の検出時刻を更新
+    // バックグラウンド時もアラート機能が動作するようにする
+    if (_currentDetection == 'smartphone') {
+      _lastSmartphoneDetectionTime = now;
+      _smartphoneGapStartTime = null; // 検出中に戻す
+      
+      LogMk.logDebug(
+        'バックグラウンド時のスマホ検出時刻を更新しました（アラート監視用）',
+        tag: 'TrackingScreen._startBackgroundSmartphoneTracking',
+      );
+    }
   }
 
   /// バックグラウンド監視を開始
@@ -697,6 +820,11 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
           // スマホ計測の期間を更新
           if (_lastCategory == 'smartphone') {
             _updateCurrentPeriodEndTime(now, 'smartphone', 1.0);
+            
+            // アラート監視のために、最後の検出時刻を更新
+            // バックグラウンド時もアラート機能が動作するようにする
+            _lastSmartphoneDetectionTime = now;
+            _smartphoneGapStartTime = null; // 検出中に戻す
           }
           return;
         }
@@ -767,11 +895,17 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
     if (_lastCategory == null && _sessionStartTime != null) {
       final initialDuration = now.difference(_sessionStartTime!);
       if (initialDuration.inSeconds > 0) {
+        final settings = ref.read(trackingSettingsProvider);
         _detectionPeriods.add(DetectionPeriod(
           startTime: _sessionStartTime!,
           endTime: now,
           category: 'nothingDetected',
           confidence: 0.0,
+          selectedGoalIds: {
+            'study': settings.selectedStudyGoalId,
+            'pc': settings.selectedPcGoalId,
+            'smartphone': settings.selectedSmartphoneGoalId,
+          },
         ));
         _categoryStartTime = now;
         _lastCategory = 'nothingDetected';
@@ -804,7 +938,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
         if (gapDuration.inSeconds <= _smartphoneGapToleranceSeconds) {
           // 30秒以内の途切れなら連続として扱う（連続検出時間は維持）
           LogMk.logDebug(
-            'スマホ検出再開（${gapDuration.inSeconds}秒の途切れ、連続として扱う、連続検出時間: ${_continuousSmartphoneSeconds}秒）',
+            'スマホ検出再開（${gapDuration.inSeconds}秒の途切れ、連続として扱う、連続検出時間: $_continuousSmartphoneSeconds秒）',
             tag: 'TrackingScreen._handleDetectionResult',
           );
           // 注意: アラート表示はタイマー処理で行う（次回のタイマー処理でチェックされる）
@@ -829,6 +963,26 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
           tag: 'TrackingScreen._handleDetectionResult',
         );
       }
+      
+      // スマホ以外が検出された場合、アラート音を停止
+      // アラートダイアログが表示されている場合は自動で閉じる処理を呼ぶ
+      if (_isAlertShowing) {
+        _dismissAlertIfNeeded();
+      } else {
+        // アラートダイアログが表示されていない場合でも、音声が再生中の場合は停止
+        try {
+          _audioService.stop();
+          LogMk.logDebug(
+            'スマホ以外が検出されたため、アラート音を停止しました',
+            tag: 'TrackingScreen._handleDetectionResult',
+          );
+        } catch (e) {
+          LogMk.logWarning(
+            'アラート音の停止エラー: $e',
+            tag: 'TrackingScreen._handleDetectionResult',
+          );
+        }
+      }
     }
 
     // UI更新
@@ -847,6 +1001,13 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
     if (seconds <= 0) return;
   
     // 最後の期間を更新または追加
+    final settings = ref.read(trackingSettingsProvider);
+    final currentGoalIds = {
+      'study': settings.selectedStudyGoalId,
+      'pc': settings.selectedPcGoalId,
+      'smartphone': settings.selectedSmartphoneGoalId,
+    };
+    
     if (_detectionPeriods.isNotEmpty && 
         _detectionPeriods.last.category == _lastCategory &&
         _detectionPeriods.last.startTime == _categoryStartTime) {
@@ -858,6 +1019,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
         endTime: endTime,
         category: lastPeriod.category,
         confidence: lastPeriod.confidence,
+        selectedGoalIds: currentGoalIds,
       );
     } else {
       // 新しい期間を追加
@@ -866,6 +1028,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
         endTime: endTime,
         category: _lastCategory!,
         confidence: _lastDetectionConfidence ?? 0.0,
+        selectedGoalIds: currentGoalIds,
       ));
     }
   
@@ -892,6 +1055,13 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
   void _updateCurrentPeriodEndTime(DateTime endTime, String category, double confidence) {
     if (_categoryStartTime == null) return;
   
+    final settings = ref.read(trackingSettingsProvider);
+    final currentGoalIds = {
+      'study': settings.selectedStudyGoalId,
+      'pc': settings.selectedPcGoalId,
+      'smartphone': settings.selectedSmartphoneGoalId,
+    };
+  
     if (_detectionPeriods.isNotEmpty) {
       final lastPeriod = _detectionPeriods.last;
       if (lastPeriod.category == category && 
@@ -903,6 +1073,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
           endTime: endTime,
           category: lastPeriod.category,
           confidence: confidence,
+          selectedGoalIds: currentGoalIds,
         );
         return;
       }
@@ -915,6 +1086,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
         endTime: endTime,
         category: category,
         confidence: confidence,
+        selectedGoalIds: currentGoalIds,
       ));
     }
   }
@@ -932,7 +1104,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
 
     final totalSeconds = settings.smartphoneAlertMinutes * 60 + settings.smartphoneAlertSeconds;
     LogMk.logDebug(
-      'アラート監視を開始: ${settings.smartphoneAlertMinutes}分${settings.smartphoneAlertSeconds}秒（合計${totalSeconds}秒、連続検出時間ベース）',
+      'アラート監視を開始: ${settings.smartphoneAlertMinutes}分${settings.smartphoneAlertSeconds}秒（合計$totalSeconds秒、連続検出時間ベース）',
       tag: 'TrackingScreen._startAlertMonitoring',
     );
 
@@ -955,13 +1127,25 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       final alertMinutes = currentSettings.smartphoneAlertMinutes;
       final alertSeconds = currentSettings.smartphoneAlertMinutes * 60 + currentSettings.smartphoneAlertSeconds;
       
+      // 現在スマホが検出されているかどうか
+      final isCurrentlyDetectingSmartphone = _currentDetection == 'smartphone';
+      
+      // バックグラウンド時にスマホが検出されているが、_lastSmartphoneDetectionTimeが未設定の場合
+      // バックグラウンド監視のタイマーが更新する前にアラート監視のタイマーが実行される可能性があるため、
+      // ここで更新する
+      if (_isAppInBackground && isCurrentlyDetectingSmartphone && _lastSmartphoneDetectionTime == null) {
+        _lastSmartphoneDetectionTime = now;
+        _smartphoneGapStartTime = null;
+        LogMk.logDebug(
+          'アラート監視タイマーでバックグラウンド時のスマホ検出時刻を初期化しました',
+          tag: 'TrackingScreen._startAlertMonitoring',
+        );
+      }
+      
       // 連続検出時間の更新
       final timeSinceLastDetection = _lastSmartphoneDetectionTime != null
           ? now.difference(_lastSmartphoneDetectionTime!).inSeconds
           : 999;
-      
-      // 現在スマホが検出されているかどうか
-      final isCurrentlyDetectingSmartphone = _currentDetection == 'smartphone';
       
       // 検出が途切れているかどうかを判定
       // 1. _smartphoneGapStartTimeが設定されている（検出が途切れている）
@@ -976,7 +1160,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       bool wasDismissed = false;
       if (_isAlertShowing && isDetectionGapped) {
         LogMk.logDebug(
-          'アラート表示中にスマホ検出が途切れました（現在の検出: $_currentDetection, gapStartTime: $_smartphoneGapStartTime, timeSinceLastDetection: ${timeSinceLastDetection}秒）。アラートを解除します。',
+          'アラート表示中にスマホ検出が途切れました（現在の検出: $_currentDetection, gapStartTime: $_smartphoneGapStartTime, timeSinceLastDetection: $timeSinceLastDetection秒）。アラートを解除します。',
           tag: 'TrackingScreen._startAlertMonitoring',
         );
         _dismissAlertIfNeeded();
@@ -992,7 +1176,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
           // デバッグログ（10秒ごと）
           if (_continuousSmartphoneSeconds % 10 == 0 && _continuousSmartphoneSeconds > 0) {
             LogMk.logDebug(
-              '連続検出時間: ${_continuousSmartphoneSeconds}秒 / ${alertSeconds}秒 (${(_continuousSmartphoneSeconds / alertSeconds * 100).toStringAsFixed(1)}%)',
+              '連続検出時間: $_continuousSmartphoneSeconds秒 / $alertSeconds秒 (${(_continuousSmartphoneSeconds / alertSeconds * 100).toStringAsFixed(1)}%)',
               tag: 'TrackingScreen._startAlertMonitoring',
             );
           }
@@ -1002,7 +1186,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
           // wasDismissedがtrueの場合でも、30秒以内に再検出されていればアラートを再表示
           if (_continuousSmartphoneSeconds >= alertSeconds && !_isAlertShowing) {
             LogMk.logDebug(
-              'アラート条件を満たしました: ${_continuousSmartphoneSeconds}秒 >= ${alertSeconds}秒（wasDismissed: $wasDismissed）',
+              'アラート条件を満たしました: $_continuousSmartphoneSeconds秒 >= $alertSeconds秒（wasDismissed: $wasDismissed）',
               tag: 'TrackingScreen._startAlertMonitoring',
             );
             // 非同期実行前に再度チェック（_dismissAlertIfNeededが実行された可能性があるため）
@@ -1015,7 +1199,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
         // 30秒以上経過：アラート表示中なら自動で閉じる（連続検出時間は維持）
         if (_isAlertShowing) {
           LogMk.logDebug(
-            'スマホ検出が途切れました（${timeSinceLastDetection}秒経過、現在の検出: $_currentDetection）。アラートを解除します。',
+            'スマホ検出が途切れました（$timeSinceLastDetection秒経過、現在の検出: $_currentDetection）。アラートを解除します。',
             tag: 'TrackingScreen._startAlertMonitoring',
           );
           _dismissAlertIfNeeded();
@@ -1030,7 +1214,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
             _continuousSmartphoneSeconds > 0 && 
             _smartphoneGapStartTime != null) {
           LogMk.logDebug(
-            '連続検出時間をリセット（${timeSinceLastDetection}秒経過、アラート未表示、gapStartTime: $_smartphoneGapStartTime）',
+            '連続検出時間をリセット（$timeSinceLastDetection秒経過、アラート未表示、gapStartTime: $_smartphoneGapStartTime）',
             tag: 'TrackingScreen._startAlertMonitoring',
           );
           _continuousSmartphoneSeconds = 0;
@@ -1039,7 +1223,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
                    _smartphoneGapStartTime == null) {
           // 「連続として扱う」と判断された状態なので、リセットしない
           LogMk.logDebug(
-            '連続検出時間を維持（${timeSinceLastDetection}秒経過、gapStartTime: null、連続として扱う）',
+            '連続検出時間を維持（$timeSinceLastDetection秒経過、gapStartTime: null、連続として扱う）',
             tag: 'TrackingScreen._startAlertMonitoring',
           );
         }
@@ -1059,17 +1243,17 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
     // 表示用の時間文字列を生成
     String timeDisplay;
     if (alertMinutes > 0 && alertSeconds > 0) {
-      timeDisplay = '${alertMinutes}分${alertSeconds}秒';
+      timeDisplay = '$alertMinutes分$alertSeconds秒';
     } else if (alertMinutes > 0) {
-      timeDisplay = '${alertMinutes}分';
+      timeDisplay = '$alertMinutes分';
     } else if (alertSeconds > 0) {
-      timeDisplay = '${alertSeconds}秒';
+      timeDisplay = '$alertSeconds秒';
     } else {
-      timeDisplay = '${totalSeconds}秒';
+      timeDisplay = '$totalSeconds秒';
     }
 
     LogMk.logDebug(
-      'スマホアラートを表示します: $timeDisplay（合計${totalSeconds}秒）',
+      'スマホアラートを表示します: $timeDisplay（合計$totalSeconds秒）',
       tag: 'TrackingScreen._showSmartphoneAlert',
     );
 
@@ -1162,7 +1346,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
 
     try {
       LogMk.logDebug(
-        'スマホ検出が途切れたため、アラートを自動で閉じます（連続検出時間は維持: ${_continuousSmartphoneSeconds}秒）',
+        'スマホ検出が途切れたため、アラートを自動で閉じます（連続検出時間は維持: $_continuousSmartphoneSeconds秒）',
         tag: 'TrackingScreen._dismissAlertIfNeeded',
       );
       
@@ -1180,7 +1364,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       _audioService.stop();
       
       LogMk.logDebug(
-        'アラートを自動で閉じました（連続検出時間: ${_continuousSmartphoneSeconds}秒）',
+        'アラートを自動で閉じました（連続検出時間: $_continuousSmartphoneSeconds秒）',
         tag: 'TrackingScreen._dismissAlertIfNeeded',
       );
     } catch (e) {
@@ -1279,7 +1463,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
                         borderRadius: BorderRadius.circular(AppRadius.medium),
                       ),
                       child: Text(
-                        '${alertMinutes}分',
+                        '$alertMinutes分',
                         style: AppTextStyles.body2.copyWith(
                           color: AppColors.orange,
                           fontWeight: FontWeight.bold,
@@ -1329,7 +1513,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
                         borderRadius: BorderRadius.circular(AppRadius.medium),
                       ),
                       child: Text(
-                        '${alertSeconds}秒',
+                        '$alertSeconds秒',
                         style: AppTextStyles.body2.copyWith(
                           color: AppColors.orange,
                           fontWeight: FontWeight.bold,
@@ -1600,6 +1784,10 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
           '  personOnly: $_personOnlySeconds秒',
           tag: 'TrackingScreen._handleStop',
         );
+        LogMk.logDebug(
+          '📊 検出期間数: ${_detectionPeriods.length}件',
+          tag: 'TrackingScreen._handleStop',
+        );
         
         final sessionBuildStopwatch = Stopwatch()..start();
 
@@ -1633,24 +1821,18 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
           tag: 'TrackingScreen._handleStop',
         );
 
-        // トラッキングセッションをローカルのみに保存（Firestoreには保存しない）
-        // 統計データはdaily statisticsに集計済みのため、tracking sessionsはFirestoreに保存しない
+        // トラッキングセッションのローカル保存を削除
+        // 統計データはdaily statisticsに集計済みのため、tracking sessionsは保存不要
+        // Providerのみ更新（画面表示用）
         try {
-          final sessionSaveStopwatch = Stopwatch()..start();
-          // ローカルのみに保存（Firestore保存はスキップ）
-          final allSessions = await _trackingSessionManager.getLocalAll();
-          final filteredSessions = allSessions.where((item) => item.id != trackingSession!.id).toList();
-          final updatedSessions = [trackingSession, ...filteredSessions];
-          await _trackingSessionManager.saveLocal(updatedSessions);
           ref.read(trackingSessionsProvider.notifier).upsertSession(trackingSession);
-          sessionSaveStopwatch.stop();
           LogMk.logDebug(
-            '✅ トラッキングセッション（ローカルのみ）保存完了: ${trackingSession.id} (${sessionSaveStopwatch.elapsedMilliseconds}ms)',
+            '✅ トラッキングセッションをProviderに反映: ${trackingSession.id}',
             tag: 'TrackingScreen._handleStop',
           );
         } catch (e, stackTrace) {
           LogMk.logError(
-            '❌ トラッキングセッション保存処理エラー: $e',
+            '❌ トラッキングセッションProvider更新エラー: $e',
             tag: 'TrackingScreen._handleStop',
             stackTrace: stackTrace,
           );
@@ -1723,6 +1905,10 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
     final totalSeconds = session.duration.inSeconds;
     LogMk.logDebug(
       '合計時間: $totalSeconds秒',
+      tag: 'TrackingSession',
+    );
+    LogMk.logDebug(
+      '検出期間数: ${session.detectionPeriods.length}件',
       tag: 'TrackingSession',
     );
     LogMk.logDebug(
@@ -1873,26 +2059,33 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       child: AppScaffold(
         backgroundColor: AppColors.backgroundSecondary,
         body: SafeArea(
-          child: ScrollableContent(
-            child: SpacedColumn(
-              spacing: AppSpacing.lg,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _buildLevelStatus(),
-                // 目標達成率（1番上）
-                _buildGoalProgress(),
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: AppSpacing.xs),
+                  _buildLevelStatus(),
+                  SizedBox(height: AppSpacing.sm),
+                  // カメラ映像表示エリア
+                  _buildCameraArea(),
+                  SizedBox(height: AppSpacing.sm),
 
-                // カメラ映像表示エリア
-                _buildCameraArea(),
+                  // 目標達成率
+                  _buildGoalProgress(),
+                  SizedBox(height: AppSpacing.sm),
 
-                // 検出状況（4つのカテゴリボタン）
-                _buildDetectionStatus(),
+                  // 検出状況（4つのカテゴリボタン）
+                  _buildDetectionStatus(),
 
-                SizedBox(height: AppSpacing.md),
+                  SizedBox(height: AppSpacing.md),
 
-                // 終了ボタン
-                _buildStopButton(),
-              ],
+                  // 終了ボタン
+                  _buildStopButton(),
+                  SizedBox(height: AppSpacing.md),
+                ],
+              ),
             ),
           ),
         ),
@@ -1917,7 +2110,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
     );
 
     return Container(
-      height: 280,
+      height: 160,
       decoration: BoxDecoration(
         color: AppColors.backgroundCard,
         borderRadius: BorderRadius.circular(AppRadius.large),
@@ -1971,11 +2164,13 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
               ),
             )
           else if (_cameraManager != null)
-            RepaintBoundary(
-              child: CameraPreviewWidget(
-                key: ValueKey('camera-preview-${_cameraManager.hashCode}'),
-                cameraManager: _cameraManager!,
-                isVisible: _isCameraOn,
+            Center(
+              child: RepaintBoundary(
+                child: CameraPreviewWidget(
+                  key: ValueKey('camera-preview-${_cameraManager.hashCode}'),
+                  cameraManager: _cameraManager!,
+                  isVisible: _isCameraOn,
+                ),
               ),
             )
           else
@@ -2308,7 +2503,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
                 size: 24,
               ),
             ),
-            SizedBox(height: AppSpacing.sm),
+            SizedBox(height: AppSpacing.xs),
             Text(
               label,
               style: AppTextStyles.body2.copyWith(
@@ -2316,17 +2511,19 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
                     ? color.withValues(alpha: 1.0)
                     : color.withValues(alpha: 0.7),
                 fontWeight: isDetected ? FontWeight.bold : FontWeight.normal,
+                fontSize: 14,
               ),
             ),
-            SizedBox(height: AppSpacing.xs),
+            SizedBox(height: 4),
             Text(
               _formatTimeWithSeconds(displaySeconds),
-              style: AppTextStyles.caption.copyWith(
+              style: AppTextStyles.body2.copyWith(
                 color: isDetected 
                     ? color.withValues(alpha: 1.0)
                     : color.withValues(alpha: 0.7),
                 fontWeight: FontWeight.w600,
                 fontFeatures: [const FontFeature.tabularFigures()],
+                fontSize: 13,
               ),
             ),
           ],
@@ -2427,27 +2624,9 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       return const SizedBox.shrink();
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.black,
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        border: Border.all(
-          color: AppColors.gray.withValues(alpha: 0.4),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: EdgeInsets.all(AppSpacing.md),
-        child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
           ...todaysGoals.asMap().entries.map((entry) {
             final index = entry.key;
             final goal = entry.value;
@@ -2493,68 +2672,87 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
               padding: EdgeInsets.only(
                 bottom: index < todaysGoals.length - 1 ? AppSpacing.md : 0,
               ),
-              child: Container(
-                padding: EdgeInsets.all(AppSpacing.md),
-                decoration: BoxDecoration(
-                  color: isDetected
-                      ? color.withValues(alpha: 0.2)
-                      : AppColors.black,
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
                   borderRadius: BorderRadius.circular(AppRadius.medium),
-                  border: Border.all(
-                    color: isDetected
-                        ? color.withValues(alpha: 0.6)
-                        : AppColors.gray.withValues(alpha: 0.4),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      goal.title,
-                      style: AppTextStyles.body2.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: color.withValues(alpha: 1.0),
+                  onTap: () => _showGoalSelectionDialog(context, category, goal.detectionItem, color),
+                  child: Container(
+                    padding: EdgeInsets.all(AppSpacing.md),
+                    decoration: BoxDecoration(
+                      color: isDetected
+                          ? color.withValues(alpha: 0.2)
+                          : AppColors.black,
+                      borderRadius: BorderRadius.circular(AppRadius.medium),
+                      border: Border.all(
+                        color: isDetected
+                            ? color.withValues(alpha: 0.6)
+                            : AppColors.gray.withValues(alpha: 0.4),
+                        width: 1,
                       ),
                     ),
-                    SizedBox(height: AppSpacing.sm),
-                    LinearProgressBar(
-                      percentage: progress,
-                      height: 12,
-                      progressColor: color,
-                      backgroundColor: AppColors.blackgray,
-                      barBackgroundColor: AppColors.gray.withValues(alpha: 0.4),
-                      showFlowAnimation: isDetected,
-                    ),
-                    SizedBox(height: AppSpacing.sm),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Flexible(
-                          child: Text(
-                            '${_formatTimeWithSeconds(currentSeconds)} / ${_formatTimeWithSeconds(targetSecondsPerDay)}',
-                            style: AppTextStyles.body2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                goal.title,
+                                style: AppTextStyles.body1.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                  color: color.withValues(alpha: 1.0),
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ),
+                            Icon(
+                              Icons.edit,
+                              size: 16,
+                              color: AppColors.textSecondary.withValues(alpha: 0.6),
+                            ),
+                          ],
                         ),
-                        SizedBox(width: AppSpacing.sm),
-                        Text(
-                          '${(progress * 100).toStringAsFixed(1)}%',
-                          style: AppTextStyles.body2.copyWith(
-                            color: color.withValues(alpha: 1.0),
-                            fontWeight: FontWeight.bold,
-                          ),
+                        SizedBox(height: AppSpacing.sm),
+                        LinearProgressBar(
+                          percentage: progress,
+                          height: 12,
+                          progressColor: color,
+                          backgroundColor: AppColors.blackgray,
+                          barBackgroundColor: AppColors.gray.withValues(alpha: 0.4),
+                          showFlowAnimation: isDetected,
+                        ),
+                        SizedBox(height: AppSpacing.sm),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Flexible(
+                              child: Text(
+                                '${_formatTimeWithSeconds(currentSeconds)} / ${_formatTimeWithSeconds(targetSecondsPerDay)}',
+                                style: AppTextStyles.body2.copyWith(fontSize: 13),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            SizedBox(width: AppSpacing.sm),
+                            Text(
+                              '${(progress * 100).toStringAsFixed(1)}%',
+                              style: AppTextStyles.body2.copyWith(
+                                color: color.withValues(alpha: 1.0),
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                  ],
+                  ),
                 ),
               ),
             );
           }),
-        ],
-      ),
-      ),
+      ],
     );
   }
 
@@ -2579,6 +2777,158 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
         return _smartphoneColor;
       default:
         return AppColors.blue;
+    }
+  }
+
+  /// 目標選択ダイアログを表示
+  Future<void> _showGoalSelectionDialog(
+    BuildContext context,
+    String category,
+    DetectionItem detectionItem,
+    Color color,
+  ) async {
+    final goals = ref.read(goalsListProvider);
+    final settings = ref.read(trackingSettingsProvider);
+    
+    // 該当カテゴリーの目標を取得
+    final categoryGoals = goals.where((g) => g.detectionItem == detectionItem).toList();
+    
+    if (categoryGoals.isEmpty) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No goals available for ${category}'),
+          backgroundColor: AppColors.red,
+        ),
+      );
+      return;
+    }
+    
+    // 現在選択されている目標IDを取得
+    String? currentSelectedId;
+    switch (category) {
+      case 'study':
+        currentSelectedId = settings.selectedStudyGoalId;
+        break;
+      case 'pc':
+        currentSelectedId = settings.selectedPcGoalId;
+        break;
+      case 'smartphone':
+        currentSelectedId = settings.selectedSmartphoneGoalId;
+        break;
+    }
+    
+    if (!context.mounted) return;
+    
+    final selectedGoalId = await showDialog<String?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.blackgray,
+        title: Text(
+          'Select Goal',
+          style: AppTextStyles.h3.copyWith(color: AppColors.white),
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: categoryGoals.map((goal) {
+                final isSelected = currentSelectedId == goal.id;
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(AppRadius.medium),
+                    onTap: () => Navigator.of(context).pop(goal.id),
+                    child: Container(
+                      padding: EdgeInsets.all(AppSpacing.sm),
+                      margin: EdgeInsets.only(bottom: AppSpacing.xs),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? color.withValues(alpha: 0.2)
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(AppRadius.medium),
+                        border: Border.all(
+                          color: isSelected
+                              ? color
+                              : AppColors.gray.withValues(alpha: 0.4),
+                          width: isSelected ? 1.5 : 1,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isSelected
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            color: isSelected ? color : AppColors.textSecondary,
+                            size: 20,
+                          ),
+                          SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  goal.title,
+                                  style: AppTextStyles.body1.copyWith(
+                                    color: isSelected
+                                        ? AppColors.white
+                                        : AppColors.textSecondary,
+                                    fontWeight: isSelected
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                                SizedBox(height: 4),
+                                Text(
+                                  '${(goal.targetTime / 60).toStringAsFixed(1)}h / ${goal.durationDays} days',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Cancel',
+              style: AppTextStyles.body1.copyWith(color: AppColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+    
+    if (selectedGoalId != null && selectedGoalId != currentSelectedId) {
+      // 設定を更新
+      final updatedSettings = settings.copyWith(
+        selectedStudyGoalId: category == 'study' ? selectedGoalId : settings.selectedStudyGoalId,
+        selectedPcGoalId: category == 'pc' ? selectedGoalId : settings.selectedPcGoalId,
+        selectedSmartphoneGoalId: category == 'smartphone' ? selectedGoalId : settings.selectedSmartphoneGoalId,
+      );
+      
+      await saveTrackingSettingsHelper(ref, updatedSettings);
+      
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Goal updated'),
+          backgroundColor: color,
+          duration: const Duration(seconds: 1),
+        ),
+      );
     }
   }
 

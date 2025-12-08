@@ -465,6 +465,33 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
   }
 
   @override
+  void dispose() {
+    // Futureのキャンセル処理
+    try {
+      // 注意: DartのFutureは直接キャンセルできないため、
+      // 実行中の処理が完了するまで待つか、フラグで制御する
+      // ここでは、mountedフラグで制御されているため、追加の処理は不要
+      LogMk.logDebug(
+        '🧹 TrackingFinishedScreenのdispose()を実行',
+        tag: 'TrackingFinishedScreen.dispose',
+      );
+    } catch (e) {
+      LogMk.logError(
+        '❌ dispose()処理中にエラー: $e',
+        tag: 'TrackingFinishedScreen.dispose',
+      );
+    }
+
+    // キャッシュのクリア
+    _cachedGoals = null;
+    _pendingEvents.clear();
+    _streakSummary = null;
+    _trackingSession = null;
+
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (_isLoading) {
       return AppScaffold(
@@ -493,7 +520,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
       body: SafeArea(
         child: ScrollableContent(
           child: SpacedColumn(
-            spacing: AppSpacing.lg,
+            spacing: AppSpacing.sm,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildCongratulations(),
@@ -501,7 +528,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
               _buildSummaryCards(session),
               _buildBreakdownCard(session),
               _buildGoalUpdates(session),
-              SizedBox(height: AppSpacing.md),
+              SizedBox(height: AppSpacing.lg),
               _buildActionButtons(context),
             ],
           ),
@@ -512,8 +539,10 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
 
   Widget _buildCongratulations() {
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      padding: EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.symmetric(
+        horizontal: AppSpacing.md,
+        vertical: AppSpacing.md,
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(AppRadius.large),
         gradient: LinearGradient(
@@ -542,6 +571,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
         style: AppTextStyles.h1.copyWith(
           fontWeight: FontWeight.w800,
           letterSpacing: 0.5,
+          fontSize: 28,
         ),
         textAlign: TextAlign.center,
       ),
@@ -549,36 +579,20 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
   }
 
   Widget _buildTimeRange(TrackingSession session) {
-    return Container(
-      margin: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      padding: EdgeInsets.all(AppSpacing.md),
-      decoration: BoxDecoration(
-        color: AppColors.gray.withValues(alpha: 0.2),
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        border: Border.all(
-          color: AppColors.gray.withValues(alpha: 0.6),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(
             Icons.access_time,
             color: AppColors.gray,
-            size: 20,
+            size: 18,
           ),
           SizedBox(width: AppSpacing.sm),
           Text(
             _formatTimeRange(session),
-            style: AppTextStyles.body1.copyWith(
+            style: AppTextStyles.body2.copyWith(
               color: AppColors.gray,
               fontFeatures: [const FontFeature.tabularFigures()],
               fontWeight: FontWeight.w600,
@@ -596,7 +610,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     final workDisplay = _formatTotalTimeDisplay(workSeconds);
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -611,7 +625,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
                 subtitle: '',
               ),
             ),
-            SizedBox(width: AppSpacing.md),
+            SizedBox(width: AppSpacing.sm),
             Expanded(
               child: _buildSummaryCard(
                 accentColor: AppColors.orange,
@@ -659,43 +673,45 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
         children: [
           Row(
             children: [
-              Icon(icon, color: accentColor, size: 30),
-              SizedBox(width: AppSpacing.sm),
+              Icon(icon, color: accentColor, size: 24),
+              SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
                   title,
                   style: AppTextStyles.body2.copyWith(
                     color: AppColors.textSecondary,
+                    fontSize: 11,
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          SizedBox(height: AppSpacing.sm),
+          SizedBox(height: AppSpacing.xs),
           Center(
             child: SizedBox(
-              height: 60,
+              height: 50,
               child: Center(
                 child: Text(
                   value,
                   style: AppTextStyles.h1.copyWith(
                     color: accentColor,
-                    letterSpacing: 1.1,
+                    letterSpacing: 1.0,
                     fontWeight: FontWeight.w800,
-                    fontSize: valueFontSize,
+                    fontSize: valueFontSize != null ? valueFontSize * 0.85 : 32,
                   ),
                 ),
               ),
             ),
           ),
           if (subtitle.isNotEmpty) ...[
-            SizedBox(height: AppSpacing.xs),
+            SizedBox(height: 2),
             Text(
               subtitle,
               style: AppTextStyles.caption.copyWith(
                 color: AppColors.textSecondary,
                 fontFeatures: [const FontFeature.tabularFigures()],
+                fontSize: 10,
               ),
             ),
           ],
@@ -765,7 +781,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     ];
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -774,19 +790,19 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
               Expanded(
                 child: _buildCategoryCard(categories[0]),
               ),
-              SizedBox(width: AppSpacing.md),
+              SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _buildCategoryCard(categories[1]),
               ),
             ],
           ),
-          SizedBox(height: AppSpacing.md),
+          SizedBox(height: AppSpacing.sm),
           Row(
             children: [
               Expanded(
                 child: _buildCategoryCard(categories[2]),
               ),
-              SizedBox(width: AppSpacing.md),
+              SizedBox(width: AppSpacing.sm),
               Expanded(
                 child: _buildCategoryCard(categories[3]),
               ),
@@ -840,15 +856,17 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
             data.label,
             style: AppTextStyles.body2.copyWith(
               color: data.color.withValues(alpha: 0.7),
+              fontSize: 13,
             ),
           ),
-          SizedBox(height: AppSpacing.xs),
+          SizedBox(height: 4),
           Text(
             _formatSecondsToHMS((data.hours * 3600).round()),
             style: AppTextStyles.body1.copyWith(
               fontWeight: FontWeight.bold,
               color: data.color,
               fontFeatures: [const FontFeature.tabularFigures()],
+              fontSize: 14,
             ),
           ),
         ],
@@ -928,7 +946,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     };
 
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      margin: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.black,
@@ -950,7 +968,10 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
         children: [
           Text(
             'Goal Progress',
-            style: AppTextStyles.body1.copyWith(fontWeight: FontWeight.bold),
+            style: AppTextStyles.body1.copyWith(
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
           ),
           SizedBox(height: AppSpacing.md),
           ...todaysGoals.asMap().entries.map((entry) {
@@ -975,7 +996,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
 
             final isLast = entry.key == todaysGoals.length - 1;
             return Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.md),
+              padding: EdgeInsets.only(bottom: isLast ? 0 : AppSpacing.sm),
               child: _buildGoalUpdateRow(
                 goal: goal,
                 category: category,
@@ -1031,15 +1052,17 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
             children: [
               Text(
                 goal.title,
-                style: AppTextStyles.body2.copyWith(
+                style: AppTextStyles.body1.copyWith(
                   fontWeight: FontWeight.w600,
                   color: color.withValues(alpha: 1.0),
+                  fontSize: 14,
                 ),
               ),
               Text(
                 '目標: ${targetHours.toStringAsFixed(1)}h',
-                style: AppTextStyles.caption.copyWith(
+                style: AppTextStyles.body2.copyWith(
                   color: AppColors.textSecondary,
+                  fontSize: 12,
                 ),
               ),
             ],
@@ -1061,7 +1084,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
                 children: [
                   Text(
                     '$previousSeconds秒 → $afterSeconds秒',
-                    style: AppTextStyles.body2,
+                    style: AppTextStyles.body2.copyWith(fontSize: 13),
                   ),
                   SizedBox(width: AppSpacing.sm),
                   Text(
@@ -1069,6 +1092,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
                     style: AppTextStyles.body2.copyWith(
                       color: color.withValues(alpha: 1.0),
                       fontWeight: FontWeight.bold,
+                      fontSize: 13,
                     ),
                   ),
                 ],
@@ -1107,50 +1131,56 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
         : '統計データを保存しています...';
     
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Container(
-            decoration: BoxDecoration(
-              borderRadius: borderRadiusValue,
-              border: Border.all(
-                color: AppColors.gray.withValues(alpha: 0.4),
-                width: 1,
-              ),
-            ),
-            child: Material(
-              color: AppColors.blackgray,
-              borderRadius: borderRadiusValue,
-              elevation: 2,
-              shadowColor: AppColors.black.withValues(alpha: 0.2),
-              child: InkWell(
-                onTap: () {
-                  // 将来実装
-                },
-                borderRadius: borderRadiusValue,
-                child: Container(
-                  height: 56.0,
-                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
-                  child: Center(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.share,
-                          color: AppColors.gray,
-                          size: 18.0,
+          // シェアボタン（中央配置、横幅を半分に）
+          Center(
+            child: SizedBox(
+              width: MediaQuery.of(context).size.width * 0.5,
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: borderRadiusValue,
+                  border: Border.all(
+                    color: AppColors.gray.withValues(alpha: 0.4),
+                    width: 1,
+                  ),
+                ),
+                child: Material(
+                  color: AppColors.blackgray,
+                  borderRadius: borderRadiusValue,
+                  elevation: 2,
+                  shadowColor: AppColors.black.withValues(alpha: 0.2),
+                  child: InkWell(
+                    onTap: () {
+                      // 将来実装
+                    },
+                    borderRadius: borderRadiusValue,
+                    child: Container(
+                      height: 48.0,
+                      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                      child: Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.share,
+                              color: AppColors.gray,
+                              size: 16.0,
+                            ),
+                            SizedBox(width: AppSpacing.xs),
+                            Text(
+                              'Share',
+                              style: TextStyle(
+                                color: AppColors.gray,
+                                fontSize: 16.0,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                        SizedBox(width: AppSpacing.sm),
-                        Text(
-                          'Share on Social Media',
-                          style: TextStyle(
-                            color: AppColors.gray,
-                            fontSize: 18.0,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
@@ -1207,7 +1237,7 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
                   onTap: isPrimaryEnabled ? _handleOkButtonPressed : null,
                   borderRadius: borderRadiusValue,
                   child: Container(
-                    height: 60.0,
+                    height: 48.0,
                     padding: EdgeInsets.symmetric(horizontal: AppSpacing.xl),
                     child: Center(
                       child: Row(
@@ -1216,14 +1246,14 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
                           Icon(
                             Icons.check,
                             color: AppColors.white,
-                            size: 20.0,
+                            size: 18.0,
                           ),
                           SizedBox(width: AppSpacing.sm),
                           Text(
                             _isHandlingOkTap ? 'Working...' : 'OK',
                             style: TextStyle(
                               color: AppColors.white,
-                              fontSize: 20.0,
+                              fontSize: 18.0,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 0.5,
                             ),
@@ -1357,13 +1387,13 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
     final parts = <String>[];
     
     if (hours > 0) {
-      parts.add('${hours}時間');
+      parts.add('$hours時間');
     }
     if (minutes > 0) {
-      parts.add('${minutes}分');
+      parts.add('$minutes分');
     }
     if (seconds > 0 || parts.isEmpty) {
-      parts.add('${seconds}秒');
+      parts.add('$seconds秒');
     }
     
     return parts.join('');

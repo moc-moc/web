@@ -36,9 +36,9 @@ abstract class SurveyFlag with _$SurveyFlag {
   /// Firestore形式に変換
   Map<String, dynamic> toFirestore() {
     return {
-      'id': this.id,
-      'hasShownFirstSurvey': this.hasShownFirstSurvey,
-      'lastModified': Timestamp.fromDate(this.lastModified),
+      'id': id,
+      'hasShownFirstSurvey': hasShownFirstSurvey,
+      'lastModified': Timestamp.fromDate(lastModified),
     };
   }
 

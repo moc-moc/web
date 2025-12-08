@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:camera/camera.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_image_data.dart';
 import 'package:test_flutter/feature/tracking/detection/camera_performance_config.dart';
@@ -25,23 +24,26 @@ class CameraManagerMobile implements CameraManager {
   Stream<CameraImageData>? get imageStream => _imageStreamController?.stream;
 
   @override
+  double? get aspectRatio {
+    if (!isInitialized || _controller == null) {
+      return null;
+    }
+    return _controller!.value.aspectRatio;
+  }
+
+  /// カメラコントローラーを取得（プレビュー表示用）
+  CameraController? get controller => _controller;
+
+  @override
   Future<bool> initialize() async {
     try {
-      // 権限確認
-      final hasPermission = await _requestCameraPermission();
-      if (!hasPermission) {
-        LogMk.logError(
-          'カメラ権限が拒否されました',
-          tag: 'CameraManagerMobile.initialize',
-        );
-        return false;
-      }
-
       // カメラ一覧の取得
+      // availableCameras()は内部でカメラ権限をチェックし、
+      // 未許可の場合はiOSが自動的にダイアログを表示する
       _cameras = await availableCameras();
       if (_cameras == null || _cameras!.isEmpty) {
         LogMk.logError(
-          '利用可能なカメラが見つかりません',
+          '利用可能なカメラが見つかりません。カメラへのアクセスが許可されているか確認してください。',
           tag: 'CameraManagerMobile.initialize',
         );
         return false;
@@ -65,7 +67,29 @@ class CameraManagerMobile implements CameraManager {
         imageFormatGroup: ImageFormatGroup.bgra8888,
       );
 
-      await _controller!.initialize();
+      // CameraControllerの初期化
+      // ここでもカメラ権限がチェックされ、未許可の場合はiOSがダイアログを表示する
+      try {
+        await _controller!.initialize();
+      } on CameraException catch (e) {
+        LogMk.logError(
+          'カメラ初期化エラー: ${e.code} - ${e.description}',
+          tag: 'CameraManagerMobile.initialize',
+        );
+        
+        // カメラ権限が拒否されている場合の詳細なメッセージ
+        if (e.code == 'CameraAccessDenied' || 
+            e.description?.toLowerCase().contains('permission') == true) {
+          LogMk.logError(
+            'カメラへのアクセスが拒否されました。\n'
+            'iPhoneの設定 > Test Flutter > カメラ でアクセスを許可してください。',
+            tag: 'CameraManagerMobile.initialize',
+          );
+        }
+        
+        await dispose();
+        return false;
+      }
 
       // 映像ストリームの設定
       _imageStreamController = StreamController<CameraImageData>.broadcast();
@@ -88,41 +112,6 @@ class CameraManagerMobile implements CameraManager {
     }
   }
 
-  /// カメラ権限の確認・要求
-  /// 
-  /// **戻り値**: 権限が許可されている場合true
-  Future<bool> _requestCameraPermission() async {
-    try {
-      final status = await Permission.camera.status;
-
-      if (status.isGranted) {
-        return true;
-      }
-
-      if (status.isDenied) {
-        final result = await Permission.camera.request();
-        return result.isGranted;
-      }
-
-      // 永続的に拒否されている場合
-      if (status.isPermanentlyDenied) {
-        LogMk.logError(
-          'カメラ権限が永続的に拒否されています',
-          tag: 'CameraManagerMobile._requestCameraPermission',
-        );
-        return false;
-      }
-
-      return false;
-    } catch (e, stackTrace) {
-      LogMk.logError(
-        'カメラ権限確認エラー: $e',
-        tag: 'CameraManagerMobile._requestCameraPermission',
-        stackTrace: stackTrace,
-      );
-      return false;
-    }
-  }
 
   @override
   Future<CameraImageData?> captureImage() async {

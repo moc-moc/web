@@ -56,181 +56,49 @@ class GoalProgressCardNew extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1行目：アイコン + タイトル + 期間ラベル（レスポンシブ）
-                    LayoutBuilder(
-                      builder: (context, constraints) {
-                        final isNarrow = constraints.maxWidth < 300;
-                        if (isNarrow) {
-                          // 幅が狭い場合：縦並び
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  // アイコン（丸型、背景はblackgray、枠線は各色）
-                                  Container(
-                                    width: 56,
-                                    height: 56,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.blackgray,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: iconColor.withValues(alpha: 0.9),
-                                        width: 1,
-                                      ),
-                                    ),
-                                    child: Icon(
-                                      icon,
-                                      color: iconColor,
-                                      size: 28,
-                                    ),
-                                  ),
-                                  SizedBox(width: AppSpacing.md),
-                                  // タイトル（改行可能）
-                                  Expanded(
-                                    child: Text(
-                                      title,
-                                      style: AppTextStyles.h3.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                        color: iconColor.withValues(alpha: 0.9),
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
-                                ],
+                    // 1行目：アイコン + タイトル（常に横並び）
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // アイコン（丸型、背景はblackgray、枠線は各色）
+                        Container(
+                          width: 48,
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: AppColors.blackgray,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: iconColor.withValues(alpha: 0.9),
+                              width: 1,
+                            ),
+                          ),
+                          child: Icon(
+                            icon,
+                            color: iconColor,
+                            size: 24,
+                          ),
+                        ),
+                        SizedBox(width: AppSpacing.sm),
+                        // タイトル（改行可能、サイズ可変）
+                        Expanded(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              title,
+                              style: AppTextStyles.h3.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: iconColor.withValues(alpha: 0.9),
                               ),
-                              SizedBox(height: AppSpacing.xs),
-                              Padding(
-                                padding: EdgeInsets.only(left: 56 + AppSpacing.md),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: AppSpacing.sm,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.middleblackgray,
-                                        borderRadius: BorderRadius.circular(AppRadius.small),
-                                      ),
-                                      child: Text(
-                                        periodLabel,
-                                        style: AppTextStyles.caption.copyWith(
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                    ),
-                                    if (comparisonType == ComparisonType.below) ...[
-                                      SizedBox(width: AppSpacing.xs),
-                                      Container(
-                                        padding: EdgeInsets.symmetric(
-                                          horizontal: AppSpacing.sm,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: AppColors.middleblackgray,
-                                          borderRadius: BorderRadius.circular(AppRadius.small),
-                                        ),
-                                        child: Text(
-                                          'below',
-                                          style: AppTextStyles.caption.copyWith(
-                                            color: AppColors.purple,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-                            ],
-                          );
-                        } else {
-                          // 幅が広い場合：横並び
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              // アイコン（丸型、背景はblackgray、枠線は各色）
-                              Container(
-                                width: 56,
-                                height: 56,
-                                decoration: BoxDecoration(
-                                  color: AppColors.blackgray,
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: iconColor.withValues(alpha: 0.9),
-                                    width: 1,
-                                  ),
-                                ),
-                                child: Icon(
-                                  icon,
-                                  color: iconColor,
-                                  size: 28,
-                                ),
-                              ),
-                              SizedBox(width: AppSpacing.md),
-                              // タイトル（改行可能）
-                              Flexible(
-                                child: Text(
-                                  title,
-                                  style: AppTextStyles.h3.copyWith(
-                                    fontWeight: FontWeight.bold,
-                                    color: iconColor.withValues(alpha: 0.9),
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              SizedBox(width: AppSpacing.sm),
-                              // 期間ラベル（weekly/monthly）
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: EdgeInsets.symmetric(
-                                      horizontal: AppSpacing.sm,
-                                      vertical: 2,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: AppColors.middleblackgray,
-                                      borderRadius: BorderRadius.circular(AppRadius.small),
-                                    ),
-                                    child: Text(
-                                      periodLabel,
-                                      style: AppTextStyles.caption.copyWith(
-                                        color: AppColors.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                  if (comparisonType == ComparisonType.below) ...[
-                                    SizedBox(width: AppSpacing.xs),
-                                    Container(
-                                      padding: EdgeInsets.symmetric(
-                                        horizontal: AppSpacing.sm,
-                                        vertical: 2,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: AppColors.middleblackgray,
-                                        borderRadius: BorderRadius.circular(AppRadius.small),
-                                      ),
-                                      child: Text(
-                                        'below',
-                                        style: AppTextStyles.caption.copyWith(
-                                          color: AppColors.purple,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ],
-                          );
-                        }
-                      },
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    // 2行目：時間数値（タイトルと同じ行）
+                    SizedBox(height: AppSpacing.md),
+                    // 2行目：時間数値
                     Padding(
                       padding: EdgeInsets.only(left: 56 + AppSpacing.md),
                       child: Row(
@@ -268,10 +136,10 @@ class GoalProgressCardNew extends StatelessWidget {
                   ],
                 ),
               ),
-              SizedBox(width: AppSpacing.md),
+              SizedBox(width: AppSpacing.lg),
               // 右側：円グラフ
               Padding(
-                padding: EdgeInsets.only(right: 60), // 炎数値に近づける
+                padding: EdgeInsets.only(right: 40), // 炎数値に近づける
                 child: SizedBox(
                   width: 120,
                   height: 120,
@@ -323,15 +191,49 @@ class GoalProgressCardNew extends StatelessWidget {
               ),
             ),
           ),
-          // 2weeksを枠の右下に表示
+          // 期間ラベル（daily/weekly/monthly）とbelowラベルを左下に表示
           Positioned(
             bottom: 0,
-            right: 0,
-            child: Text(
-              daysText,
-              style: AppTextStyles.caption.copyWith(
-                color: AppColors.textSecondary,
-              ),
+            left: 0,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: EdgeInsets.symmetric(
+                    horizontal: AppSpacing.sm,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppColors.middleblackgray,
+                    borderRadius: BorderRadius.circular(AppRadius.small),
+                  ),
+                  child: Text(
+                    periodLabel,
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ),
+                if (comparisonType == ComparisonType.below) ...[
+                  SizedBox(width: AppSpacing.xs),
+                  Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: AppSpacing.sm,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.middleblackgray,
+                      borderRadius: BorderRadius.circular(AppRadius.small),
+                    ),
+                    child: Text(
+                      'below',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.purple,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],

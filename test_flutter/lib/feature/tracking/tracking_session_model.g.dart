@@ -12,6 +12,11 @@ _DetectionPeriod _$DetectionPeriodFromJson(Map<String, dynamic> json) =>
       endTime: DateTime.parse(json['endTime'] as String),
       category: json['category'] as String,
       confidence: (json['confidence'] as num).toDouble(),
+      selectedGoalIds:
+          (json['selectedGoalIds'] as Map<String, dynamic>?)?.map(
+            (k, e) => MapEntry(k, e as String?),
+          ) ??
+          const {},
     );
 
 Map<String, dynamic> _$DetectionPeriodToJson(_DetectionPeriod instance) =>
@@ -20,6 +25,7 @@ Map<String, dynamic> _$DetectionPeriodToJson(_DetectionPeriod instance) =>
       'endTime': instance.endTime.toIso8601String(),
       'category': instance.category,
       'confidence': instance.confidence,
+      'selectedGoalIds': instance.selectedGoalIds,
     };
 
 _TrackingSession _$TrackingSessionFromJson(Map<String, dynamic> json) =>

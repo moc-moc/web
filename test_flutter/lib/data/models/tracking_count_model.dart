@@ -36,9 +36,9 @@ abstract class TrackingCount with _$TrackingCount {
   /// Firestore形式に変換
   Map<String, dynamic> toFirestore() {
     return {
-      'id': this.id,
+      'id': id,
       'count': this.count,
-      'lastModified': Timestamp.fromDate(this.lastModified),
+      'lastModified': Timestamp.fromDate(lastModified),
     };
   }
 }

@@ -40,10 +40,10 @@ abstract class Survey with _$Survey {
   /// Firestore形式に変換
   Map<String, dynamic> toFirestore() {
     return {
-      'id': this.id,
-      'rating': this.rating,
-      'feedback': this.feedback,
-      'createdAt': Timestamp.fromDate(this.createdAt),
+      'id': id,
+      'rating': rating,
+      'feedback': feedback,
+      'createdAt': Timestamp.fromDate(createdAt),
     };
   }
 }

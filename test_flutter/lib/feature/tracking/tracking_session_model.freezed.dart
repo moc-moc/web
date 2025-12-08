@@ -19,7 +19,9 @@ mixin _$DetectionPeriod {
  DateTime get startTime;/// 検出終了時刻
  DateTime get endTime;/// 検出されたカテゴリ
  String get category;/// 信頼度
- double get confidence;
+ double get confidence;/// この期間中に選択されていた目標ID（study/pc/smartphone）
+/// トラッキング中に目標が変更された場合、変更後の目標IDを記録
+ Map<String, String?> get selectedGoalIds;
 /// Create a copy of DetectionPeriod
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -32,16 +34,16 @@ $DetectionPeriodCopyWith<DetectionPeriod> get copyWith => _$DetectionPeriodCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is DetectionPeriod&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&(identical(other.category, category) || other.category == category)&&(identical(other.confidence, confidence) || other.confidence == confidence));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is DetectionPeriod&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&(identical(other.category, category) || other.category == category)&&(identical(other.confidence, confidence) || other.confidence == confidence)&&const DeepCollectionEquality().equals(other.selectedGoalIds, selectedGoalIds));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,startTime,endTime,category,confidence);
+int get hashCode => Object.hash(runtimeType,startTime,endTime,category,confidence,const DeepCollectionEquality().hash(selectedGoalIds));
 
 @override
 String toString() {
-  return 'DetectionPeriod(startTime: $startTime, endTime: $endTime, category: $category, confidence: $confidence)';
+  return 'DetectionPeriod(startTime: $startTime, endTime: $endTime, category: $category, confidence: $confidence, selectedGoalIds: $selectedGoalIds)';
 }
 
 
@@ -52,7 +54,7 @@ abstract mixin class $DetectionPeriodCopyWith<$Res>  {
   factory $DetectionPeriodCopyWith(DetectionPeriod value, $Res Function(DetectionPeriod) _then) = _$DetectionPeriodCopyWithImpl;
 @useResult
 $Res call({
- DateTime startTime, DateTime endTime, String category, double confidence
+ DateTime startTime, DateTime endTime, String category, double confidence, Map<String, String?> selectedGoalIds
 });
 
 
@@ -69,13 +71,14 @@ class _$DetectionPeriodCopyWithImpl<$Res>
 
 /// Create a copy of DetectionPeriod
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? startTime = null,Object? endTime = null,Object? category = null,Object? confidence = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? startTime = null,Object? endTime = null,Object? category = null,Object? confidence = null,Object? selectedGoalIds = null,}) {
   return _then(_self.copyWith(
 startTime: null == startTime ? _self.startTime : startTime // ignore: cast_nullable_to_non_nullable
 as DateTime,endTime: null == endTime ? _self.endTime : endTime // ignore: cast_nullable_to_non_nullable
 as DateTime,category: null == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
 as String,confidence: null == confidence ? _self.confidence : confidence // ignore: cast_nullable_to_non_nullable
-as double,
+as double,selectedGoalIds: null == selectedGoalIds ? _self.selectedGoalIds : selectedGoalIds // ignore: cast_nullable_to_non_nullable
+as Map<String, String?>,
   ));
 }
 
@@ -160,10 +163,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( DateTime startTime,  DateTime endTime,  String category,  double confidence)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( DateTime startTime,  DateTime endTime,  String category,  double confidence,  Map<String, String?> selectedGoalIds)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _DetectionPeriod() when $default != null:
-return $default(_that.startTime,_that.endTime,_that.category,_that.confidence);case _:
+return $default(_that.startTime,_that.endTime,_that.category,_that.confidence,_that.selectedGoalIds);case _:
   return orElse();
 
 }
@@ -181,10 +184,10 @@ return $default(_that.startTime,_that.endTime,_that.category,_that.confidence);c
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( DateTime startTime,  DateTime endTime,  String category,  double confidence)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( DateTime startTime,  DateTime endTime,  String category,  double confidence,  Map<String, String?> selectedGoalIds)  $default,) {final _that = this;
 switch (_that) {
 case _DetectionPeriod():
-return $default(_that.startTime,_that.endTime,_that.category,_that.confidence);case _:
+return $default(_that.startTime,_that.endTime,_that.category,_that.confidence,_that.selectedGoalIds);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -201,10 +204,10 @@ return $default(_that.startTime,_that.endTime,_that.category,_that.confidence);c
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( DateTime startTime,  DateTime endTime,  String category,  double confidence)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( DateTime startTime,  DateTime endTime,  String category,  double confidence,  Map<String, String?> selectedGoalIds)?  $default,) {final _that = this;
 switch (_that) {
 case _DetectionPeriod() when $default != null:
-return $default(_that.startTime,_that.endTime,_that.category,_that.confidence);case _:
+return $default(_that.startTime,_that.endTime,_that.category,_that.confidence,_that.selectedGoalIds);case _:
   return null;
 
 }
@@ -216,7 +219,7 @@ return $default(_that.startTime,_that.endTime,_that.category,_that.confidence);c
 @JsonSerializable()
 
 class _DetectionPeriod extends DetectionPeriod {
-  const _DetectionPeriod({required this.startTime, required this.endTime, required this.category, required this.confidence}): super._();
+  const _DetectionPeriod({required this.startTime, required this.endTime, required this.category, required this.confidence, final  Map<String, String?> selectedGoalIds = const {}}): _selectedGoalIds = selectedGoalIds,super._();
   factory _DetectionPeriod.fromJson(Map<String, dynamic> json) => _$DetectionPeriodFromJson(json);
 
 /// 検出開始時刻
@@ -227,6 +230,17 @@ class _DetectionPeriod extends DetectionPeriod {
 @override final  String category;
 /// 信頼度
 @override final  double confidence;
+/// この期間中に選択されていた目標ID（study/pc/smartphone）
+/// トラッキング中に目標が変更された場合、変更後の目標IDを記録
+ final  Map<String, String?> _selectedGoalIds;
+/// この期間中に選択されていた目標ID（study/pc/smartphone）
+/// トラッキング中に目標が変更された場合、変更後の目標IDを記録
+@override@JsonKey() Map<String, String?> get selectedGoalIds {
+  if (_selectedGoalIds is EqualUnmodifiableMapView) return _selectedGoalIds;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableMapView(_selectedGoalIds);
+}
+
 
 /// Create a copy of DetectionPeriod
 /// with the given fields replaced by the non-null parameter values.
@@ -241,16 +255,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DetectionPeriod&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&(identical(other.category, category) || other.category == category)&&(identical(other.confidence, confidence) || other.confidence == confidence));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _DetectionPeriod&&(identical(other.startTime, startTime) || other.startTime == startTime)&&(identical(other.endTime, endTime) || other.endTime == endTime)&&(identical(other.category, category) || other.category == category)&&(identical(other.confidence, confidence) || other.confidence == confidence)&&const DeepCollectionEquality().equals(other._selectedGoalIds, _selectedGoalIds));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,startTime,endTime,category,confidence);
+int get hashCode => Object.hash(runtimeType,startTime,endTime,category,confidence,const DeepCollectionEquality().hash(_selectedGoalIds));
 
 @override
 String toString() {
-  return 'DetectionPeriod(startTime: $startTime, endTime: $endTime, category: $category, confidence: $confidence)';
+  return 'DetectionPeriod(startTime: $startTime, endTime: $endTime, category: $category, confidence: $confidence, selectedGoalIds: $selectedGoalIds)';
 }
 
 
@@ -261,7 +275,7 @@ abstract mixin class _$DetectionPeriodCopyWith<$Res> implements $DetectionPeriod
   factory _$DetectionPeriodCopyWith(_DetectionPeriod value, $Res Function(_DetectionPeriod) _then) = __$DetectionPeriodCopyWithImpl;
 @override @useResult
 $Res call({
- DateTime startTime, DateTime endTime, String category, double confidence
+ DateTime startTime, DateTime endTime, String category, double confidence, Map<String, String?> selectedGoalIds
 });
 
 
@@ -278,13 +292,14 @@ class __$DetectionPeriodCopyWithImpl<$Res>
 
 /// Create a copy of DetectionPeriod
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? startTime = null,Object? endTime = null,Object? category = null,Object? confidence = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? startTime = null,Object? endTime = null,Object? category = null,Object? confidence = null,Object? selectedGoalIds = null,}) {
   return _then(_DetectionPeriod(
 startTime: null == startTime ? _self.startTime : startTime // ignore: cast_nullable_to_non_nullable
 as DateTime,endTime: null == endTime ? _self.endTime : endTime // ignore: cast_nullable_to_non_nullable
 as DateTime,category: null == category ? _self.category : category // ignore: cast_nullable_to_non_nullable
 as String,confidence: null == confidence ? _self.confidence : confidence // ignore: cast_nullable_to_non_nullable
-as double,
+as double,selectedGoalIds: null == selectedGoalIds ? _self._selectedGoalIds : selectedGoalIds // ignore: cast_nullable_to_non_nullable
+as Map<String, String?>,
   ));
 }
 

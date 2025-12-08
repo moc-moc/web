@@ -15,17 +15,42 @@ class AudioService {
   /// アラート音を再生（ループ再生）
   /// 
   /// アラートが表示されている間、音声をループ再生します。
+  /// iOSのサイレントモードとバックグラウンドでも音が鳴るように、AudioContextを設定します。
   Future<void> playAlertSoundLoop() async {
     try {
       // 音声ファイル名（実際のファイル名に合わせる）
       const soundFileName = 'sounds/80921__justinbw__buttonchime02up.wav';
       
       try {
+        // iOSのサイレントモードとバックグラウンドでも音が鳴るように設定
+        // AudioContext.configで、iOSのAVAudioSessionCategoryPlaybackを有効にする
+        await _player.setAudioContext(
+          AudioContext(
+            iOS: AudioContextIOS(
+              category: AVAudioSessionCategory.playback,
+              options: {
+                AVAudioSessionOptions.mixWithOthers,
+              },
+            ),
+            android: AudioContextAndroid(
+              isSpeakerphoneOn: false,
+              stayAwake: true,
+              contentType: AndroidContentType.music,
+              usageType: AndroidUsageType.alarm,
+              audioFocus: AndroidAudioFocus.gain,
+            ),
+          ),
+        );
+        
         // ループ再生モードに設定
         await _player.setReleaseMode(ReleaseMode.loop);
+        
+        // 音量を最大に設定
+        await _player.setVolume(1.0);
+        
         await _player.play(AssetSource(soundFileName));
         _isPlaying = true;
-        LogMk.logDebug('アラート音をループ再生しました: $soundFileName', tag: 'AudioService.playAlertSoundLoop');
+        LogMk.logDebug('アラート音をループ再生しました: $soundFileName (AVAudioSessionCategory: playback)', tag: 'AudioService.playAlertSoundLoop');
       } catch (e) {
         // 音声ファイルの再生に失敗した場合
         LogMk.logWarning(

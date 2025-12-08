@@ -29,6 +29,14 @@ class CameraManagerWeb implements CameraManager {
   html.VideoElement? get videoElement => _videoElement;
 
   @override
+  double? get aspectRatio {
+    if (!isInitialized || _imageWidth == 0 || _imageHeight == 0) {
+      return null;
+    }
+    return _imageWidth / _imageHeight;
+  }
+
+  @override
   Future<bool> initialize() async {
     try {
       final desiredLowQuality = CameraPerformanceConfig.isLowQuality;

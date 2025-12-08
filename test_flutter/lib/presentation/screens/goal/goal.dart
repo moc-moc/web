@@ -17,6 +17,7 @@ import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
 import 'package:test_flutter/feature/leveling/level_functions.dart';
 import 'package:test_flutter/feature/subscription/subscription_providers.dart';
 import 'package:test_flutter/presentation/widgets/entitlement_gate.dart';
+import 'package:test_flutter/feature/setting/goal_memo_notifier.dart';
 
 /// 目標画面（新デザインシステム版）
 class GoalScreenNew extends ConsumerStatefulWidget {
@@ -211,6 +212,11 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
 
                   SizedBox(height: AppSpacing.md),
 
+                  // 目標メモ
+                  _buildGoalMemoSection(),
+
+                  SizedBox(height: AppSpacing.md),
+
                   // カウントダウン表示
                   _buildCountdownSection(
                     context,
@@ -225,7 +231,7 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
                   if (isGoalLimitReached) ...[
                     SizedBox(height: AppSpacing.md),
                     Padding(
-                      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
                       child: const PremiumLockCard(
                         feature: PremiumFeature.multipleGoals,
                       ),
@@ -289,7 +295,7 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     final quoteData = quotes[DateTime.now().day % quotes.length];
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: Container(
         height: 180,
         padding: EdgeInsets.all(AppSpacing.lg),
@@ -328,27 +334,38 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
             SizedBox(height: AppSpacing.sm),
             Expanded(
               child: Center(
-                child: ShaderMask(
-                  shaderCallback: (bounds) => const LinearGradient(
-                    colors: [
-                      Color(0xFFB8C1EC),
-                      Color(0xFFFDE68A),
-                    ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ).createShader(bounds),
-                  blendMode: BlendMode.srcIn,
-                  child: Text(
-                    quoteData['quote'] as String,
-                    textAlign: TextAlign.center,
-                    style: AppTextStyles.h2.copyWith(
-                      fontSize: 28.8, // 24.0 * 1.2
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.8,
-                      height: 1.2,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: 350,
+                      ),
+                      child: ShaderMask(
+                        shaderCallback: (bounds) => const LinearGradient(
+                          colors: [
+                            Color(0xFFB8C1EC),
+                            Color(0xFFFDE68A),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ).createShader(bounds),
+                        blendMode: BlendMode.srcIn,
+                        child: Text(
+                          quoteData['quote'] as String,
+                          textAlign: TextAlign.center,
+                          style: AppTextStyles.h2.copyWith(
+                            fontSize: 28.8, // 24.0 * 1.2
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.8,
+                            height: 1.2,
+                          ),
+                          maxLines: 3,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ),
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               ),
@@ -374,7 +391,7 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
   ) {
     if (!countdownUnlocked) {
       return Padding(
-        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         child: const PremiumLockCard(
           feature: PremiumFeature.countdown,
         ),
@@ -384,7 +401,7 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     final levelState = ref.watch(levelingStateProvider);
     if (countdowns.isEmpty) {
       return Padding(
-        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         child: RealtimeCountdownDisplay(
           eventName: 'Monthly reset',
           targetDate: levelState.nextResetAt,
@@ -413,7 +430,7 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     ];
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -457,7 +474,7 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
 
     if (displayGoals.isEmpty) {
       return Padding(
-        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
         child: Container(
           padding: EdgeInsets.all(AppSpacing.lg),
           decoration: BoxDecoration(
@@ -478,7 +495,7 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
     }
 
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -672,6 +689,146 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
         return '${h}h ${m}m';
       }
     }
+  }
+
+  /// 目標メモセクション
+  Widget _buildGoalMemoSection() {
+    final memo = ref.watch(goalMemoProvider);
+    final hasContent = memo.content.isNotEmpty;
+
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      child: GestureDetector(
+        onTap: () => _showGoalMemoDialog(),
+        child: Container(
+          padding: EdgeInsets.all(AppSpacing.md),
+          decoration: BoxDecoration(
+            color: AppColors.purple.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppRadius.large),
+            border: Border.all(
+              color: AppColors.purple.withValues(alpha: 0.4),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(
+                Icons.lightbulb_outline,
+                color: AppColors.purple,
+                size: 20,
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '目標メモ',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.purple,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (hasContent) ...[
+                      SizedBox(height: AppSpacing.xs),
+                      Text(
+                        memo.content,
+                        style: AppTextStyles.body2.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ] else ...[
+                      SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'タップして目標メモを追加',
+                        style: AppTextStyles.body2.copyWith(
+                          color: AppColors.textSecondary,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              SizedBox(width: AppSpacing.sm),
+              Icon(
+                Icons.edit_outlined,
+                color: AppColors.purple.withValues(alpha: 0.6),
+                size: 18,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 目標メモ編集ダイアログを表示
+  Future<void> _showGoalMemoDialog() async {
+    final currentMemo = ref.read(goalMemoProvider);
+    final controller = TextEditingController(text: currentMemo.content);
+    
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    
+    await showDialog(
+      context: context,
+      builder: (context) => AppDialogBase(
+        title: '目標メモ',
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          maxLength: 200,
+          decoration: const InputDecoration(
+            hintText: 'あなたの目標やモチベーションを記録しましょう...',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          SecondaryButton(
+            text: 'キャンセル',
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          PrimaryButton(
+            text: '保存',
+            onPressed: () async {
+              final newContent = controller.text.trim();
+              try {
+                final newMemo = currentMemo.copyWith(
+                  content: newContent,
+                  lastModified: DateTime.now(),
+                );
+                ref.read(goalMemoProvider.notifier).updateMemo(newMemo);
+                
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('目標メモを保存しました'),
+                      backgroundColor: AppColors.success,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                  scaffoldMessenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('保存に失敗しました'),
+                      backgroundColor: AppColors.error,
+                    ),
+                  );
+                }
+              }
+            },
+          ),
+        ],
+      ),
+    );
+    
+    controller.dispose();
   }
 
   Widget _buildBottomNavigationBar(BuildContext context) {

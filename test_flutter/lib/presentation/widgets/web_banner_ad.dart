@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'dart:html' as html;
-import 'dart:ui_web' as ui_web;
-import 'dart:js' as js;
+import 'dart:html' as html if (dart.library.html) 'dart:html';
+import 'dart:ui_web' as ui_web if (dart.library.html) 'dart:ui_web';
+import 'dart:js' as js if (dart.library.js) 'dart:js';
 
 /// Web版用のバナー広告Widget
 /// 

@@ -189,14 +189,14 @@ class CountdownDisplay extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: EdgeInsets.symmetric(
-          horizontal: AppSpacing.lg,
-          vertical: AppSpacing.md,
+          horizontal: AppSpacing.sm,
+          vertical: AppSpacing.xs,
         ),
         decoration: BoxDecoration(
           color: effectiveBackgroundColor,
-          borderRadius: BorderRadius.circular(AppRadius.large),
+          borderRadius: BorderRadius.circular(AppRadius.medium),
           border: effectiveBorderColor != null
-              ? Border.all(color: effectiveBorderColor, width: 1.5)
+              ? Border.all(color: effectiveBorderColor, width: 1)
               : null,
         ),
         child: Column(
@@ -208,12 +208,13 @@ class CountdownDisplay extends StatelessWidget {
               alignment: Alignment.center,
               children: [
                 Padding(
-                  padding: EdgeInsets.symmetric(vertical: AppSpacing.sm),
+                  padding: EdgeInsets.symmetric(vertical: 4),
                   child: Text(
                     eventName,
-                    style: AppTextStyles.body1.copyWith(
+                    style: AppTextStyles.caption.copyWith(
                       color: effectiveTitleColor,
                       fontWeight: FontWeight.w600,
+                      fontSize: 10,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -225,7 +226,7 @@ class CountdownDisplay extends StatelessWidget {
                       icon: Icon(
                         Icons.edit,
                         color: AppColors.textSecondary,
-                        size: 20,
+                        size: 16,
                       ),
                       onPressed: onEdit,
                       padding: EdgeInsets.zero,
@@ -234,7 +235,7 @@ class CountdownDisplay extends StatelessWidget {
                   ),
               ],
             ),
-            SizedBox(height: AppSpacing.md),
+            SizedBox(height: AppSpacing.xs),
             ],
             Builder(builder: (context) {
               final units = [
@@ -289,18 +290,19 @@ class _CountdownUnit extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
-          height: 72,
+          height: 48,
           child: _FlipCard(
             value: value,
             backgroundColor: valueBackgroundColor,
             textColor: valueTextColor,
           ),
         ),
-        SizedBox(height: AppSpacing.xs),
+        SizedBox(height: 4),
         Text(
           label,
           style: AppTextStyles.caption.copyWith(
             color: labelColor,
+            fontSize: 9,
           ),
         ),
       ],

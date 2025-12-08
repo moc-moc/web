@@ -5,9 +5,8 @@ import 'package:test_flutter/feature/tracking/detection/camera_manager.dart';
 import 'package:test_flutter/core/theme.dart';
 import 'package:test_flutter/data/services/log_service.dart';
 
-// Web版用のインポート
-import 'dart:html' as html;
-import 'dart:ui_web' as ui_web;
+// Web版用のヘルパー関数（条件付きインポート）
+import 'camera_preview_widget_web_helper_stub.dart' if (dart.library.html) 'camera_preview_widget_web_helper.dart' show registerWebCameraView;
 
 /// カメラプレビューウィジェット
 /// 
@@ -89,7 +88,7 @@ class _CameraPreviewWidgetState extends State<CameraPreviewWidget> {
 
     try {
       final webManager = widget.cameraManager as dynamic;
-      final videoElement = webManager.videoElement as html.VideoElement?;
+      final videoElement = webManager.videoElement as dynamic;
 
       if (videoElement == null) {
         // VideoElementがまだ準備できていない場合は、少し待ってから再試行
@@ -105,47 +104,22 @@ class _CameraPreviewWidgetState extends State<CameraPreviewWidget> {
       _registrationCounter++;
       _viewId = 'camera-preview-${DateTime.now().millisecondsSinceEpoch}-$_registrationCounter';
 
-      // VideoElementのスタイルを設定
-      videoElement.style
-        ..width = '100%'
-        ..height = '100%'
-        ..objectFit = 'cover'
-        ..borderRadius = '0px'
-        ..display = 'block';
-
       // プラットフォームビューとして登録
       // 注意: 同じIDで再登録しようとするとエラーになるため、必ず新しいIDを使用
       // 各プラットフォームビューで独立したVideoElementを作成して、同じストリームを参照する
       // これにより、古いプラットフォームビューが無効になっても新しいビューが正常に動作する
-      ui_web.platformViewRegistry.registerViewFactory(
-        _viewId!,
-        (int viewId) {
-          // 新しいVideoElementを作成して、同じストリームを参照する
-          final newVideoElement = html.VideoElement()
-            ..autoplay = true
-            ..muted = true
-            ..setAttribute('playsinline', 'true')
-            ..srcObject = videoElement.srcObject // 同じストリームを参照
-            ..style.width = '100%'
-            ..style.height = '100%'
-            ..style.objectFit = 'cover'
-            ..style.borderRadius = '0px'
-            ..style.display = 'block';
-          return newVideoElement;
+      registerWebCameraView(
+        viewId: _viewId!,
+        videoElement: videoElement,
+        onRegistered: (viewId, element) {
+          // 登録完了後の処理（必要に応じて）
         },
       );
 
-      // HtmlElementViewをキャッシュに保存
-      _cachedHtmlElementView = ClipRRect(
-        borderRadius: BorderRadius.circular(AppRadius.large),
-        child: SizedBox(
-          width: double.infinity,
-          height: 280,
-          child: HtmlElementView(
-            key: ValueKey(_viewId!),
-            viewType: _viewId!,
-          ),
-        ),
+      // HtmlElementViewをキャッシュに保存（AspectRatioは後で適用）
+      _cachedHtmlElementView = HtmlElementView(
+        key: ValueKey(_viewId!),
+        viewType: _viewId!,
       );
 
       setState(() {
@@ -223,28 +197,55 @@ class _CameraPreviewWidgetState extends State<CameraPreviewWidget> {
       );
     }
 
+    // 縦横比を取得
+    final aspectRatio = widget.cameraManager.aspectRatio;
+    
     // キャッシュされたHtmlElementViewがあれば再利用
-    if (_cachedHtmlElementView != null) {
-      return _cachedHtmlElementView!;
+    if (_cachedHtmlElementView != null && aspectRatio != null) {
+      return Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.large),
+          child: AspectRatio(
+            aspectRatio: aspectRatio,
+            child: _cachedHtmlElementView!,
+          ),
+        ),
+      );
     }
     
-    // キャッシュがない場合は新規作成（通常は発生しない）
-    final htmlElementView = ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.large),
-      child: SizedBox(
-        width: double.infinity,
-        height: 280,
-        child: HtmlElementView(
-          key: ValueKey(_viewId!),
-          viewType: _viewId!,
-        ),
-      ),
+    // キャッシュがない場合は新規作成
+    final htmlElementView = HtmlElementView(
+      key: ValueKey(_viewId!),
+      viewType: _viewId!,
     );
     
     // キャッシュに保存
     _cachedHtmlElementView = htmlElementView;
     
-    return htmlElementView;
+    // 縦横比が取得できている場合はAspectRatioでラップ
+    if (aspectRatio != null) {
+      return Center(
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(AppRadius.large),
+          child: AspectRatio(
+            aspectRatio: aspectRatio,
+            child: htmlElementView,
+          ),
+        ),
+      );
+    }
+    
+    // 縦横比が取得できない場合は固定サイズ（フォールバック）
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        child: SizedBox(
+          width: double.infinity,
+          height: 280,
+          child: htmlElementView,
+        ),
+      ),
+    );
   }
 
   /// モバイル版のプレビュー
@@ -273,11 +274,27 @@ class _CameraPreviewWidgetState extends State<CameraPreviewWidget> {
       );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(AppRadius.large),
-      child: AspectRatio(
-        aspectRatio: controller.value.aspectRatio,
-        child: CameraPreview(controller),
+    // 縦横比を取得（CameraManagerから取得、フォールバックとしてcontrollerからも取得）
+    var aspectRatio = widget.cameraManager.aspectRatio ?? controller.value.aspectRatio;
+
+    // 画面の向きを取得
+    final orientation = MediaQuery.of(context).orientation;
+
+    // 画面が縦向きの場合、カメラ映像のアスペクト比を調整
+    // iOSのカメラは通常横向きのアスペクト比（例：16:9 = 1.78）で出力されるため、
+    // 画面を縦向きにした場合はアスペクト比を反転（1/1.78 = 0.56）する必要がある
+    if (orientation == Orientation.portrait && aspectRatio > 1.0) {
+      // 画面が縦向きで、カメラのアスペクト比が横向き（1より大きい）の場合、反転
+      aspectRatio = 1.0 / aspectRatio;
+    }
+
+    return Center(
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.large),
+        child: AspectRatio(
+          aspectRatio: aspectRatio,
+          child: CameraPreview(controller),
+        ),
       ),
     );
   }

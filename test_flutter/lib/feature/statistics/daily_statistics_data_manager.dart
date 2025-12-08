@@ -95,19 +95,27 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
           .where((e) => e.value.values.any((v) => v > 0))
           .length;
       LogMk.logDebug(
-        '📊 [saveDirectly] 保存前のhourlyCategorySeconds: ${hourlyCount}時間帯にデータあり',
+        '📊 [saveDirectly] 保存前のhourlyCategorySeconds: $hourlyCount時間帯にデータあり',
         tag: 'DailyStatisticsDataManager',
       );
       
       // categorySecondsからデータを更新（マージせずに直接）
+      // 重要: hourlyCategorySecondsは既に集計済みなので、updateFromCategorySecondsを呼ぶ前に保存しておく
+      final originalHourlyCategorySeconds = statistics.hourlyCategorySeconds;
       var dataToSave = await updateFromCategorySeconds(statistics);
+      
+      // updateFromCategorySecondsでhourlyCategorySecondsが消えている可能性があるため、
+      // 元のhourlyCategorySecondsを復元する
+      dataToSave = dataToSave.copyWith(
+        hourlyCategorySeconds: originalHourlyCategorySeconds,
+      );
       
       // デバッグ: updateFromCategorySeconds後のhourlyCategorySecondsの状態を確認
       final hourlyCountAfter = dataToSave.hourlyCategorySeconds.entries
           .where((e) => e.value.values.any((v) => v > 0))
           .length;
       LogMk.logDebug(
-        '📊 [saveDirectly] updateFromCategorySeconds後のhourlyCategorySeconds: ${hourlyCountAfter}時間帯にデータあり',
+        '📊 [saveDirectly] updateFromCategorySeconds後のhourlyCategorySeconds: $hourlyCountAfter時間帯にデータあり（復元後）',
         tag: 'DailyStatisticsDataManager',
       );
       
@@ -147,26 +155,70 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
       
       // Firestoreへの保存（awaitして確実に実行）
       try {
+        // 保存前のデータ状態を詳細にログ出力
+        final hourlyDataSummary = <String, int>{};
+        for (final entry in dataToSave.hourlyCategorySeconds.entries) {
+          final hourTotal = entry.value.values.fold(0, (sum, val) => sum + val);
+          if (hourTotal > 0) {
+            hourlyDataSummary[entry.key] = hourTotal;
+          }
+        }
+        
         LogMk.logDebug(
-          '🔄 [saveDirectly] Firestore保存開始: ${dataToSave.id}',
-          tag: 'DailyStatisticsDataManager',
+          '🔄 [saveDirectly] Firestore保存開始: id=${dataToSave.id}, date=${dataToSave.date}',
+          tag: 'DailyStatisticsDataManager.saveDirectly',
         );
+        LogMk.logDebug(
+          '📊 [saveDirectly] 保存データの詳細:',
+          tag: 'DailyStatisticsDataManager.saveDirectly',
+        );
+        LogMk.logDebug(
+          '  - categorySeconds: ${dataToSave.categorySeconds}',
+          tag: 'DailyStatisticsDataManager.saveDirectly',
+        );
+        LogMk.logDebug(
+          '  - totalWorkTimeSeconds: ${dataToSave.totalWorkTimeSeconds}',
+          tag: 'DailyStatisticsDataManager.saveDirectly',
+        );
+        LogMk.logDebug(
+          '  - hourlyCategorySeconds: ${hourlyDataSummary.length}時間帯にデータあり (${hourlyDataSummary.keys.join(", ")})',
+          tag: 'DailyStatisticsDataManager.saveDirectly',
+        );
+        LogMk.logDebug(
+          '  - trackingCount: ${dataToSave.trackingCount}',
+          tag: 'DailyStatisticsDataManager.saveDirectly',
+        );
+        
+        // 認証状態を確認
+        final currentUser = AuthMk.getCurrentUser();
+        if (currentUser == null) {
+          LogMk.logError(
+            '❌ [saveDirectly] Firestore保存失敗: ユーザーがログインしていません',
+            tag: 'DailyStatisticsDataManager.saveDirectly',
+          );
+          return true; // ローカル保存は成功しているのでtrueを返す
+        }
+        LogMk.logDebug(
+          '✅ [saveDirectly] 認証確認完了: userId=${currentUser.uid}',
+          tag: 'DailyStatisticsDataManager.saveDirectly',
+        );
+        
         final firestoreSuccess = await manager.saveWithRetryAuth(dataToSave);
         if (firestoreSuccess) {
           LogMk.logDebug(
-            '✅ [saveDirectly] Firestore保存成功: ${dataToSave.id}',
-            tag: 'DailyStatisticsDataManager',
+            '✅ [saveDirectly] Firestore保存成功: id=${dataToSave.id}, hourlyCategorySeconds=${hourlyDataSummary.length}時間帯',
+            tag: 'DailyStatisticsDataManager.saveDirectly',
           );
         } else {
           LogMk.logWarning(
-            '⚠️ [saveDirectly] Firestore保存失敗（リトライキューに追加済み）: ${dataToSave.id}',
-            tag: 'DailyStatisticsDataManager',
+            '⚠️ [saveDirectly] Firestore保存失敗（リトライキューに追加済み）: id=${dataToSave.id}',
+            tag: 'DailyStatisticsDataManager.saveDirectly',
           );
         }
       } catch (e, stackTrace) {
         LogMk.logError(
           '❌ [saveDirectly] Firestore保存エラー: $e',
-          tag: 'DailyStatisticsDataManager',
+          tag: 'DailyStatisticsDataManager.saveDirectly',
           stackTrace: stackTrace,
         );
         // ローカル保存は成功しているのでtrueを返す（Firestoreは次回同期時に再試行される）
@@ -437,6 +489,9 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
   /// **戻り値**: 修復された日次統計データ
   Future<DailyStatistics> validateAndFix(DailyStatistics statistics) async {
     try {
+      // 重要: hourlyCategorySecondsは既に集計済みなので保存しておく
+      final originalHourlyCategorySeconds = statistics.hourlyCategorySeconds;
+      
       // categorySecondsからデータを再計算
       final recalculated = await updateFromCategorySeconds(statistics);
       
@@ -457,7 +512,10 @@ class DailyStatisticsDataManager extends BaseDataManager<DailyStatistics> {
           '🔧 [validateAndFix] データを自動修復しました',
           tag: 'DailyStatisticsDataManager',
         );
-        return recalculated;
+        // hourlyCategorySecondsを復元してから返す
+        return recalculated.copyWith(
+          hourlyCategorySeconds: originalHourlyCategorySeconds,
+        );
       }
       
       return statistics;

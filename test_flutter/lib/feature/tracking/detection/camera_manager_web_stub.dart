@@ -15,6 +15,9 @@ class CameraManagerWebStub implements CameraManager {
   Stream<CameraImageData>? get imageStream => throw UnimplementedError('Web版の実装が必要です');
 
   @override
+  double? get aspectRatio => throw UnimplementedError('Web版の実装が必要です');
+
+  @override
   Future<bool> initialize() => throw UnimplementedError('Web版の実装が必要です');
 
   @override

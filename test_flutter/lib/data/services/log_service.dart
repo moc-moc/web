@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:test_flutter/data/services/shared_preferences_service.dart';
 
 /// ログレベルを定義する列挙型
 enum LogLevel {
@@ -75,6 +76,9 @@ class LogMk {
   
   // 最小ログレベル（これ以下のレベルは出力しない）
   static LogLevel _minLogLevel = LogLevel.debug;
+  
+  // ログ保存処理のキュー（並列アクセスを防ぐ）
+  static Future<void>? _saveQueue;
 
   /// コンソール出力を有効/無効にする
   /// 
@@ -182,11 +186,29 @@ class LogMk {
   /// ログをローカルに保存
   /// 
   /// **パラメータ**:
-  /// - `entry`: ログエントリ
+  /// - `entries`: ログエントリのリスト
+  /// 
+  /// 注意: getLogs()を呼ばずに直接SharedPreferencesから読み込むことで、
+  /// 再帰的なSharedPreferencesアクセスを防ぐ
   static Future<void> saveLogsToLocal(List<LogEntry> entries) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final existingLogs = await getLogs();
+      final prefs = await SharedPreferencesService.getInstance();
+      
+      // getLogs()を呼ばずに直接SharedPreferencesから読み込む
+      final jsonString = prefs.getString(_logStorageKey);
+      List<LogEntry> existingLogs = [];
+      
+      if (jsonString != null && jsonString.isNotEmpty) {
+        try {
+          final jsonList = json.decode(jsonString) as List<dynamic>;
+          existingLogs = jsonList
+              .map((e) => LogEntry.fromJson(e as Map<String, dynamic>))
+              .toList();
+        } catch (e) {
+          // JSONのパースエラーは無視して空のリストを使用
+          existingLogs = [];
+        }
+      }
       
       // 既存のログと新しいログを結合
       final allLogs = [...existingLogs, ...entries];
@@ -198,9 +220,9 @@ class LogMk {
       
       // JSONに変換して保存
       final jsonList = logsToSave.map((e) => e.toJson()).toList();
-      final jsonString = json.encode(jsonList);
+      final newJsonString = json.encode(jsonList);
       
-      await prefs.setString(_logStorageKey, jsonString);
+      await prefs.setString(_logStorageKey, newJsonString);
       
       debugPrint('✅ ログ保存完了: ${entries.length}件（合計: ${logsToSave.length}件）');
     } catch (e) {
@@ -213,7 +235,7 @@ class LogMk {
   /// **戻り値**: ログエントリのリスト
   static Future<List<LogEntry>> getLogs() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferencesService.getInstance();
       final jsonString = prefs.getString(_logStorageKey);
       
       if (jsonString == null || jsonString.isEmpty) {
@@ -256,22 +278,40 @@ class LogMk {
   /// 
   /// **パラメータ**:
   /// - `level`: 指定されたレベルのみをクリアする場合（オプション）
+  /// 
+  /// 注意: getLogs()を呼ばずに直接SharedPreferencesから読み込むことで、
+  /// 再帰的なSharedPreferencesアクセスを防ぐ
   static Future<void> clearLogs({LogLevel? level}) async {
     try {
       if (level != null) {
         // 指定されたレベルのみをクリア
-        final allLogs = await getLogs();
-        final filteredLogs = allLogs.where((log) => log.level != level).toList();
-        
         final prefs = await SharedPreferences.getInstance();
+        
+        // getLogs()を呼ばずに直接SharedPreferencesから読み込む
+        final jsonString = prefs.getString(_logStorageKey);
+        List<LogEntry> allLogs = [];
+        
+        if (jsonString != null && jsonString.isNotEmpty) {
+          try {
+            final jsonList = json.decode(jsonString) as List<dynamic>;
+            allLogs = jsonList
+                .map((e) => LogEntry.fromJson(e as Map<String, dynamic>))
+                .toList();
+          } catch (e) {
+            // JSONのパースエラーは無視して空のリストを使用
+            allLogs = [];
+          }
+        }
+        
+        final filteredLogs = allLogs.where((log) => log.level != level).toList();
         final jsonList = filteredLogs.map((e) => e.toJson()).toList();
-        final jsonString = json.encode(jsonList);
-        await prefs.setString(_logStorageKey, jsonString);
+        final newJsonString = json.encode(jsonList);
+        await prefs.setString(_logStorageKey, newJsonString);
         
         debugPrint('✅ ログクリア完了: ${level.name}レベル');
       } else {
         // 全てのログをクリア
-        final prefs = await SharedPreferences.getInstance();
+        final prefs = await SharedPreferencesService.getInstance();
         await prefs.remove(_logStorageKey);
         debugPrint('✅ 全ログクリア完了');
       }
@@ -337,10 +377,54 @@ class LogMk {
   }
 
   /// ログエントリを保存（内部使用）
+  /// 
+  /// SharedPreferencesへの並列アクセスを防ぐため、キューイングして順次実行
   static Future<void> _saveLogEntry(LogEntry entry) async {
+    // 前の保存処理が完了するまで待つ
+    if (_saveQueue != null) {
+      try {
+        await _saveQueue;
+      } catch (e) {
+        // 前の処理でエラーが発生しても続行
+      }
+    }
+    
+    // 新しい保存処理をキューに追加
+    _saveQueue = _saveLogEntryInternal(entry);
+    
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final existingLogs = await getLogs();
+      await _saveQueue;
+    } catch (e) {
+      // エラーは既に内部で処理されている
+    } finally {
+      // 処理が完了したらキューをクリア
+      _saveQueue = null;
+    }
+  }
+  
+  /// ログエントリを保存（内部実装）
+  /// 
+  /// getLogs()を呼ばずに直接SharedPreferencesから読み込むことで、
+  /// 再帰的なSharedPreferencesアクセスを防ぐ
+  static Future<void> _saveLogEntryInternal(LogEntry entry) async {
+    try {
+      final prefs = await SharedPreferencesService.getInstance();
+      
+      // getLogs()を呼ばずに直接SharedPreferencesから読み込む
+      final jsonString = prefs.getString(_logStorageKey);
+      List<LogEntry> existingLogs = [];
+      
+      if (jsonString != null && jsonString.isNotEmpty) {
+        try {
+          final jsonList = json.decode(jsonString) as List<dynamic>;
+          existingLogs = jsonList
+              .map((e) => LogEntry.fromJson(e as Map<String, dynamic>))
+              .toList();
+        } catch (e) {
+          // JSONのパースエラーは無視して空のリストを使用
+          existingLogs = [];
+        }
+      }
       
       // 新しいエントリを追加
       final allLogs = [entry, ...existingLogs];
@@ -352,12 +436,15 @@ class LogMk {
       
       // JSONに変換して保存
       final jsonList = logsToSave.map((e) => e.toJson()).toList();
-      final jsonString = json.encode(jsonList);
+      final newJsonString = json.encode(jsonList);
       
-      await prefs.setString(_logStorageKey, jsonString);
+      await prefs.setString(_logStorageKey, newJsonString);
     } catch (e) {
       // ログ保存のエラーはコンソールに出力しない（無限ループ防止）
+      // ただし、デバッグモードでは出力する
+      if (_consoleOutputEnabled) {
       debugPrint('ログ保存エラー: $e');
+      }
     }
   }
 }

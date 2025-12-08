@@ -37,23 +37,22 @@ class TFLiteDetectionService implements DetectionService {
         _interpreter = await Interpreter.fromAsset('assets/models/yolo11l.tflite');
       } catch (e) {
         LogMk.logDebug(
-          'YOLO11l（large）モデルが見つかりません。他のバリエーションを試行します: $e',
+          'YOLO11l（large）モデルが見つかりません。YOLO11m（medium）を試行します: $e',
           tag: 'TFLiteDetectionService.initialize',
         );
-        // フォールバック: nano版を試行（軽量版）
+        // フォールバック: medium版を試行
         try {
-          _interpreter = await Interpreter.fromAsset('assets/models/yolo11n.tflite');
-        } catch (e) {
-          // 最後の手段: EfficientDet-Lite2
-          try {
-            _interpreter = await Interpreter.fromAsset('assets/models/efficientdet_lite2.tflite');
+          _interpreter = await Interpreter.fromAsset('assets/models/yolo11m.tflite');
+          LogMk.logDebug(
+            'TFLite interpreter loaded successfully (yolo11m)',
+            tag: 'TFLiteDetectionService.initialize',
+          );
           } catch (e) {
             LogMk.logError(
               'モデルファイルの読み込みに失敗: $e',
               tag: 'TFLiteDetectionService.initialize',
             );
             return false;
-          }
         }
       }
       

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
@@ -66,21 +67,88 @@ class ONNXDetectionService implements DetectionService {
 
   @override
   Future<bool> initialize() async {
-    await _ensureWorker();
-    final response = await _sendRequest('init', payload: {
-      'powerSavingMode': _initialPowerSavingMode,
-    });
-    _isInitialized = response['success'] == true;
-    if (_isInitialized) {
-      _lastRequestedPowerSavingMode = _initialPowerSavingMode;
-    }
-    if (!_isInitialized) {
-      LogMk.logError(
-        'ONNX worker initialisation failed: ${response['error'] ?? 'unknown'}',
+    try {
+      // メインIsolateでモデルファイルを準備
+      final modelPath = _initialPowerSavingMode 
+          ? 'assets/models/yolo11l.onnx' 
+          : 'assets/models/yolo11m.onnx';
+      
+      LogMk.logDebug(
+        'メインIsolateでモデルファイルを読み込み中: $modelPath',
         tag: 'ONNXDetectionService.initialize',
       );
+      
+      // メインIsolateでアセットをロードして一時ファイルに保存
+      final modelFile = await _loadModelFromAssetOnMain(modelPath);
+      
+      LogMk.logDebug(
+        'モデルファイルを一時ディレクトリに保存: ${modelFile.path}',
+        tag: 'ONNXDetectionService.initialize',
+      );
+      
+      // Isolateを起動
+      await _ensureWorker();
+      
+      // Isolateにファイルパスを渡して初期化
+      final response = await _sendRequest('init', payload: {
+        'powerSavingMode': _initialPowerSavingMode,
+        'modelFilePath': modelFile.path,
+      });
+      
+      _isInitialized = response['success'] == true;
+      if (_isInitialized) {
+        _lastRequestedPowerSavingMode = _initialPowerSavingMode;
+        LogMk.logDebug(
+          'ONNXDetectionService initialized (powerSaving: $_initialPowerSavingMode)',
+          tag: 'ONNXDetectionService.initialize',
+        );
+      } else {
+        LogMk.logError(
+          'ONNX worker initialisation failed: ${response['error'] ?? 'unknown'}',
+          tag: 'ONNXDetectionService.initialize',
+        );
+      }
+      return _isInitialized;
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        'ONNXDetectionService initialization error: $e',
+        tag: 'ONNXDetectionService.initialize',
+        stackTrace: stackTrace,
+      );
+      return false;
     }
-    return _isInitialized;
+  }
+  
+  /// メインIsolateでアセットを読み込む
+  Future<File> _loadModelFromAssetOnMain(String assetPath) async {
+    try {
+      final byteData = await rootBundle.load(assetPath);
+      final tempDir = await getTemporaryDirectory();
+      final fileName = assetPath.split('/').last;
+      final file = File('${tempDir.path}/$fileName');
+      
+      // ファイルが既に存在する場合はスキップ
+      if (await file.exists()) {
+        LogMk.logDebug(
+          'モデルファイルは既に存在します: ${file.path}',
+          tag: 'ONNXDetectionService._loadModelFromAssetOnMain',
+        );
+        return file;
+      }
+      
+      await file.writeAsBytes(byteData.buffer.asUint8List());
+      LogMk.logDebug(
+        'モデルファイルを保存しました: ${file.path} (${byteData.lengthInBytes} bytes)',
+        tag: 'ONNXDetectionService._loadModelFromAssetOnMain',
+      );
+      return file;
+    } catch (e) {
+      LogMk.logError(
+        'Failed to load model from asset on main isolate: $assetPath, error: $e',
+        tag: 'ONNXDetectionService._loadModelFromAssetOnMain',
+      );
+      rethrow;
+    }
   }
 
   @override
@@ -99,32 +167,66 @@ class ONNXDetectionService implements DetectionService {
 
   @override
   Future<List<DetectionResult>> detect(Uint8List imageBytes) async {
+    LogMk.logDebug(
+      '🔍 [ONNX Mobile] 検出処理開始（画像サイズ: ${imageBytes.length} bytes）',
+      tag: 'ONNXDetectionService.detect',
+    );
+
     if (!_isInitialized) {
+      LogMk.logWarning(
+        '⚠️ [ONNX Mobile] モデルが初期化されていないため、初期化を試みます',
+        tag: 'ONNXDetectionService.detect',
+      );
       final ok = await initialize();
       if (!ok) {
+        LogMk.logError(
+          '❌ [ONNX Mobile] モデル初期化に失敗しました',
+          tag: 'ONNXDetectionService.detect',
+        );
         return [];
       }
     }
 
-    final response = await _sendRequest(
-      'detect',
-      data: TransferableTypedData.fromList([imageBytes]),
-    );
-
-    if (response['success'] != true) {
-      LogMk.logError(
-        'ONNX worker detect failed: ${response['error'] ?? 'unknown'}',
+    try {
+      LogMk.logDebug(
+        '📤 [ONNX Mobile] Isolateに検出リクエストを送信中...',
         tag: 'ONNXDetectionService.detect',
+      );
+
+      final response = await _sendRequest(
+        'detect',
+        data: TransferableTypedData.fromList([imageBytes]),
+      );
+
+      if (response['success'] != true) {
+        LogMk.logError(
+          '❌ [ONNX Mobile] Isolateからエラー応答: ${response['error'] ?? 'unknown'}',
+          tag: 'ONNXDetectionService.detect',
+        );
+        return [];
+      }
+
+      final List<dynamic> rawResults = response['results'] as List<dynamic>? ?? [];
+      final results = rawResults
+          .whereType<Map>()
+          .map((dynamic raw) => Map<String, dynamic>.from(raw as Map))
+          .map(_deserializeDetectionResult)
+          .toList();
+
+      LogMk.logDebug(
+        '✅ [ONNX Mobile] 検出完了（結果数: ${results.length}）',
+        tag: 'ONNXDetectionService.detect',
+      );
+
+      return results;
+    } catch (e, stackTrace) {
+      LogMk.logError(
+        '❌ [ONNX Mobile] 検出処理中に例外が発生: $e',
+        tag: 'ONNXDetectionService.detect',
+        stackTrace: stackTrace,
       );
       return [];
     }
-
-    final List<dynamic> rawResults = response['results'] as List<dynamic>? ?? [];
-    return rawResults
-        .whereType<Map>()
-        .map((dynamic raw) => Map<String, dynamic>.from(raw as Map))
-        .map(_deserializeDetectionResult)
-        .toList();
   }
 
   DetectionResult _deserializeDetectionResult(Map<String, dynamic> raw) {
@@ -208,6 +310,7 @@ void _onnxWorkerEntryPoint(_WorkerBootstrapData data) async {
           final payload = (message['payload'] as Map?)?.cast<String, dynamic>();
           final success = await worker.initialize(
             powerSavingMode: payload?['powerSavingMode'] as bool? ?? false,
+            modelFilePath: payload?['modelFilePath'] as String?,
           );
           replyPort.send({'success': success});
           break;
@@ -253,10 +356,33 @@ class _OnnxRuntimeWorker {
   static const double _confidenceThreshold = 0.7;
   static const double _iouThreshold = 0.5;
 
-  Future<bool> initialize({required bool powerSavingMode}) async {
+  Future<bool> initialize({
+    required bool powerSavingMode,
+    String? modelFilePath,
+  }) async {
     try {
       _powerSavingMode = powerSavingMode;
       OrtEnv.instance.init();
+      
+      // モデルファイルパスが渡された場合は、それを直接使用
+      if (modelFilePath != null) {
+        final file = File(modelFilePath);
+        if (!await file.exists()) {
+          throw Exception('Model file not found: $modelFilePath');
+        }
+        
+        final sessionOptions = OrtSessionOptions();
+        _session = OrtSession.fromFile(file, sessionOptions);
+        _labels = await _loadLabels();
+        
+        LogMk.logDebug(
+          'ONNX worker loaded model from file: $modelFilePath',
+          tag: 'ONNXDetectionService.worker',
+        );
+        return true;
+      }
+      
+      // フォールバック: アセットから読み込む（旧方式）
       return await _loadModel(_powerSavingMode);
     } catch (e, stackTrace) {
       LogMk.logError(
@@ -270,22 +396,59 @@ class _OnnxRuntimeWorker {
 
   Future<List<Map<String, dynamic>>> detect(Uint8List imageBytes) async {
     if (_session == null || _labels == null) {
+      LogMk.logError(
+        '❌ [ONNX Worker] セッションまたはラベルがnullです（session: ${_session != null}, labels: ${_labels != null}）',
+        tag: 'ONNXDetectionService.worker.detect',
+      );
       return [];
     }
 
     try {
+      LogMk.logDebug(
+        '🔍 [ONNX Worker] 画像デコード中... (${imageBytes.length} bytes)',
+        tag: 'ONNXDetectionService.worker.detect',
+      );
       final image = img.decodeImage(imageBytes);
       if (image == null) {
+        LogMk.logError(
+          '❌ [ONNX Worker] 画像のデコードに失敗しました',
+          tag: 'ONNXDetectionService.worker.detect',
+        );
         return [];
       }
+      
+      LogMk.logDebug(
+        '🔍 [ONNX Worker] 画像前処理中... (サイズ: ${image.width}x${image.height})',
+        tag: 'ONNXDetectionService.worker.detect',
+      );
       final inputTensor = _preprocessImage(image);
+      
+      LogMk.logDebug(
+        '🔍 [ONNX Worker] 推論実行中...',
+        tag: 'ONNXDetectionService.worker.detect',
+      );
       final outputs = _runInference(inputTensor);
+      
+      LogMk.logDebug(
+        '🔍 [ONNX Worker] 出力解析中...',
+        tag: 'ONNXDetectionService.worker.detect',
+      );
       final detections = _parseOutputs(outputs);
+      
+      LogMk.logDebug(
+        '🔍 [ONNX Worker] 検出結果マッピング中... (検出数: ${detections.length})',
+        tag: 'ONNXDetectionService.worker.detect',
+      );
       final results = _mapToDetectionResults(detections);
+      
+      LogMk.logDebug(
+        '✅ [ONNX Worker] 検出完了 (結果数: ${results.length})',
+        tag: 'ONNXDetectionService.worker.detect',
+      );
       return results.map(_serializeDetectionResult).toList();
     } catch (e, stackTrace) {
       LogMk.logError(
-        'ONNX worker detect error: $e',
+        '❌ [ONNX Worker] 検出エラー: $e',
         tag: 'ONNXDetectionService.worker.detect',
         stackTrace: stackTrace,
       );
@@ -316,7 +479,6 @@ class _OnnxRuntimeWorker {
         : [
             'assets/models/yolo11m.onnx',
             'assets/models/yolo11l.onnx',
-            'assets/models/yolo11n.onnx',
           ];
 
     for (final modelPath in modelCandidates) {
@@ -346,12 +508,36 @@ class _OnnxRuntimeWorker {
   }
 
   Future<File> _loadModelFromAsset(String assetPath) async {
-    final byteData = await rootBundle.load(assetPath);
-    final tempDir = await getTemporaryDirectory();
-    final fileName = assetPath.split('/').last;
-    final file = File('${tempDir.path}/$fileName');
-    await file.writeAsBytes(byteData.buffer.asUint8List());
-    return file;
+    try {
+      // Isolate内でrootBundleを使用するには、
+      // BackgroundIsolateBinaryMessengerを使用する必要がある
+      final messenger = ServicesBinding.instance.defaultBinaryMessenger;
+      
+      // アセットキーをエンコード
+      final assetKey = Uint8List.fromList(utf8.encode(assetPath));
+      
+      // メッセンジャーを使用してアセットを読み込む
+      final ByteData? response = await messenger.send(
+        'flutter/assets',
+        assetKey.buffer.asByteData(),
+      );
+      
+      if (response == null) {
+        throw Exception('Asset not found: $assetPath');
+      }
+      
+      final tempDir = await getTemporaryDirectory();
+      final fileName = assetPath.split('/').last;
+      final file = File('${tempDir.path}/$fileName');
+      await file.writeAsBytes(response.buffer.asUint8List());
+      return file;
+    } catch (e) {
+      LogMk.logError(
+        'Failed to load model from asset: $assetPath, error: $e',
+        tag: 'ONNXDetectionService._loadModelFromAsset',
+      );
+      rethrow;
+    }
   }
 
   Future<List<String>> _loadLabels() async {

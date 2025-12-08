@@ -168,7 +168,7 @@ class StreakDataManager extends BaseDataManager<StreakData> {
       
       // 4. ローカルに保存
       await updateLocalStreakData(updatedData);
-      debugPrint('✅ [checkAndUpdateStreakOnAppLaunch] ストリークリセット: currentStreak=0 (${daysSinceLastTrack}日空いていました)');
+      debugPrint('✅ [checkAndUpdateStreakOnAppLaunch] ストリークリセット: currentStreak=0 ($daysSinceLastTrack日空いていました)');
       
       // 5. Firestoreへの保存（awaitして確実に実行）
       final currentUser = FirebaseAuth.instance.currentUser;

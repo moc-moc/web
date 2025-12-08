@@ -15,12 +15,16 @@ import 'package:test_flutter/data/services/goal_period_ended_event_service.dart'
 import 'package:test_flutter/presentation/screens/auth/signup_login_screen.dart';
 import 'package:test_flutter/presentation/widgets/loading/app_fullscreen_loader.dart';
 import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
+import 'package:test_flutter/data/sources/hive_source.dart';
 import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
+    // Hiveの初期化（Firebaseより先に実行）
+    await HiveMk.initialize();
+    
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
@@ -40,7 +44,7 @@ void main() async {
       UncontrolledProviderScope(container: container, child: const MyApp()),
     );
   } catch (e, stackTrace) {
-    debugPrint('💥 [main] Firebase初期化エラー: $e');
+    debugPrint('💥 [main] 初期化エラー: $e');
     debugPrint('   - スタックトレース: $stackTrace');
     // エラーが発生してもアプリは起動する（認証機能以外は動作する可能性があるため）
     runApp(const ProviderScope(child: MyApp()));

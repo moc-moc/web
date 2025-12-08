@@ -33,87 +33,107 @@ class LevelProgressCard extends StatelessWidget {
     final remainingHours = (remainingSeconds / 3600).toStringAsFixed(1);
 
     return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.black,
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(
           color: visuals.badgeColor.withValues(alpha: 0.3),
         ),
         boxShadow: [
           BoxShadow(
             color: visuals.badgeColor.withValues(alpha: 0.2),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Row(
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              LevelBadge(
-                tier: computation.rank,
-                level: computation.level,
-                size: 64,
-                showGlow: true,
+              Row(
+                children: [
+                  LevelBadge(
+                    tier: computation.rank,
+                    level: computation.level,
+                    size: 32,
+                    showGlow: true,
+                  ),
+                  SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Lv ${computation.level} • ${visuals.label}',
+                          style: AppTextStyles.body1.copyWith(
+                            color: AppColors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          '$hours h human focus',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.textSecondary,
+                            fontSize: 10,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Monthly Level',
-                      style: AppTextStyles.caption.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                    Text(
-                      'Lv ${computation.level} • ${visuals.label}',
-                      style: AppTextStyles.h3.copyWith(
-                        color: AppColors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      '$hours h human focus',
-                      style: AppTextStyles.body2.copyWith(
-                        color: AppColors.textSecondary,
-                      ),
-                    ),
-                  ],
+              SizedBox(height: AppSpacing.xs),
+              LinearProgressBar(
+                percentage: percentage,
+                height: 10,
+                progressColor: visuals.badgeColor,
+                backgroundColor: AppColors.blackgray,
+                barBackgroundColor: AppColors.disabledGray,
+                showFlowAnimation: true,
+              ),
+              if (showCountdown && nextReset.isAfter(DateTime.now())) ...[
+                SizedBox(height: AppSpacing.xs),
+                RealtimeCountdownDisplay(
+                  eventName: 'Next reset',
+                  targetDate: nextReset,
+                  accentColor: visuals.badgeColor,
+                  borderColor: visuals.badgeColor.withValues(alpha: 0.4),
+                  backgroundColor: AppColors.blackgray,
                 ),
-              ),
+              ],
             ],
           ),
-          SizedBox(height: AppSpacing.md),
-          LinearProgressBar(
-            percentage: percentage,
-            height: 12,
-            progressColor: visuals.badgeColor,
-            backgroundColor: AppColors.blackgray,
-            barBackgroundColor: AppColors.disabledGray,
-            showFlowAnimation: true,
-          ),
-          SizedBox(height: AppSpacing.xs),
-          Text(
-            'Next level in $remainingHours h',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondary,
+          Positioned(
+            top: 0,
+            right: 0,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: AppSpacing.sm,
+                vertical: 4,
+              ),
+              decoration: BoxDecoration(
+                color: visuals.badgeColor.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(AppRadius.small),
+                border: Border.all(
+                  color: visuals.badgeColor.withValues(alpha: 0.6),
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                'Next in $remainingHours h',
+                style: AppTextStyles.caption.copyWith(
+                  color: visuals.badgeColor,
+                  fontSize: 9,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ),
-          if (showCountdown && nextReset.isAfter(DateTime.now())) ...[
-            SizedBox(height: AppSpacing.md),
-            RealtimeCountdownDisplay(
-              eventName: 'Next reset',
-              targetDate: nextReset,
-              accentColor: visuals.badgeColor,
-              borderColor: visuals.badgeColor.withValues(alpha: 0.4),
-              backgroundColor: AppColors.blackgray,
-            ),
-          ],
         ],
       ),
     );

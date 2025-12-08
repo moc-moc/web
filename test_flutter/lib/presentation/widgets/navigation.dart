@@ -67,12 +67,13 @@ class AppBottomNavigationBar extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       top: false,
+      bottom: false,
       child: Padding(
         padding: EdgeInsets.fromLTRB(
-          AppSpacing.md,
+          AppSpacing.sm,
           0,
-          AppSpacing.md,
-          AppSpacing.xs,
+          AppSpacing.sm,
+          0,
         ),
         child: Container(
           decoration: BoxDecoration(
@@ -80,7 +81,7 @@ class AppBottomNavigationBar extends StatelessWidget {
             borderRadius: BorderRadius.circular(26),
           ),
           padding: EdgeInsets.symmetric(
-            horizontal: AppSpacing.sm,
+            horizontal: AppSpacing.xs,
             vertical: AppSpacing.xs,
           ),
           child: Row(

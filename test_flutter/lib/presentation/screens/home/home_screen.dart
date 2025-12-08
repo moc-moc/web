@@ -12,8 +12,6 @@ import 'package:test_flutter/feature/total/total_functions.dart';
 import 'package:test_flutter/feature/goals/goal_functions.dart';
 import 'package:test_flutter/feature/goals/goal_model.dart';
 import 'package:test_flutter/feature/setting/tracking_settings_notifier.dart';
-import 'package:test_flutter/feature/setting/goal_memo_notifier.dart';
-import 'package:test_flutter/presentation/widgets/dialogs.dart';
 import 'package:test_flutter/presentation/widgets/buttons.dart';
 import 'package:test_flutter/feature/sync/data_refresh_notifier.dart';
 import 'package:test_flutter/feature/leveling/level_functions.dart';
@@ -32,12 +30,9 @@ class HomeScreenNew extends ConsumerStatefulWidget {
 }
 
 class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
-  static const double _statCardMinHeight = 160;
   bool _isLoading = false; // 初期値はfalse（データ更新が必要な場合のみtrueになる）
   bool _hasError = false;
   String? _errorMessage;
-  bool _isGoalMemoLoading = false;
-  bool _goalMemoLoadFailed = false;
   int? _pendingHomeToken;
   bool _hasInitialized = false; // 初期化済みフラグ
   bool _hasCheckedLevelReset = false;
@@ -90,7 +85,6 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
           debugPrint('❌ [HomeScreen] Countdown取得エラー: $e');
           return loadCountdownsHelper(ref);
         }),
-        _loadGoalMemo(),
       ], eagerError: false);
 
       if (mounted) {
@@ -153,32 +147,6 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
       // 処理完了後、新しい更新がないか確認（再帰呼び出しを削除）
       // 新しい更新はref.listenで検知されるため、再帰呼び出しは不要
     });
-  }
-
-  Future<void> _loadGoalMemo() async {
-    if (!mounted) return;
-    setState(() {
-      _isGoalMemoLoading = true;
-      _goalMemoLoadFailed = false;
-    });
-
-    try {
-      await loadGoalMemoWithBackgroundRefreshHelper(ref);
-    } catch (e, stackTrace) {
-      debugPrint('❌ [HomeScreen] GoalMemo取得エラー: $e');
-      debugPrint('   - スタックトレース: $stackTrace');
-      if (mounted) {
-        setState(() {
-          _goalMemoLoadFailed = true;
-        });
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isGoalMemoLoading = false;
-        });
-      }
-    }
   }
 
   @override
@@ -266,36 +234,32 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
       body: SafeArea(
-        child: ScrollableContent(
+        child: SafeContent(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildLevelSection(),
-              SizedBox(height: AppSpacing.md),
-              // 目標メモセクション
-              _buildGoalMemoSection(),
-
-              SizedBox(height: AppSpacing.md),
+              SizedBox(height: AppSpacing.xs),
 
               // 統計表示セクション
               _buildStatsSection(),
 
-              SizedBox(height: AppSpacing.md),
+              SizedBox(height: AppSpacing.xs),
 
               // 今日の目標表示セクション
               _buildTodaysGoalsSection(),
 
-              SizedBox(height: AppSpacing.md),
+              SizedBox(height: AppSpacing.xs),
 
               // 設定ボタン
               _buildSettingsButton(context),
 
-              SizedBox(height: AppSpacing.md),
+              SizedBox(height: AppSpacing.xs),
 
               // スタートボタン
               _buildStartButton(context),
 
-              SizedBox(height: AppSpacing.md),
+              SizedBox(height: AppSpacing.xs),
             ],
           ),
         ),
@@ -306,7 +270,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   Widget _buildLevelSection() {
     final levelState = ref.watch(levelingStateProvider);
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: LevelProgressCard(
         state: levelState,
         showCountdown: true,
@@ -318,7 +282,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   /// 統計表示セクション
   Widget _buildStatsSection() {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -327,7 +291,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(child: _buildTotalFocusedTimeCard()),
-                SizedBox(width: AppSpacing.md),
+                SizedBox(width: AppSpacing.xs),
                 Expanded(child: _buildStreakDaysCard()),
               ],
             ),
@@ -347,11 +311,10 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         : '${remainingMinutes}m';
     const accentColor = AppColors.blue;
     return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
-      constraints: const BoxConstraints(minHeight: _statCardMinHeight),
+      padding: EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: accentColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(
           color: accentColor.withValues(alpha: 0.4),
           width: 1,
@@ -366,14 +329,15 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
               Icon(
                 Icons.schedule,
                 color: AppColors.blue.withValues(alpha: 0.9),
-                size: 30,
+                size: 18,
               ),
-              SizedBox(width: AppSpacing.sm),
+              SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
                   'Total Time',
                   style: AppTextStyles.body2.copyWith(
                     color: AppColors.textSecondary,
+                    fontSize: 11,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -381,26 +345,27 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
               ),
             ],
           ),
-          SizedBox(height: AppSpacing.sm),
+          SizedBox(height: 2),
           Center(
             child: FittedBox(
               fit: BoxFit.scaleDown,
               child: Text(
                 totalTimeDisplay,
-                style: AppTextStyles.h1.copyWith(
-                  fontSize: 48,
+                style: AppTextStyles.h2.copyWith(
+                  fontSize: 24,
                   color: accentColor,
-                  letterSpacing: 1.2,
+                  letterSpacing: 0.8,
                   fontWeight: FontWeight.w800,
                 ),
               ),
             ),
           ),
-          SizedBox(height: AppSpacing.xs),
+          SizedBox(height: 2),
           Text(
             'Keep going!',
             style: AppTextStyles.caption.copyWith(
               color: accentColor,
+              fontSize: 10,
             ),
           ),
         ],
@@ -412,11 +377,10 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
     final streakData = ref.watch(streakDataProvider);
     const accentColor = AppColors.orange;
     return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
-      constraints: const BoxConstraints(minHeight: _statCardMinHeight),
+      padding: EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: accentColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(
           color: accentColor.withValues(alpha: 0.4),
           width: 1,
@@ -431,14 +395,15 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
               const Icon(
                 Icons.local_fire_department,
                 color: AppColors.orange,
-                size: 30,
+                size: 18,
               ),
-              SizedBox(width: AppSpacing.sm),
+              SizedBox(width: AppSpacing.xs),
               Expanded(
                 child: Text(
                   'Streak Days',
                   style: AppTextStyles.body2.copyWith(
                     color: AppColors.textSecondary,
+                    fontSize: 11,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -446,7 +411,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
               ),
             ],
           ),
-          SizedBox(height: AppSpacing.sm),
+          SizedBox(height: 2),
           Center(
             child: FittedBox(
               fit: BoxFit.scaleDown,
@@ -456,19 +421,19 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
                 children: [
                   Text(
                     '${streakData.currentStreak}',
-                    style: AppTextStyles.h1.copyWith(
-                      fontSize: 48,
+                    style: AppTextStyles.h2.copyWith(
+                      fontSize: 24,
                       color: accentColor,
-                      letterSpacing: 1.2,
+                      letterSpacing: 0.8,
                       fontWeight: FontWeight.w800,
                     ),
                   ),
                   Padding(
-                    padding: EdgeInsets.only(left: 4, bottom: 6),
+                    padding: EdgeInsets.only(left: 3, bottom: 3),
                     child: Text(
                       'days',
-                      style: AppTextStyles.h1.copyWith(
-                        fontSize: 48 * 0.8,
+                      style: AppTextStyles.h2.copyWith(
+                        fontSize: 24 * 0.7,
                         color: accentColor,
                         fontWeight: FontWeight.w600,
                       ),
@@ -478,11 +443,12 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
               ),
             ),
           ),
-          SizedBox(height: AppSpacing.xs),
+          SizedBox(height: 2),
           Text(
             'Keep the flame alive!',
             style: AppTextStyles.caption.copyWith(
               color: accentColor,
+              fontSize: 10,
             ),
           ),
         ],
@@ -491,6 +457,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   }
 
   /// 今日の目標表示セクション
+  /// トラッキング設定で選択された目標のみを表示（最大3つ）
   Widget _buildTodaysGoalsSection() {
     final goals = ref.watch(goalsListProvider);
     final settings = ref.watch(trackingSettingsProvider);
@@ -500,75 +467,41 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
     final selectedPcGoalId = settings.selectedPcGoalId;
     final selectedSmartphoneGoalId = settings.selectedSmartphoneGoalId;
     
-    // 各カテゴリーの目標を取得
-    final studyGoals = goals.where((g) => g.detectionItem == DetectionItem.book).toList();
-    final pcGoals = goals.where((g) => g.detectionItem == DetectionItem.pc).toList();
-    final smartphoneGoals = goals.where((g) => g.detectionItem == DetectionItem.smartphone).toList();
-    
-    // 選択された目標を取得（存在しない場合は最初の目標を自動選択）
-    final now = DateTime.now();
     final todaysGoals = <Goal>[];
     
-    // Study目標
-    if (studyGoals.isNotEmpty) {
-      Goal? studyGoal;
-      if (selectedStudyGoalId != null) {
-        studyGoal = studyGoals.firstWhere(
-          (g) => g.id == selectedStudyGoalId,
-          orElse: () => studyGoals[0],
+    // Study目標（選択されている場合のみ）
+    if (selectedStudyGoalId != null) {
+      try {
+        final studyGoal = goals.firstWhere(
+          (g) => g.id == selectedStudyGoalId && g.detectionItem == DetectionItem.book,
         );
-      } else {
-        studyGoal = studyGoals[0];
-      }
-      
-      // 期間が今日を含むかチェック
-      final endDate = studyGoal.periodEndDate ??
-          studyGoal.startDate.add(Duration(days: studyGoal.durationDays));
-      if (now.isAfter(studyGoal.startDate.subtract(const Duration(days: 1))) &&
-          now.isBefore(endDate.add(const Duration(days: 1)))) {
         todaysGoals.add(studyGoal);
+      } catch (e) {
+        // 目標が見つからない場合は無視
       }
     }
     
-    // PC目標
-    if (pcGoals.isNotEmpty) {
-      Goal? pcGoal;
-      if (selectedPcGoalId != null) {
-        pcGoal = pcGoals.firstWhere(
-          (g) => g.id == selectedPcGoalId,
-          orElse: () => pcGoals[0],
+    // PC目標（選択されている場合のみ）
+    if (selectedPcGoalId != null && todaysGoals.length < 3) {
+      try {
+        final pcGoal = goals.firstWhere(
+          (g) => g.id == selectedPcGoalId && g.detectionItem == DetectionItem.pc,
         );
-      } else {
-        pcGoal = pcGoals[0];
-      }
-      
-      // 期間が今日を含むかチェック
-      final endDate = pcGoal.periodEndDate ??
-          pcGoal.startDate.add(Duration(days: pcGoal.durationDays));
-      if (now.isAfter(pcGoal.startDate.subtract(const Duration(days: 1))) &&
-          now.isBefore(endDate.add(const Duration(days: 1)))) {
         todaysGoals.add(pcGoal);
+      } catch (e) {
+        // 目標が見つからない場合は無視
       }
     }
     
-    // Smartphone目標
-    if (smartphoneGoals.isNotEmpty) {
-      Goal? smartphoneGoal;
-      if (selectedSmartphoneGoalId != null) {
-        smartphoneGoal = smartphoneGoals.firstWhere(
-          (g) => g.id == selectedSmartphoneGoalId,
-          orElse: () => smartphoneGoals[0],
+    // Smartphone目標（選択されている場合のみ）
+    if (selectedSmartphoneGoalId != null && todaysGoals.length < 3) {
+      try {
+        final smartphoneGoal = goals.firstWhere(
+          (g) => g.id == selectedSmartphoneGoalId && g.detectionItem == DetectionItem.smartphone,
         );
-      } else {
-        smartphoneGoal = smartphoneGoals[0];
-      }
-      
-      // 期間が今日を含むかチェック
-      final endDate = smartphoneGoal.periodEndDate ??
-          smartphoneGoal.startDate.add(Duration(days: smartphoneGoal.durationDays));
-      if (now.isAfter(smartphoneGoal.startDate.subtract(const Duration(days: 1))) &&
-          now.isBefore(endDate.add(const Duration(days: 1)))) {
         todaysGoals.add(smartphoneGoal);
+      } catch (e) {
+        // 目標が見つからない場合は無視
       }
     }
     
@@ -577,11 +510,11 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
     }
     
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      padding: EdgeInsets.all(AppSpacing.md),
+      margin: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+      padding: EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.black,
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(
           color: AppColors.lightblackgray,
           width: 1,
@@ -592,12 +525,13 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         children: [
           Text(
             'Today\'s Goals',
-            style: AppTextStyles.body1.copyWith(
+            style: AppTextStyles.body2.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.textSecondary,
+              fontSize: 11,
             ),
           ),
-          SizedBox(height: AppSpacing.sm),
+          SizedBox(height: AppSpacing.xs),
           ...todaysGoals.map((goal) => _buildGoalCard(goal)),
         ],
       ),
@@ -625,7 +559,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
             : 0.0;
         
         return Padding(
-          padding: EdgeInsets.only(bottom: AppSpacing.sm),
+          padding: EdgeInsets.only(bottom: AppSpacing.xs),
           child: GoalProgressCard(
             goalName: goal.title,
             percentage: percentage,
@@ -671,9 +605,9 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
 
   /// 設定ボタン
   Widget _buildSettingsButton(BuildContext context) {
-    final borderRadius = BorderRadius.circular(AppRadius.large);
+    final borderRadius = BorderRadius.circular(AppRadius.small);
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -691,30 +625,31 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
               ),
             ),
             padding: EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
+              horizontal: AppSpacing.sm,
+              vertical: 8,
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: 52,
-                  height: 52,
+                  width: 32,
+                  height: 32,
                   decoration: BoxDecoration(
                     color: AppColors.lightblackgray,
-                    borderRadius: BorderRadius.circular(26),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
                     Icons.settings_outlined,
                     color: AppColors.textSecondary,
-                    size: 24,
+                    size: 16,
                   ),
                 ),
-                SizedBox(width: AppSpacing.md),
+                SizedBox(width: AppSpacing.sm),
                 Text(
                   'Settings',
-                  style: AppTextStyles.h3.copyWith(
+                  style: AppTextStyles.body2.copyWith(
                     color: AppColors.white,
+                    fontSize: 13,
                   ),
                 ),
               ],
@@ -727,13 +662,13 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
 
   /// スタートボタン
   Widget _buildStartButton(BuildContext context) {
-    final borderRadius = BorderRadius.circular(AppRadius.large);
+    final borderRadius = BorderRadius.circular(AppRadius.small);
     final subscriptionStatus = ref.watch(subscriptionStatusProvider);
     final remainingCount = ref.watch(remainingTrackingCountProvider);
     final canStart = ref.watch(canStartTrackingProvider);
     
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -756,8 +691,8 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
               ),
             ),
             padding: EdgeInsets.symmetric(
-              horizontal: AppSpacing.lg,
-              vertical: AppSpacing.md,
+              horizontal: AppSpacing.md,
+              vertical: 8,
             ),
             child: Stack(
               children: [
@@ -765,10 +700,10 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Container(
-                      width: 52,
-                      height: 52,
+                      width: 32,
+                      height: 32,
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(26),
+                        borderRadius: BorderRadius.circular(16),
                         gradient: const LinearGradient(
                           colors: [
                             AppColors.blue,
@@ -781,14 +716,15 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
                       child: const Icon(
                         Icons.play_arrow_rounded,
                         color: AppColors.white,
-                        size: 28,
+                        size: 18,
                       ),
                     ),
-                    SizedBox(width: AppSpacing.md),
+                    SizedBox(width: AppSpacing.sm),
                     Text(
                       'Start Tracking',
-                      style: AppTextStyles.h3.copyWith(
+                      style: AppTextStyles.body2.copyWith(
                         color: AppColors.white,
+                        fontSize: 13,
                       ),
                     ),
                   ],
@@ -800,14 +736,14 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
                     right: 0,
                     child: Container(
                       padding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.md,
-                        vertical: AppSpacing.sm,
+                        horizontal: AppSpacing.xs,
+                        vertical: 2,
                       ),
                       decoration: BoxDecoration(
                         color: remainingCount > 0
                             ? AppColors.blue.withValues(alpha: 0.8)
                             : AppColors.error.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(AppRadius.large),
+                        borderRadius: BorderRadius.circular(AppRadius.small),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -816,16 +752,16 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
                             '残り回数',
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.white,
-                              fontSize: 12,
+                              fontSize: 8,
                               fontWeight: FontWeight.w500,
                             ),
                           ),
-                          SizedBox(width: AppSpacing.xs),
+                          SizedBox(width: 2),
                           Text(
                             remainingCount > 0 ? '$remainingCount' : '0',
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.white,
-                              fontSize: 16,
+                              fontSize: 12,
                               fontWeight: FontWeight.bold,
                             ),
                           ),
@@ -853,184 +789,6 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         return AppColors.blue;
     }
   }
-
-
-  /// 目標メモセクション
-  Widget _buildGoalMemoSection() {
-    final memo = ref.watch(goalMemoProvider);
-    final hasContent = memo.content.isNotEmpty;
-
-    if (_isGoalMemoLoading) {
-      return Padding(
-        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-        child: Container(
-          padding: EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: AppColors.purple.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppRadius.large),
-            border: Border.all(
-              color: AppColors.purple.withValues(alpha: 0.4),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            children: [
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation(AppColors.purple),
-              ),
-              SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Text(
-                  '目標メモを読み込んでいます...',
-                  style: AppTextStyles.body2.copyWith(
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    if (_goalMemoLoadFailed) {
-      return Padding(
-        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-        child: Container(
-          padding: EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: AppColors.error.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppRadius.large),
-            border: Border.all(
-              color: AppColors.error.withValues(alpha: 0.4),
-              width: 1,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '目標メモの取得に失敗しました',
-                style: AppTextStyles.body2.copyWith(
-                  color: AppColors.error,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(height: AppSpacing.sm),
-              SecondaryButton(
-                text: '再試行',
-                size: ButtonSize.small,
-                onPressed: _loadGoalMemo,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-    
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: GestureDetector(
-        onTap: () => _showGoalMemoDialog(),
-        child: Container(
-          padding: EdgeInsets.all(AppSpacing.md),
-          decoration: BoxDecoration(
-            color: AppColors.purple.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(AppRadius.large),
-            border: Border.all(
-              color: AppColors.purple.withValues(alpha: 0.4),
-              width: 1,
-            ),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(
-                Icons.lightbulb_outline,
-                color: AppColors.purple,
-                size: 24,
-              ),
-              SizedBox(width: AppSpacing.sm),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '目標メモ',
-                      style: AppTextStyles.body2.copyWith(
-                        color: AppColors.purple,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    SizedBox(height: AppSpacing.xs),
-                    if (hasContent)
-                      Text(
-                        memo.content,
-                        style: AppTextStyles.body1.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                      )
-                    else
-                      Text(
-                        'タップして目標メモを追加',
-                        style: AppTextStyles.body2.copyWith(
-                          color: AppColors.textSecondary,
-                          fontStyle: FontStyle.italic,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              SizedBox(width: AppSpacing.sm),
-              Icon(
-                Icons.edit_outlined,
-                color: AppColors.purple.withValues(alpha: 0.6),
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  /// 目標メモ編集ダイアログを表示
-  Future<void> _showGoalMemoDialog() async {
-    final currentMemo = ref.read(goalMemoProvider);
-    final controller = TextEditingController(text: currentMemo.content);
-    
-    // ダイアログを開く前に、メッセージ表示用のScaffoldMessengerを取得
-    final scaffoldMessenger = ScaffoldMessenger.of(context);
-    
-    await showDialog(
-      context: context,
-      builder: (context) => _GoalMemoEditDialog(
-        controller: controller,
-        currentMemo: currentMemo,
-        ref: ref,
-        onSave: (success) async {
-          // 保存完了後にメッセージを表示
-          if (mounted) {
-            scaffoldMessenger.showSnackBar(
-              SnackBar(
-                content: Text(success ? '目標メモを保存しました' : '保存に失敗しました'),
-                backgroundColor: success ? AppColors.success : AppColors.error,
-              ),
-            );
-          }
-          // 保存成功時は再読み込みして最新データを取得
-          if (success && mounted) {
-            await _loadGoalMemo();
-          }
-        },
-      ),
-    );
-    
-    controller.dispose();
-  }
-
   Widget _buildBottomNavigationBar(BuildContext context) {
     return AppBottomNavigationBar(
       currentIndex: 0,
@@ -1055,141 +813,5 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         NavigationHelper.pushReplacement(context, AppRoutes.settings);
         break;
     }
-  }
-}
-
-/// 目標メモ編集ダイアログ
-class _GoalMemoEditDialog extends StatefulWidget {
-  final TextEditingController controller;
-  final dynamic currentMemo;
-  final dynamic ref;
-  final Function(bool) onSave;
-
-  const _GoalMemoEditDialog({
-    required this.controller,
-    required this.currentMemo,
-    required this.ref,
-    required this.onSave,
-  });
-
-  @override
-  State<_GoalMemoEditDialog> createState() => _GoalMemoEditDialogState();
-}
-
-class _GoalMemoEditDialogState extends State<_GoalMemoEditDialog> {
-  static const int maxLength = 200;
-
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_updateCounter);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_updateCounter);
-    super.dispose();
-  }
-
-  void _updateCounter() {
-    setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AppDialogBase(
-      title: '目標メモ',
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '自分を鼓舞するためのメモを書いてください',
-            style: AppTextStyles.body2.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-          SizedBox(height: AppSpacing.md),
-          Text(
-            'メモ',
-            style: AppTextStyles.body2.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          SizedBox(height: AppSpacing.sm),
-          TextField(
-            controller: widget.controller,
-            maxLines: 5,
-            maxLength: maxLength,
-            style: AppTextStyles.body1,
-            decoration: InputDecoration(
-              hintText: '例: 今日も頑張ろう！毎日少しずつ進歩していく...',
-              hintStyle: AppTextStyles.body1.copyWith(
-                color: AppColors.textDisabled,
-              ),
-              filled: true,
-              fillColor: AppColors.lightblackgray,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.medium),
-                borderSide: BorderSide.none,
-              ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.medium),
-                borderSide: BorderSide.none,
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(AppRadius.medium),
-                borderSide: const BorderSide(color: AppColors.blue, width: 2),
-              ),
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: AppSpacing.md,
-                vertical: AppSpacing.md,
-              ),
-              counterText: '',
-            ),
-          ),
-          SizedBox(height: AppSpacing.xs),
-          Text(
-            '${widget.controller.text.length} / $maxLength',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-      actions: [
-        SecondaryButton(
-          text: 'キャンセル',
-          onPressed: () => Navigator.of(context).pop(),
-          size: ButtonSize.small,
-          borderRadius: 30,
-        ),
-        SizedBox(width: AppSpacing.sm),
-        PrimaryButton(
-          text: '保存',
-          onPressed: () async {
-            final content = widget.controller.text.trim();
-            
-            // 目標メモを更新
-            final updatedMemo = widget.currentMemo.copyWith(
-              content: content,
-              lastModified: DateTime.now(),
-            );
-            
-            // 保存処理を実行
-            final success = await saveGoalMemoHelper(widget.ref, updatedMemo);
-            
-            // 保存が完了してからダイアログを閉じる
-            if (mounted) {
-              Navigator.of(context).pop();
-              widget.onSave(success);
-            }
-          },
-          size: ButtonSize.small,
-          borderRadius: 30,
-        ),
-      ],
-    );
   }
 }

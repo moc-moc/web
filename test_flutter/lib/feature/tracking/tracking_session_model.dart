@@ -21,6 +21,10 @@ abstract class DetectionPeriod with _$DetectionPeriod {
     
     /// 信頼度
     required double confidence,
+    
+    /// この期間中に選択されていた目標ID（study/pc/smartphone）
+    /// トラッキング中に目標が変更された場合、変更後の目標IDを記録
+    @Default({}) Map<String, String?> selectedGoalIds,
   }) = _DetectionPeriod;
 
   /// プライベートコンストラクタ（getter用）
@@ -52,6 +56,9 @@ abstract class DetectionPeriod with _$DetectionPeriod {
       endTime: parseDateTime(data['endTime']),
       category: data['category'] as String,
       confidence: (data['confidence'] as num).toDouble(),
+      selectedGoalIds: data['selectedGoalIds'] != null
+          ? Map<String, String?>.from(data['selectedGoalIds'] as Map)
+          : {},
     );
   }
 
@@ -62,6 +69,7 @@ abstract class DetectionPeriod with _$DetectionPeriod {
       'endTime': Timestamp.fromDate(endTime),
       'category': category,
       'confidence': confidence,
+      'selectedGoalIds': selectedGoalIds,
     };
   }
 }

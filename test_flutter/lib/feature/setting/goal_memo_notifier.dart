@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:test_flutter/data/models/settings_models.dart';
 import 'package:test_flutter/data/sources/auth_source.dart';
-import 'package:test_flutter/feature/base/data_helper_functions.dart';
 import 'package:test_flutter/feature/setting/settings_data_manager.dart';
 
 part 'goal_memo_notifier.g.dart';

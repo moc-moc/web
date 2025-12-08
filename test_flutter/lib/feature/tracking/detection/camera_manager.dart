@@ -20,6 +20,11 @@ abstract class CameraManager {
   /// カメラ映像のストリーム
   Stream<CameraImageData>? get imageStream;
 
+  /// カメラ映像の縦横比
+  /// 
+  /// 初期化されていない場合はnullを返す
+  double? get aspectRatio;
+
   /// カメラの初期化
   /// 
   /// **戻り値**: 初期化成功時true、失敗時false

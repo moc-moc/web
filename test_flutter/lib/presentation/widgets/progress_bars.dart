@@ -415,16 +415,16 @@ class GoalProgressCard extends StatelessWidget {
         borderColor ?? effectiveProgressColor.withValues(alpha: 0.4);
 
     return Container(
-      padding: EdgeInsets.all(AppSpacing.md),
+      padding: EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: backgroundColor ?? AppColors.black,
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        border: Border.all(color: effectiveBorderColor, width: 1.5),
+        borderRadius: BorderRadius.circular(AppRadius.small),
+        border: Border.all(color: effectiveBorderColor, width: 1),
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
           ),
         ],
       ),
@@ -438,18 +438,19 @@ class GoalProgressCard extends StatelessWidget {
               progressColor: effectiveProgressColor,
               backgroundColor: AppColors.disabledGray,
               barBackgroundColor: barBackgroundColor ?? AppColors.disabledGray, // 変更
-              height: 12,
+              height: 8,
             ),
           ),
-          SizedBox(height: AppSpacing.xs),
+          SizedBox(height: 4),
           Text(
             '${(clampedPercentage * 100).toStringAsFixed(1)}%',
             style: AppTextStyles.caption.copyWith(
               color: AppColors.textSecondary,
               fontWeight: FontWeight.w600,
+              fontSize: 9,
             ),
           ),
-          SizedBox(height: AppSpacing.sm),
+          SizedBox(height: 4),
           SizedBox(
             width: double.infinity,
             child: Column(
@@ -458,14 +459,15 @@ class GoalProgressCard extends StatelessWidget {
               children: [
                 Text(
                   goalName,
-                  style: AppTextStyles.body1.copyWith(
+                  style: AppTextStyles.body2.copyWith(
                     fontWeight: FontWeight.bold,
                     color: effectiveLabelColor,
+                    fontSize: 11,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                SizedBox(height: AppSpacing.xs),
+                SizedBox(height: 4),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerRight,
@@ -473,6 +475,7 @@ class GoalProgressCard extends StatelessWidget {
                     '$currentValue / $targetValue',
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.textSecondary,
+                      fontSize: 9,
                     ),
                     textAlign: TextAlign.right,
                   ),

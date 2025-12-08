@@ -66,29 +66,29 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
       body: SafeArea(
         child: ScrollableContent(
           padding: EdgeInsets.only(
-            top: AppSpacing.md,
-            left: AppSpacing.md,
-            right: AppSpacing.md,
-            bottom: AppSpacing.xxl,
+            top: AppSpacing.sm,
+            left: AppSpacing.sm,
+            right: AppSpacing.sm,
+            bottom: AppSpacing.xl,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               _buildPeriodTabs(hasExtendedReports),
-              SizedBox(height: AppSpacing.md),
+              SizedBox(height: AppSpacing.xs),
               if (isLockedView) ...[
                 const PremiumLockCard(feature: PremiumFeature.extendedReports),
               ] else ...[
                 _buildDateSelector(),
-                SizedBox(height: AppSpacing.md),
+                SizedBox(height: AppSpacing.xs),
                 _buildStatHighlights(),
                 if (_selectedPeriodIndex == 2) ...[
-                  SizedBox(height: AppSpacing.md),
+                  SizedBox(height: AppSpacing.xs),
                   _buildLevelSummaryCard(),
                 ],
-                SizedBox(height: AppSpacing.lg),
+                SizedBox(height: AppSpacing.xs),
                 _buildActivityChartCard(),
-                SizedBox(height: AppSpacing.lg),
+                SizedBox(height: AppSpacing.xs),
                 _buildDistributionCard(),
               ],
             ],
@@ -229,7 +229,7 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     final label = _getPeriodTitle();
     final baseFontSize = AppTextStyles.body2.fontSize ?? 14.0;
     final labelStyle = AppTextStyles.body2.copyWith(
-      fontSize: baseFontSize * 1.3,
+      fontSize: baseFontSize * 1.1,
       color: AppColors.textSecondary,
       fontWeight: FontWeight.w600,
       letterSpacing: 0.5,
@@ -322,7 +322,7 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     final hours = (levelState.personSeconds / 3600).toStringAsFixed(1);
 
     return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.black,
         borderRadius: BorderRadius.circular(AppRadius.large),
@@ -334,9 +334,9 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
             tier: levelState.rank,
             level: levelState.level,
             showGlow: true,
-            size: 68,
+            size: 56,
           ),
-          SizedBox(width: AppSpacing.lg),
+          SizedBox(width: AppSpacing.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -345,6 +345,7 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
                   'Monthly Level Summary',
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.textSecondary,
+                    fontSize: 10,
                   ),
                 ),
                 Text(
@@ -352,12 +353,14 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
                   style: AppTextStyles.h3.copyWith(
                     color: AppColors.white,
                     fontWeight: FontWeight.bold,
+                    fontSize: 14,
                   ),
                 ),
                 Text(
                   '$hours h human focus • Reset on ${_formatDate(levelState.nextResetAt)}',
                   style: AppTextStyles.body2.copyWith(
                     color: AppColors.textSecondary,
+                    fontSize: 11,
                   ),
                 ),
               ],
@@ -457,16 +460,16 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
   }) {
     final badgeColor = isPositive ? AppColors.green : AppColors.red;
     return Container(
-      padding: EdgeInsets.all(AppSpacing.lg),
+      padding: EdgeInsets.all(AppSpacing.sm),
       decoration: BoxDecoration(
         color: AppColors.black,
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(color: accentColor.withValues(alpha: 0.35)),
         boxShadow: [
           BoxShadow(
             color: accentColor.withValues(alpha: 0.25),
-            blurRadius: 18,
-            offset: const Offset(0, 12),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -478,25 +481,26 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Icon(icon, color: accentColor, size: 30),
-                  SizedBox(width: AppSpacing.sm),
+                  Icon(icon, color: accentColor, size: 20),
+                  SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           title,
-                          style: AppTextStyles.body1.copyWith(
+                          style: AppTextStyles.body2.copyWith(
                             color: AppColors.textSecondary,
                             fontWeight: FontWeight.w600,
+                            fontSize: 11,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        SizedBox(height: AppSpacing.xs),
+                        SizedBox(height: 2),
                         Text(
                           subtitle,
-                          style: AppTextStyles.caption,
+                          style: AppTextStyles.caption.copyWith(fontSize: 10),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -505,19 +509,19 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
                   ),
                 ],
               ),
-              SizedBox(height: AppSpacing.md),
+              SizedBox(height: AppSpacing.xs),
               Align(
                 alignment: Alignment.center,
                 child: Text(
                   value,
-                  style: AppTextStyles.h1.copyWith(
-                    fontSize: 42,
+                  style: AppTextStyles.h2.copyWith(
+                    fontSize: 28,
                     color: accentColor,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
-              SizedBox(height: AppSpacing.lg),
+              SizedBox(height: AppSpacing.xs),
             ],
           ),
           Positioned(
@@ -676,8 +680,11 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
       
       // 4. hourlyCategorySecondsが空の場合は空のリストを返す
       if (stats.hourlyCategorySeconds.isEmpty) {
+        debugPrint('⚠️ [report.dart] hourlyCategorySecondsが空です: date=$dateOnly');
         return [];
       }
+      
+      debugPrint('📊 [report.dart] hourlyCategorySeconds取得: ${stats.hourlyCategorySeconds.length}時間帯にデータあり');
       
       // 5. reset timeを取得
       int resetHour = 0;
@@ -930,16 +937,11 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
   }
 
   Widget _buildActivityChartCard() {
-    final titleStyle = AppTextStyles.body1.copyWith(
-      color: AppColors.textSecondary,
-      fontWeight: FontWeight.w600,
-    );
-
     return Container(
       padding: EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: AppColors.black,
-        borderRadius: BorderRadius.circular(AppRadius.large),
+        borderRadius: BorderRadius.circular(AppRadius.medium),
         border: Border.all(color: AppColors.gray.withValues(alpha: 0.3)),
       ),
       child: Column(
@@ -948,14 +950,8 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [Text('Timeline', style: titleStyle)],
-                ),
-              ),
               Wrap(
-                spacing: AppSpacing.sm,
+                spacing: AppSpacing.xs,
                 runSpacing: AppSpacing.xs,
                 children: [
                   _buildLegendPill('Study', AppColors.green),
@@ -969,13 +965,13 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
               ),
             ],
           ),
-          SizedBox(height: AppSpacing.lg),
+          SizedBox(height: AppSpacing.sm),
           FutureBuilder<List<CategoryDataPoint>>(
             future: _getDataPointsForCurrentPeriod(),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
                 return SizedBox(
-                  height: 220,
+                  height: 300,
                   child: Center(
                     child: CircularProgressIndicator(
                       color: AppColors.blue,
@@ -986,7 +982,7 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
 
               if (snapshot.hasError) {
                 return SizedBox(
-                  height: 220,
+                  height: 300,
                   child: Center(
                     child: Text(
                       'データの読み込みに失敗しました',
@@ -999,9 +995,13 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
               }
 
               final dataPoints = snapshot.data ?? [];
+              
+              // デバッグログ: データポイント数を確認
+              debugPrint('📊 [report.dart] FutureBuilder<List<CategoryDataPoint>>: dataPoints.length=${dataPoints.length}');
+              
               if (dataPoints.isEmpty) {
                 return SizedBox(
-                  height: 220,
+                  height: 300,
                   child: Center(
                     child: Text(
                       'データがありません',
@@ -1018,7 +1018,7 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
                 builder: (context, chartSnapshot) {
                   if (chartSnapshot.connectionState == ConnectionState.waiting) {
                     return SizedBox(
-                      height: 220,
+                      height: 300,
                       child: Center(
                         child: CircularProgressIndicator(
                           color: AppColors.blue,
@@ -1028,13 +1028,35 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
                   }
 
                   final barGroups = chartSnapshot.data ?? [];
+                  
+                  // デバッグログ: barGroups数を確認
+                  debugPrint('📊 [report.dart] FutureBuilder<List<BarChartGroupData>>: barGroups.length=${barGroups.length}');
+                  
+                  // barGroupsが空の場合もデータなしを表示
+                  if (barGroups.isEmpty) {
+                    return SizedBox(
+                      height: 300,
+                      child: Center(
+                        child: Text(
+                          'グラフデータがありません',
+                          style: AppTextStyles.body2.copyWith(
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                  
                   return FutureBuilder<double>(
                     future: _getMaxY(),
                     builder: (context, maxYSnapshot) {
                       final maxY = maxYSnapshot.data ?? 10.0;
                       
+                      // デバッグログ: maxYを確認
+                      debugPrint('📊 [report.dart] maxY=$maxY');
+                      
                       return AppBarChart(
-                        height: 220,
+                        height: 300,
                         barGroups: barGroups,
                         maxY: maxY,
                         getBottomTitles: (value, meta) {
@@ -1158,11 +1180,11 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
                   AppPieChart(
                     sections: sections,
                     centerText: _formatMinutesShort(total),
-                    radius: 80,
-                    strokeWidth: 22,
+                    radius: 65,
+                    strokeWidth: 18,
                     backgroundColor: AppColors.blackgray,
                   ),
-                  SizedBox(width: AppSpacing.lg),
+                  SizedBox(width: AppSpacing.sm),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1267,6 +1289,9 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
     final denseBarWidth = 10.0;
     final normalBarWidth = 16.0;
 
+    // デバッグログ: データポイント数を確認
+    debugPrint('📊 [report.dart] _getChartData: データポイント数=${data.length}, isDay=$isDay');
+
     return data.asMap().entries.map((entry) {
       final index = entry.key;
       final point = entry.value;
@@ -1294,8 +1319,21 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
           ? denseBarWidth
           : normalBarWidth;
 
-      if (isDay && cursor == 0) {
-        return BarChartGroupData(x: index, barRods: const []);
+      // iOS実機での表示問題を回避: 空のbarRodsを返さず、最小値（0.001）を設定
+      // これにより、グラフの軸とレイアウトが正しく表示される
+      if (cursor == 0) {
+        return BarChartGroupData(
+          x: index,
+          barRods: [
+            BarChartRodData(
+              toY: 0.001, // 最小値を設定してグラフのレイアウトを維持
+              width: barWidth,
+              borderRadius: BorderRadius.circular(8),
+              rodStackItems: const [], // 空のスタックアイテム
+              color: Colors.transparent, // 透明にして見えないようにする
+            ),
+          ],
+        );
       }
 
       return BarChartGroupData(

@@ -1,5 +1,5 @@
 import 'package:hooks_riverpod/hooks_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:test_flutter/data/services/shared_preferences_service.dart';
 import 'package:test_flutter/feature/subscription/subscription_providers.dart';
 import 'package:test_flutter/data/sources/date_utils.dart';
 import 'package:test_flutter/data/repositories/tracking_count_data_manager.dart';
@@ -57,7 +57,7 @@ class DailyTrackingCountHelper {
   /// カウントを読み込む
   static Future<int> loadCount(dynamic ref) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferencesService.getInstance();
       final todayString = _getTodayString(ref);
       final savedDate = prefs.getString(_dateKey);
       
@@ -99,7 +99,7 @@ class DailyTrackingCountHelper {
     try {
       LogMk.logDebug('トラッキング回数のインクリメント開始', tag: 'DailyTrackingCountHelper.increment');
       
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferencesService.getInstance();
       final todayString = _getTodayString(ref);
       final currentCount = await loadCount(ref);
       final newCount = currentCount + 1;
@@ -133,7 +133,7 @@ class DailyTrackingCountHelper {
   /// カウントをリセット（テスト用）
   static Future<int> reset(dynamic ref) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferencesService.getInstance();
       final todayString = _getTodayString(ref);
       await prefs.setString(_dateKey, todayString);
       await prefs.setInt(_keyPrefix + todayString, 0);
@@ -218,14 +218,14 @@ class DailyTrackingCountHelper {
         final surveyFlag = await surveyFlagDataManager.getById(userId, 'survey_flag');
         if (surveyFlag != null) {
           // Firestoreから取得できた場合は、SharedPreferencesも同期
-          final prefs = await SharedPreferences.getInstance();
+          final prefs = await SharedPreferencesService.getInstance();
           await prefs.setBool(_hasShownFirstSurveyKey, surveyFlag.hasShownFirstSurvey);
           return surveyFlag.hasShownFirstSurvey;
         }
       }
       
       // Firestoreから取得できない場合は、SharedPreferencesから読み込む
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferencesService.getInstance();
       final hasShown = prefs.getBool(_hasShownFirstSurveyKey) ?? false;
       
       // SharedPreferencesの値をFirestoreにも保存（同期）
@@ -246,7 +246,7 @@ class DailyTrackingCountHelper {
   /// 初回アンケートを表示済みとしてマーク
   static Future<void> markFirstSurveyAsShown() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferencesService.getInstance();
       await prefs.setBool(_hasShownFirstSurveyKey, true);
       
       // Firestoreにも保存

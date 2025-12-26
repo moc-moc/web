@@ -73,9 +73,12 @@ export const createStripeCheckoutSession = functions.https.onCall(
         "Price is not configured for this currency.",
       );
     }
+    // priceIdの優先順位: 1. 各通貨ごとのpriceId, 2. ルートレベルのpriceId
     const priceId = typeof priceInfo.priceId === "string" ?
       priceInfo.priceId.trim() :
-      undefined;
+      (typeof planData.priceId === "string" ?
+        planData.priceId.trim() :
+        undefined);
     const interval = planData.interval ?? "monthly";
     const mode = interval === "lifetime" ? "payment" : "subscription";
 
@@ -382,6 +385,46 @@ type DynamicLineItemParams = {
 };
 
 /**
+ * Converts a Firestore Timestamp to a JavaScript Date.
+ * @param {unknown} value - The value to convert.
+ * @return {Date | null} The converted Date or null.
+ */
+function timestampToDate(value: unknown): Date | null {
+  if (!value) return null;
+  if (value instanceof admin.firestore.Timestamp) {
+    return value.toDate();
+  }
+  if (value instanceof Date) {
+    return value;
+  }
+  // Handle Firestore Timestamp-like objects
+  if (typeof value === "object" && value !== null) {
+    const ts = value as {seconds?: number; nanoseconds?: number};
+    if (typeof ts.seconds === "number") {
+      return new Date(ts.seconds * 1000 + (ts.nanoseconds ?? 0) / 1000000);
+    }
+  }
+  return null;
+}
+
+/**
+ * Checks if a promotional period is currently active.
+ * @param {FirebaseFirestore.DocumentData} promo - The promo data.
+ * @return {boolean} True if the promo is active.
+ */
+function isPromoActive(
+  promo: FirebaseFirestore.DocumentData | undefined,
+): boolean {
+  if (!promo) return false;
+  const now = new Date();
+  const startsAt = timestampToDate(promo.startsAt);
+  const endsAt = timestampToDate(promo.endsAt);
+  const hasStarted = !startsAt || now >= startsAt;
+  const notEnded = !endsAt || now <= endsAt;
+  return hasStarted && notEnded;
+}
+
+/**
  * Builds a line item using dynamic price_data for legacy plans.
  * @param {DynamicLineItemParams} params - Data required to build the item.
  * @return {{price_data: Stripe.Checkout.SessionCreateParams.LineItemPriceData,
@@ -392,13 +435,49 @@ function buildDynamicLineItem(
 ): Stripe.Checkout.SessionCreateParams.LineItem {
   const {planData, planId, currency, interval, priceInfo} = params;
   const baseAmount = priceInfo.amount as number;
-  const promoRate = planData.promo?.discountRate ?? 0;
-  const introAmount = priceInfo.introductoryAmount as number | undefined;
+  const promo = planData.promo;
+  const promoActive = isPromoActive(promo);
+  const currencyUpper = currency.toUpperCase();
+
   let unitAmount = baseAmount;
-  if (introAmount && introAmount > 0 && introAmount < baseAmount) {
-    unitAmount = introAmount;
-  } else if (promoRate > 0 && promoRate < 1) {
-    unitAmount = Math.round(baseAmount * (1 - promoRate));
+
+  // 優先順位1: 期間限定の初回限定固定価格（最優先）
+  if (promoActive && promo?.introductoryFixedPrices) {
+    const introFixedPrice =
+      promo.introductoryFixedPrices[currencyUpper] ??
+      promo.introductoryFixedPrices[currency.toLowerCase()];
+    if (
+      typeof introFixedPrice === "number" &&
+      introFixedPrice > 0 &&
+      introFixedPrice < baseAmount
+    ) {
+      unitAmount = introFixedPrice;
+    }
+  } else if (promoActive && promo?.fixedPrices) {
+    // 優先順位2: 期間限定の固定価格
+    const fixedPrice =
+      promo.fixedPrices[currencyUpper] ??
+      promo.fixedPrices[currency.toLowerCase()];
+    if (
+      typeof fixedPrice === "number" &&
+      fixedPrice > 0 &&
+      fixedPrice < baseAmount
+    ) {
+      unitAmount = fixedPrice;
+    }
+  } else if (promoActive && promo?.discountRate) {
+    // 優先順位3: 期間限定の割引率
+    const promoRate =
+      typeof promo.discountRate === "number" ? promo.discountRate : 0;
+    if (promoRate > 0 && promoRate < 1) {
+      unitAmount = Math.round(baseAmount * (1 - promoRate));
+    }
+  } else {
+    // 優先順位4: 通常の初回割引価格
+    const introAmount = priceInfo.introductoryAmount as number | undefined;
+    if (introAmount && introAmount > 0 && introAmount < baseAmount) {
+      unitAmount = introAmount;
+    }
   }
 
   const recurring:
@@ -410,13 +489,19 @@ function buildDynamicLineItem(
       } :
       undefined;
 
+  // product_dataには既存のProduct IDを設定できないため、nameのみ設定
+  // price_dataを使う場合は、動的に新しいProductが作成されます
+  const productData:
+    Stripe.Checkout.SessionCreateParams.LineItem.PriceData.ProductData =
+    {
+      name: planData.displayName ?? planId,
+    };
+
   return {
     price_data: {
       currency: currency.toLowerCase(),
       unit_amount: unitAmount,
-      product_data: {
-        name: planData.displayName ?? planId,
-      },
+      product_data: productData,
       recurring,
     },
     quantity: 1,

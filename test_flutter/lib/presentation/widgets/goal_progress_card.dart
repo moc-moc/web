@@ -57,46 +57,46 @@ class GoalProgressCardNew extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 1行目：アイコン + タイトル（常に横並び）
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        // アイコン（丸型、背景はblackgray、枠線は各色）
-                        Container(
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  // アイコン（丸型、背景はblackgray、枠線は各色）
+                                  Container(
                           width: 48,
                           height: 48,
-                          decoration: BoxDecoration(
-                            color: AppColors.blackgray,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: iconColor.withValues(alpha: 0.9),
-                              width: 1,
-                            ),
-                          ),
-                          child: Icon(
-                            icon,
-                            color: iconColor,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.blackgray,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: iconColor.withValues(alpha: 0.9),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Icon(
+                                      icon,
+                                      color: iconColor,
                             size: 24,
-                          ),
-                        ),
+                                    ),
+                                  ),
                         SizedBox(width: AppSpacing.sm),
                         // タイトル（改行可能、サイズ可変）
-                        Expanded(
+                                  Expanded(
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             alignment: Alignment.centerLeft,
-                            child: Text(
-                              title,
-                              style: AppTextStyles.h3.copyWith(
-                                fontWeight: FontWeight.bold,
-                                color: iconColor.withValues(alpha: 0.9),
+                                child: Text(
+                                  title,
+                                  style: AppTextStyles.h3.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: iconColor.withValues(alpha: 0.9),
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
                         ),
                       ],
-                    ),
+                                    ),
                     SizedBox(height: AppSpacing.md),
                     // 2行目：時間数値
                     Padding(
@@ -207,11 +207,11 @@ class GoalProgressCardNew extends StatelessWidget {
                     color: AppColors.middleblackgray,
                     borderRadius: BorderRadius.circular(AppRadius.small),
                   ),
-                  child: Text(
+            child: Text(
                     periodLabel,
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.textSecondary,
-                    ),
+              style: AppTextStyles.caption.copyWith(
+                color: AppColors.textSecondary,
+              ),
                   ),
                 ),
                 if (comparisonType == ComparisonType.below) ...[

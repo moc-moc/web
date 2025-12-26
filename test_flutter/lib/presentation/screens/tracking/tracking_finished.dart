@@ -1140,45 +1140,45 @@ class _TrackingFinishedScreenNewState extends ConsumerState<TrackingFinishedScre
             child: SizedBox(
               width: MediaQuery.of(context).size.width * 0.5,
               child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: borderRadiusValue,
-                  border: Border.all(
-                    color: AppColors.gray.withValues(alpha: 0.4),
-                    width: 1,
-                  ),
-                ),
-                child: Material(
-                  color: AppColors.blackgray,
-                  borderRadius: borderRadiusValue,
-                  elevation: 2,
-                  shadowColor: AppColors.black.withValues(alpha: 0.2),
-                  child: InkWell(
-                    onTap: () {
-                      // 将来実装
-                    },
-                    borderRadius: borderRadiusValue,
-                    child: Container(
+            decoration: BoxDecoration(
+              borderRadius: borderRadiusValue,
+              border: Border.all(
+                color: AppColors.gray.withValues(alpha: 0.4),
+                width: 1,
+              ),
+            ),
+            child: Material(
+              color: AppColors.blackgray,
+              borderRadius: borderRadiusValue,
+              elevation: 2,
+              shadowColor: AppColors.black.withValues(alpha: 0.2),
+              child: InkWell(
+                onTap: () {
+                  // 将来実装
+                },
+                borderRadius: borderRadiusValue,
+                child: Container(
                       height: 48.0,
                       padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.share,
-                              color: AppColors.gray,
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.share,
+                          color: AppColors.gray,
                               size: 16.0,
-                            ),
+                        ),
                             SizedBox(width: AppSpacing.xs),
-                            Text(
+                        Text(
                               'Share',
-                              style: TextStyle(
-                                color: AppColors.gray,
+                          style: TextStyle(
+                            color: AppColors.gray,
                                 fontSize: 16.0,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
                         ),
                       ),
                     ),

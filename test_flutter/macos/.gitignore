@@ -5,3 +5,7 @@
 # Xcode-related
 **/dgph
 **/xcuserdata/
+
+# Firebase configuration files with API keys
+GoogleService-Info.plist
+Runner/GoogleService-Info.plist

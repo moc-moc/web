@@ -240,8 +240,9 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
             runSpacing: AppSpacing.sm,
             children: _categories.map((category) {
               final isSelected = _selectedCategory == category['id'];
-              final Color backgroundColor =
-                  isSelected ? AppColors.blue : AppColors.lightblackgray;
+              final Color backgroundColor = isSelected
+                  ? AppColors.blue
+                  : AppColors.lightblackgray;
               return GestureDetector(
                 onTap: () {
                   setState(() {
@@ -381,9 +382,7 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
           SizedBox(height: AppSpacing.xs),
           Text(
             'Set the total hours for the selected period.',
-            style: AppTextStyles.caption.copyWith(
-              color: AppColors.gray,
-            ),
+            style: AppTextStyles.caption.copyWith(color: AppColors.gray),
           ),
           SizedBox(height: AppSpacing.lg),
 
@@ -502,10 +501,7 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
                     context: context,
                     builder: (context) => AlertDialog(
                       backgroundColor: AppColors.blackgray,
-                      title: Text(
-                        'Delete Goal',
-                        style: AppTextStyles.h3,
-                      ),
+                      title: Text('Delete Goal', style: AppTextStyles.h3),
                       content: Text(
                         'Are you sure you want to delete this goal?',
                         style: AppTextStyles.body1,
@@ -581,9 +577,7 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
                 child: Center(
                   child: Text(
                     'Cancel',
-                    style: AppTextStyles.body1.copyWith(
-                      color: AppColors.gray,
-                    ),
+                    style: AppTextStyles.body1.copyWith(color: AppColors.gray),
                   ),
                 ),
               ),
@@ -616,13 +610,15 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
                         return;
                       }
 
-                      final targetHours =
-                          double.tryParse(_targetHoursController.text);
+                      final targetHours = double.tryParse(
+                        _targetHoursController.text,
+                      );
                       if (targetHours == null || targetHours <= 0) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content:
-                                const Text('Please enter a valid target hours'),
+                            content: const Text(
+                              'Please enter a valid target hours',
+                            ),
                             backgroundColor: AppColors.error,
                           ),
                         );
@@ -630,8 +626,9 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
                       }
 
                       if (!widget.isEdit) {
-                        final subscriptionStatus =
-                            ref.read(subscriptionStatusProvider);
+                        final subscriptionStatus = ref.read(
+                          subscriptionStatusProvider,
+                        );
                         final canHaveMultipleGoals = EntitlementRules.canUse(
                           subscriptionStatus,
                           PremiumFeature.multipleGoals,
@@ -681,8 +678,7 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
                         }
 
                         final now = DateTime.now();
-                        final targetTimeSeconds =
-                            (targetHours * 3600).toInt();
+                        final targetTimeSeconds = (targetHours * 3600).toInt();
 
                         Goal goal;
                         if (widget.isEdit && widget.goalId != null) {
@@ -698,8 +694,9 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
                             comparisonType: comparisonType,
                             detectionItem: detectionItem,
                             durationDays: durationDays,
-                            periodEndDate: existingGoal.startDate
-                                .add(Duration(days: durationDays)),
+                            periodEndDate: existingGoal.startDate.add(
+                              Duration(days: durationDays),
+                            ),
                             startDate: existingGoal.startDate,
                             lastModified: now,
                           );
@@ -725,7 +722,9 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
                             detectionItem: detectionItem,
                             startDate: now,
                             durationDays: durationDays,
-                            periodEndDate: now.add(Duration(days: durationDays)),
+                            periodEndDate: now.add(
+                              Duration(days: durationDays),
+                            ),
                             lastModified: now,
                           );
 
@@ -796,9 +795,7 @@ class _GoalSettingDialogState extends ConsumerState<GoalSettingDialog> {
       builder: (dialogContext) => Dialog(
         backgroundColor: Colors.transparent,
         insetPadding: EdgeInsets.all(AppSpacing.lg),
-        child: const PremiumLockCard(
-          feature: PremiumFeature.multipleGoals,
-        ),
+        child: const PremiumLockCard(feature: PremiumFeature.multipleGoals),
       ),
     );
   }
@@ -824,10 +821,12 @@ class CountdownSettingDialog extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<CountdownSettingDialog> createState() => _CountdownSettingDialogState();
+  ConsumerState<CountdownSettingDialog> createState() =>
+      _CountdownSettingDialogState();
 }
 
-class _CountdownSettingDialogState extends ConsumerState<CountdownSettingDialog> {
+class _CountdownSettingDialogState
+    extends ConsumerState<CountdownSettingDialog> {
   late TextEditingController _eventNameController;
   late DateTime _selectedDate;
   late TimeOfDay _selectedTime;
@@ -838,8 +837,13 @@ class _CountdownSettingDialogState extends ConsumerState<CountdownSettingDialog>
     _eventNameController = TextEditingController(
       text: widget.initialEventName ?? '',
     );
-    final initialDate = widget.initialDate ?? DateTime.now().add(Duration(days: 30));
-    _selectedDate = DateTime(initialDate.year, initialDate.month, initialDate.day);
+    final initialDate =
+        widget.initialDate ?? DateTime.now().add(Duration(days: 30));
+    _selectedDate = DateTime(
+      initialDate.year,
+      initialDate.month,
+      initialDate.day,
+    );
     _selectedTime = TimeOfDay.fromDateTime(initialDate);
   }
 
@@ -967,9 +971,7 @@ class _CountdownSettingDialogState extends ConsumerState<CountdownSettingDialog>
                 child: Center(
                   child: Text(
                     'Cancel',
-                    style: AppTextStyles.body1.copyWith(
-                      color: AppColors.gray,
-                    ),
+                    style: AppTextStyles.body1.copyWith(color: AppColors.gray),
                   ),
                 ),
               ),
@@ -1070,9 +1072,7 @@ class _CountdownSettingDialogState extends ConsumerState<CountdownSettingDialog>
                 child: Center(
                   child: Text(
                     'Save',
-                    style: AppTextStyles.body1.copyWith(
-                      color: AppColors.white,
-                    ),
+                    style: AppTextStyles.body1.copyWith(color: AppColors.white),
                   ),
                 ),
               ),
@@ -1087,23 +1087,17 @@ class _CountdownSettingDialogState extends ConsumerState<CountdownSettingDialog>
 /// エラーメッセージを表示するSnackBarを表示するヘルパー関数
 void showErrorSnackBar(BuildContext context, String message) {
   ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text(message),
-      backgroundColor: AppColors.gray,
-    ),
+    SnackBar(content: Text(message), backgroundColor: AppColors.gray),
   );
 }
 
 /// アンケートダイアログ
-/// 
+///
 /// アプリの満足度とフィードバックを収集するためのダイアログです。
 class SurveyDialog extends ConsumerStatefulWidget {
   final Function(int rating, String feedback)? onSubmit;
 
-  const SurveyDialog({
-    super.key,
-    this.onSubmit,
-  });
+  const SurveyDialog({super.key, this.onSubmit});
 
   @override
   ConsumerState<SurveyDialog> createState() => _SurveyDialogState();
@@ -1129,9 +1123,7 @@ class _SurveyDialogState extends ConsumerState<SurveyDialog> {
         children: [
           Text(
             'アプリの満足度を教えてください',
-            style: AppTextStyles.body1.copyWith(
-              color: AppColors.textSecondary,
-            ),
+            style: AppTextStyles.body1.copyWith(color: AppColors.textSecondary),
           ),
           SizedBox(height: AppSpacing.md),
           // 星評価
@@ -1185,7 +1177,10 @@ class _SurveyDialogState extends ConsumerState<SurveyDialog> {
             text: '送信',
             onPressed: () {
               if (_selectedRating > 0) {
-                widget.onSubmit?.call(_selectedRating, _feedbackController.text.trim());
+                widget.onSubmit?.call(
+                  _selectedRating,
+                  _feedbackController.text.trim(),
+                );
                 Navigator.of(context).pop();
               }
             },
@@ -1196,31 +1191,16 @@ class _SurveyDialogState extends ConsumerState<SurveyDialog> {
       ],
     );
   }
-
-  /// アンケートダイアログを表示する
-  static Future<void> show(
-    BuildContext context, {
-    Function(int rating, String feedback)? onSubmit,
-  }) {
-    return AppDialogBase.show<void>(
-      context,
-      SurveyDialog(onSubmit: onSubmit),
-    );
-  }
 }
 
 /// 点滅するアラートダイアログ
-/// 
+///
 /// スマホ使用時間が設定時間を超えた際に表示されるアラートダイアログです。
 class BlinkingAlertDialog extends StatefulWidget {
   final String message;
   final VoidCallback? onDismiss;
 
-  const BlinkingAlertDialog({
-    super.key,
-    required this.message,
-    this.onDismiss,
-  });
+  const BlinkingAlertDialog({super.key, required this.message, this.onDismiss});
 
   @override
   State<BlinkingAlertDialog> createState() => _BlinkingAlertDialogState();
@@ -1259,13 +1239,12 @@ class _BlinkingAlertDialogState extends State<BlinkingAlertDialog>
             decoration: BoxDecoration(
               color: AppColors.orange.withValues(alpha: _animation.value),
               borderRadius: BorderRadius.circular(AppRadius.large),
-              border: Border.all(
-                color: AppColors.orange,
-                width: 3,
-              ),
+              border: Border.all(color: AppColors.orange, width: 3),
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.orange.withValues(alpha: _animation.value * 0.5),
+                  color: AppColors.orange.withValues(
+                    alpha: _animation.value * 0.5,
+                  ),
                   blurRadius: 20,
                   spreadRadius: 5,
                 ),
@@ -1291,9 +1270,7 @@ class _BlinkingAlertDialogState extends State<BlinkingAlertDialog>
                 SizedBox(height: AppSpacing.sm),
                 Text(
                   widget.message,
-                  style: AppTextStyles.body1.copyWith(
-                    color: AppColors.white,
-                  ),
+                  style: AppTextStyles.body1.copyWith(color: AppColors.white),
                   textAlign: TextAlign.center,
                 ),
                 SizedBox(height: AppSpacing.lg),
@@ -1311,22 +1288,6 @@ class _BlinkingAlertDialogState extends State<BlinkingAlertDialog>
           ),
         );
       },
-    );
-  }
-
-  /// アラートダイアログを表示する
-  static Future<void> show(
-    BuildContext context, {
-    required String message,
-    VoidCallback? onDismiss,
-  }) {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => BlinkingAlertDialog(
-        message: message,
-        onDismiss: onDismiss,
-      ),
     );
   }
 }

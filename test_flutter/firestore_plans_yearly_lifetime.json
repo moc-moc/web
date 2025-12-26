@@ -1,0 +1,98 @@
+{
+  "yearly": {
+    "displayName": "Yearly",
+    "interval": "yearly",
+    "supportsTrial": true,
+    "trialDays": 7,
+    "isRecommended": true,
+    "productIds": {},
+    "prices": {
+      "JPY": {
+        "amount": 0,
+        "introductoryAmount": null,
+        "introductoryDurationDays": null
+      },
+      "USD": {
+        "amount": 0,
+        "introductoryAmount": null,
+        "introductoryDurationDays": null
+      },
+      "EUR": {
+        "amount": 0,
+        "introductoryDurationDays": null,
+        "introductoryAmount": null
+      },
+      "KRW": {
+        "amount": 0,
+        "introductoryAmount": null,
+        "introductoryDurationDays": null
+      },
+      "CNY": {
+        "amount": 0,
+        "introductoryAmount": null,
+        "introductoryDurationDays": null
+      }
+    },
+    "promo": {
+      "discountRate": 0,
+      "startsAt": "2026-01-01T00:00:00Z",
+      "endsAt": "2026-04-01T00:00:00Z",
+      "label": "Limited Time Offer",
+      "introductoryFixedPrices": {
+        "JPY": 0,
+        "USD": 0,
+        "EUR": 0,
+        "KRW": 0,
+        "CNY": 0
+      }
+    }
+  },
+  "lifetime": {
+    "displayName": "Lifetime",
+    "interval": "lifetime",
+    "supportsTrial": false,
+    "trialDays": null,
+    "productIds": {},
+    "badge": "Buy once",
+    "prices": {
+      "JPY": {
+        "amount": 0,
+        "introductoryAmount": null,
+        "introductoryDurationDays": null
+      },
+      "USD": {
+        "amount": 0,
+        "introductoryAmount": null,
+        "introductoryDurationDays": null
+      },
+      "EUR": {
+        "amount": 0,
+        "introductoryDurationDays": null,
+        "introductoryAmount": null
+      },
+      "KRW": {
+        "amount": 0,
+        "introductoryAmount": null,
+        "introductoryDurationDays": null
+      },
+      "CNY": {
+        "amount": 0,
+        "introductoryAmount": null,
+        "introductoryDurationDays": null
+      }
+    },
+    "promo": {
+      "discountRate": 0,
+      "startsAt": "2026-01-01T00:00:00Z",
+      "endsAt": "2026-04-01T00:00:00Z",
+      "label": "Limited Time Offer",
+      "introductoryFixedPrices": {
+        "JPY": 0,
+        "USD": 0,
+        "EUR": 0,
+        "KRW": 0,
+        "CNY": 0
+      }
+    }
+  }
+}

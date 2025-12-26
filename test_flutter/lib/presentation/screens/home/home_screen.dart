@@ -234,34 +234,78 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
       body: SafeArea(
-        child: SafeContent(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _buildLevelSection(),
-              SizedBox(height: AppSpacing.xs),
+        bottom: false,
+        top: true,
+        left: true,
+        right: true,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final screenHeight = constraints.maxHeight;
+            // 目標が3つ表示される場合の高さ計算
+            // 各セクションとスペーシングの高さを定義
+            const levelHeight = 0.12;        // レベルセクション: 12%
+            const spacing1 = 0.01;           // スペーシング: 1%
+            const statsHeight = 0.10;        // 統計セクション: 10%
+            const spacing2 = 0.01;           // スペーシング: 1%
+            const spacing3 = 0.01;           // 今日の目標前のスペーシング: 1%
+            const settingsHeight = 0.06;     // 設定ボタン: 6%
+            const spacing4 = 0.01;           // スペーシング: 1%
+            const startHeight = 0.08;        // スタートボタン: 8%
+            const spacing5 = 0.01;           // 最後のスペーシング: 1%
+            
+            // 固定部分の合計（今日の目標を除く）
+            const fixedHeight = levelHeight + spacing1 + statsHeight + spacing2 + 
+                               spacing3 + settingsHeight + spacing4 + startHeight + spacing5;
+            // 今日の目標の高さ（残りを割り当て、合計100%になるように）
+            final goalsHeight = screenHeight * (1.0 - fixedHeight);
+            
+            return Padding(
+              padding: EdgeInsets.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  SizedBox(
+                    height: screenHeight * levelHeight,
+                    child: _buildLevelSection(),
+                  ),
+                  SizedBox(height: screenHeight * spacing1),
 
-              // 統計表示セクション
-              _buildStatsSection(),
+                  // 統計表示セクション
+                  SizedBox(
+                    height: screenHeight * statsHeight,
+                    child: _buildStatsSection(),
+                  ),
 
-              SizedBox(height: AppSpacing.xs),
+                  SizedBox(height: screenHeight * spacing2),
 
-              // 今日の目標表示セクション
-              _buildTodaysGoalsSection(),
+                  // 今日の目標表示セクション（3つ表示される場合の高さに固定）
+                  SizedBox(
+                    height: goalsHeight,
+                    child: _buildTodaysGoalsSection(),
+                  ),
 
-              SizedBox(height: AppSpacing.xs),
+                  SizedBox(height: screenHeight * spacing3),
 
-              // 設定ボタン
-              _buildSettingsButton(context),
+                  // 設定ボタン
+                  SizedBox(
+                    height: screenHeight * settingsHeight,
+                    child: _buildSettingsButton(context),
+                  ),
 
-              SizedBox(height: AppSpacing.xs),
+                  SizedBox(height: screenHeight * spacing4),
 
-              // スタートボタン
-              _buildStartButton(context),
+                  // スタートボタン
+                  SizedBox(
+                    height: screenHeight * startHeight,
+                    child: _buildStartButton(context),
+                  ),
 
-              SizedBox(height: AppSpacing.xs),
-            ],
-          ),
+                  SizedBox(height: screenHeight * spacing5),
+                ],
+              ),
+            );
+          },
         ),
       ),
     );
@@ -269,35 +313,56 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
 
   Widget _buildLevelSection() {
     final levelState = ref.watch(levelingStateProvider);
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      child: LevelProgressCard(
-        state: levelState,
-        showCountdown: true,
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          height: constraints.maxHeight,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: SizedBox(
+              height: constraints.maxHeight,
+              child: LevelProgressCard(
+                state: levelState,
+                showCountdown: true,
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 
 
   /// 統計表示セクション
   Widget _buildStatsSection() {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _buildTotalFocusedTimeCard()),
-                SizedBox(width: AppSpacing.xs),
-                Expanded(child: _buildStreakDaysCard()),
-              ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          height: constraints.maxHeight,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            child: SizedBox(
+              height: constraints.maxHeight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.max,
+                children: [
+                  Expanded(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: _buildTotalFocusedTimeCard()),
+                        SizedBox(width: AppSpacing.xs),
+                        Expanded(child: _buildStreakDaysCard()),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -310,149 +375,178 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         ? '${totalHours}h ${remainingMinutes.toString().padLeft(2, '0')}m'
         : '${remainingMinutes}m';
     const accentColor = AppColors.blue;
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: accentColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        border: Border.all(
-          color: accentColor.withValues(alpha: 0.4),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardHeight = constraints.maxHeight;
+        final iconSize = cardHeight * 0.2;
+        final titleFontSize = cardHeight * 0.12;
+        final valueFontSize = cardHeight * 0.28;
+        final captionFontSize = cardHeight * 0.11;
+        final spacing = cardHeight * 0.02;
+        
+        return Container(
+          height: cardHeight,
+          padding: EdgeInsets.all(cardHeight * 0.08),
+          decoration: BoxDecoration(
+            color: accentColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppRadius.medium),
+            border: Border.all(
+              color: accentColor.withValues(alpha: 0.4),
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.schedule,
-                color: AppColors.blue.withValues(alpha: 0.9),
-                size: 18,
-              ),
-              SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text(
-                  'Total Time',
-                  style: AppTextStyles.body2.copyWith(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
+              Row(
+                children: [
+                  Icon(
+                    Icons.schedule,
+                    color: AppColors.blue.withValues(alpha: 0.9),
+                    size: iconSize,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  SizedBox(width: AppSpacing.xs),
+                  Expanded(
+                    child: Text(
+                      'Total Time',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: titleFontSize,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              SizedBox(height: spacing),
+              Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    totalTimeDisplay,
+                    style: AppTextStyles.h2.copyWith(
+                      fontSize: valueFontSize,
+                      color: accentColor,
+                      letterSpacing: 0.8,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: spacing),
+              Text(
+                'Keep going!',
+                style: AppTextStyles.caption.copyWith(
+                  color: accentColor,
+                  fontSize: captionFontSize,
                 ),
               ),
             ],
           ),
-          SizedBox(height: 2),
-          Center(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Text(
-                totalTimeDisplay,
-                style: AppTextStyles.h2.copyWith(
-                  fontSize: 24,
-                  color: accentColor,
-                  letterSpacing: 0.8,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ),
-          ),
-          SizedBox(height: 2),
-          Text(
-            'Keep going!',
-            style: AppTextStyles.caption.copyWith(
-              color: accentColor,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
   Widget _buildStreakDaysCard() {
     final streakData = ref.watch(streakDataProvider);
     const accentColor = AppColors.orange;
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: accentColor.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        border: Border.all(
-          color: accentColor.withValues(alpha: 0.4),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.local_fire_department,
-                color: AppColors.orange,
-                size: 18,
-              ),
-              SizedBox(width: AppSpacing.xs),
-              Expanded(
-                child: Text(
-                  'Streak Days',
-                  style: AppTextStyles.body2.copyWith(
-                    color: AppColors.textSecondary,
-                    fontSize: 11,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardHeight = constraints.maxHeight;
+        final iconSize = cardHeight * 0.2;
+        final titleFontSize = cardHeight * 0.12;
+        final valueFontSize = cardHeight * 0.28;
+        final captionFontSize = cardHeight * 0.11;
+        final spacing = cardHeight * 0.02;
+        
+        return Container(
+          height: cardHeight,
+          padding: EdgeInsets.all(cardHeight * 0.08),
+          decoration: BoxDecoration(
+            color: accentColor.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(AppRadius.medium),
+            border: Border.all(
+              color: accentColor.withValues(alpha: 0.4),
+              width: 1,
+            ),
           ),
-          SizedBox(height: 2),
-          Center(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.end,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
                 children: [
-                  Text(
-                    '${streakData.currentStreak}',
-                    style: AppTextStyles.h2.copyWith(
-                      fontSize: 24,
-                      color: accentColor,
-                      letterSpacing: 0.8,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  Icon(
+                    Icons.local_fire_department,
+                    color: AppColors.orange,
+                    size: iconSize,
                   ),
-                  Padding(
-                    padding: EdgeInsets.only(left: 3, bottom: 3),
+                  SizedBox(width: AppSpacing.xs),
+                  Expanded(
                     child: Text(
-                      'days',
-                      style: AppTextStyles.h2.copyWith(
-                        fontSize: 24 * 0.7,
-                        color: accentColor,
-                        fontWeight: FontWeight.w600,
+                      'Streak Days',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.textSecondary,
+                        fontSize: titleFontSize,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ),
                 ],
               ),
-            ),
+              SizedBox(height: spacing),
+              Center(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        '${streakData.currentStreak}',
+                        style: AppTextStyles.h2.copyWith(
+                          fontSize: valueFontSize,
+                          color: accentColor,
+                          letterSpacing: 0.8,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Padding(
+                        padding: EdgeInsets.only(
+                          left: valueFontSize * 0.125,
+                          bottom: valueFontSize * 0.125,
+                        ),
+                        child: Text(
+                          'days',
+                          style: AppTextStyles.h2.copyWith(
+                            fontSize: valueFontSize * 0.7,
+                            color: accentColor,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(height: spacing),
+              Text(
+                'Keep the flame alive!',
+                style: AppTextStyles.caption.copyWith(
+                  color: accentColor,
+                  fontSize: captionFontSize,
+                ),
+              ),
+            ],
           ),
-          SizedBox(height: 2),
-          Text(
-            'Keep the flame alive!',
-            style: AppTextStyles.caption.copyWith(
-              color: accentColor,
-              fontSize: 10,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -532,7 +626,21 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
             ),
           ),
           SizedBox(height: AppSpacing.xs),
-          ...todaysGoals.map((goal) => _buildGoalCard(goal)),
+          Expanded(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final availableHeight = constraints.maxHeight;
+                final cardHeight = availableHeight / todaysGoals.length.clamp(1, 3);
+                
+                return Column(
+                  children: todaysGoals.map((goal) => SizedBox(
+                    height: cardHeight,
+                    child: _buildGoalCard(goal),
+                  )).toList(),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -606,57 +714,66 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   /// 設定ボタン
   Widget _buildSettingsButton(BuildContext context) {
     final borderRadius = BorderRadius.circular(AppRadius.small);
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: borderRadius,
-          onTap: () {
-            NavigationHelper.push(context, AppRoutes.trackingSettingNew);
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.lightblackgray.withValues(alpha: 0.2),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final buttonHeight = constraints.maxHeight;
+        final iconSize = buttonHeight * 0.4;
+        final fontSize = buttonHeight * 0.25;
+        
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
               borderRadius: borderRadius,
-              border: Border.all(
-                color: AppColors.gray.withValues(alpha: 0.4),
-                width: 1,
+              onTap: () {
+                NavigationHelper.push(context, AppRoutes.trackingSettingNew);
+              },
+              child: Container(
+                height: buttonHeight,
+                decoration: BoxDecoration(
+                  color: AppColors.lightblackgray.withValues(alpha: 0.2),
+                  borderRadius: borderRadius,
+                  border: Border.all(
+                    color: AppColors.gray.withValues(alpha: 0.4),
+                    width: 1,
+                  ),
+                ),
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: buttonHeight * 0.1,
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: iconSize,
+                      height: iconSize,
+                      decoration: BoxDecoration(
+                        color: AppColors.lightblackgray,
+                        borderRadius: BorderRadius.circular(iconSize / 2),
+                      ),
+                      child: Icon(
+                        Icons.settings_outlined,
+                        color: AppColors.textSecondary,
+                        size: iconSize * 0.5,
+                      ),
+                    ),
+                    SizedBox(width: AppSpacing.sm),
+                    Text(
+                      'Settings',
+                      style: AppTextStyles.body2.copyWith(
+                        color: AppColors.white,
+                        fontSize: fontSize,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            padding: EdgeInsets.symmetric(
-              horizontal: AppSpacing.sm,
-              vertical: 8,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: AppColors.lightblackgray,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: Icon(
-                    Icons.settings_outlined,
-                    color: AppColors.textSecondary,
-                    size: 16,
-                  ),
-                ),
-                SizedBox(width: AppSpacing.sm),
-                Text(
-                  'Settings',
-                  style: AppTextStyles.body2.copyWith(
-                    color: AppColors.white,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -667,113 +784,126 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
     final remainingCount = ref.watch(remainingTrackingCountProvider);
     final canStart = ref.watch(canStartTrackingProvider);
     
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: borderRadius,
-          onTap: () {
-            if (!canStart) {
-              // 4回目（制限超過）の場合は課金画面に遷移
-              NavigationHelper.push(context, AppRoutes.subscriptionNew);
-            } else {
-              NavigationHelper.push(context, AppRoutes.trackingNew);
-            }
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: AppColors.blue.withValues(alpha: 0.1),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final buttonHeight = constraints.maxHeight;
+        final iconSize = buttonHeight * 0.4;
+        final fontSize = buttonHeight * 0.25;
+        
+        return Padding(
+          padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
               borderRadius: borderRadius,
-              border: Border.all(
-                color: AppColors.blue.withValues(alpha: 0.4),
-                width: 1,
-              ),
-            ),
-            padding: EdgeInsets.symmetric(
-              horizontal: AppSpacing.md,
-              vertical: 8,
-            ),
-            child: Stack(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
+              onTap: () {
+                if (!canStart) {
+                  // 4回目（制限超過）の場合は課金画面に遷移
+                  NavigationHelper.push(context, AppRoutes.subscriptionNew);
+                } else {
+                  NavigationHelper.push(context, AppRoutes.trackingNew);
+                }
+              },
+              child: Container(
+                height: buttonHeight,
+                decoration: BoxDecoration(
+                  color: AppColors.blue.withValues(alpha: 0.1),
+                  borderRadius: borderRadius,
+                  border: Border.all(
+                    color: AppColors.blue.withValues(alpha: 0.4),
+                    width: 1,
+                  ),
+                ),
+                alignment: Alignment.center,
+                padding: EdgeInsets.symmetric(
+                  horizontal: AppSpacing.md,
+                  vertical: buttonHeight * 0.1,
+                ),
+                child: Stack(
+                  alignment: Alignment.center,
                   children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        gradient: const LinearGradient(
-                          colors: [
-                            AppColors.blue,
-                            AppColors.purple,
-                          ],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: iconSize,
+                          height: iconSize,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(iconSize / 2),
+                            gradient: const LinearGradient(
+                              colors: [
+                                AppColors.blue,
+                                AppColors.purple,
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            ),
+                          ),
+                          child: Icon(
+                            Icons.play_arrow_rounded,
+                            color: AppColors.white,
+                            size: iconSize * 0.56,
+                          ),
+                        ),
+                        SizedBox(width: AppSpacing.sm),
+                        Text(
+                          'Start Tracking',
+                          style: AppTextStyles.body2.copyWith(
+                            color: AppColors.white,
+                            fontSize: fontSize,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // 残り回数表示（無料プランの場合のみ）
+                    if (!subscriptionStatus.hasPremiumAccess && remainingCount >= 0)
+                      Positioned(
+                        top: 0,
+                        right: 0,
+                        child: Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: AppSpacing.xs,
+                            vertical: buttonHeight * 0.02,
+                          ),
+                          decoration: BoxDecoration(
+                            color: remainingCount > 0
+                                ? AppColors.blue.withValues(alpha: 0.8)
+                                : AppColors.error.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(AppRadius.small),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '残り回数',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.white,
+                                  fontSize: fontSize * 0.6,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              SizedBox(width: fontSize * 0.08),
+                              Text(
+                                remainingCount > 0 ? '$remainingCount' : '0',
+                                style: AppTextStyles.caption.copyWith(
+                                  color: AppColors.white,
+                                  fontSize: fontSize * 0.9,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                      child: const Icon(
-                        Icons.play_arrow_rounded,
-                        color: AppColors.white,
-                        size: 18,
-                      ),
-                    ),
-                    SizedBox(width: AppSpacing.sm),
-                    Text(
-                      'Start Tracking',
-                      style: AppTextStyles.body2.copyWith(
-                        color: AppColors.white,
-                        fontSize: 13,
-                      ),
-                    ),
                   ],
                 ),
-                // 残り回数表示（無料プランの場合のみ）
-                if (!subscriptionStatus.hasPremiumAccess && remainingCount >= 0)
-                  Positioned(
-                    top: 0,
-                    right: 0,
-                    child: Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: AppSpacing.xs,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: remainingCount > 0
-                            ? AppColors.blue.withValues(alpha: 0.8)
-                            : AppColors.error.withValues(alpha: 0.8),
-                        borderRadius: BorderRadius.circular(AppRadius.small),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            '残り回数',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.white,
-                              fontSize: 8,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          SizedBox(width: 2),
-                          Text(
-                            remainingCount > 0 ? '$remainingCount' : '0',
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.white,
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

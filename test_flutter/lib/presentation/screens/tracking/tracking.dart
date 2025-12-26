@@ -2059,34 +2059,51 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       child: AppScaffold(
         backgroundColor: AppColors.backgroundSecondary,
         body: SafeArea(
-          child: SingleChildScrollView(
-            child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(height: AppSpacing.xs),
-                  _buildLevelStatus(),
-                  SizedBox(height: AppSpacing.sm),
-                  // カメラ映像表示エリア
-                  _buildCameraArea(),
-                  SizedBox(height: AppSpacing.sm),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final screenHeight = constraints.maxHeight;
+              return Padding(
+                padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(height: AppSpacing.xs),
+                    SizedBox(
+                      height: screenHeight * 0.10,
+                      child: _buildLevelStatus(),
+                    ),
+                    SizedBox(height: AppSpacing.sm),
+                    // カメラ映像表示エリア
+                    SizedBox(
+                      height: screenHeight * 0.20,
+                      child: _buildCameraArea(),
+                    ),
+                    SizedBox(height: AppSpacing.sm),
 
-                  // 目標達成率
-                  _buildGoalProgress(),
-                  SizedBox(height: AppSpacing.sm),
+                    // 目標達成率
+                    Expanded(
+                      child: _buildGoalProgress(),
+                    ),
+                    SizedBox(height: AppSpacing.sm),
 
-                  // 検出状況（4つのカテゴリボタン）
-                  _buildDetectionStatus(),
+                    // 検出状況（4つのカテゴリボタン）
+                    SizedBox(
+                      height: screenHeight * 0.25,
+                      child: _buildDetectionStatus(),
+                    ),
 
-                  SizedBox(height: AppSpacing.md),
+                    SizedBox(height: AppSpacing.md),
 
-                  // 終了ボタン
-                  _buildStopButton(),
-                  SizedBox(height: AppSpacing.md),
-                ],
-              ),
-            ),
+                    // 終了ボタン
+                    SizedBox(
+                      height: screenHeight * 0.08,
+                      child: _buildStopButton(),
+                    ),
+                    SizedBox(height: AppSpacing.md),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ),
@@ -2797,7 +2814,7 @@ class _TrackingScreenNewState extends ConsumerState<TrackingScreenNew> with Widg
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('No goals available for ${category}'),
+          content: Text('No goals available for $category'),
           backgroundColor: AppColors.red,
         ),
       );

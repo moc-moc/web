@@ -64,7 +64,8 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
       body: SafeArea(
-        child: ScrollableContent(
+        bottom: false,
+        child: Padding(
           padding: EdgeInsets.only(
             top: AppSpacing.sm,
             left: AppSpacing.sm,
@@ -87,9 +88,9 @@ class _ReportScreenNewState extends ConsumerState<ReportScreenNew> {
                   _buildLevelSummaryCard(),
                 ],
                 SizedBox(height: AppSpacing.xs),
-                _buildActivityChartCard(),
+                Expanded(child: _buildActivityChartCard()),
                 SizedBox(height: AppSpacing.xs),
-                _buildDistributionCard(),
+                Expanded(child: _buildDistributionCard()),
               ],
             ],
           ),

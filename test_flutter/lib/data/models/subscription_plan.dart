@@ -77,13 +77,26 @@ class SubscriptionPlanPromo {
     this.startsAt,
     this.endsAt,
     this.label,
+    this.fixedPrices,
+    this.introductoryFixedPrices,
   });
 
-  /// 0.5 => 50%OFF
+  /// 0.5 => 50%OFF（fixedPricesが設定されている場合は無視される）
   final double discountRate;
   final DateTime? startsAt;
   final DateTime? endsAt;
   final String? label;
+  
+  /// 通貨別の固定価格（期間限定価格）
+  /// 例: {'JPY': 980, 'USD': 9, 'EUR': 8}
+  /// fixedPricesが設定されている場合、discountRateではなく固定価格が使用される
+  final Map<String, int>? fixedPrices;
+  
+  /// 通貨別の初回限定固定価格（期間限定かつ初回購入時のみ）
+  /// 例: {'JPY': 980, 'USD': 9, 'EUR': 8}
+  /// 期間中に初回購入する場合のみこの価格が適用される
+  /// 2回目以降は通常価格（amount）が適用される
+  final Map<String, int>? introductoryFixedPrices;
 
   bool get isActive {
     final now = DateTime.now();
@@ -91,14 +104,73 @@ class SubscriptionPlanPromo {
     final notEnded = endsAt == null || !now.isAfter(endsAt!);
     return hasStarted && notEnded;
   }
+  
+  /// 指定された通貨の固定価格を取得
+  int? fixedPriceForCurrency(String currencyCode) {
+    if (fixedPrices == null) return null;
+    return fixedPrices![currencyCode.toUpperCase()];
+  }
+  
+  /// 指定された通貨の初回限定固定価格を取得
+  int? introductoryFixedPriceForCurrency(String currencyCode) {
+    if (introductoryFixedPrices == null) return null;
+    return introductoryFixedPrices![currencyCode.toUpperCase()];
+  }
+  
+  /// 固定価格が設定されているかどうか
+  bool get hasFixedPrices => fixedPrices != null && fixedPrices!.isNotEmpty;
+  
+  /// 初回限定固定価格が設定されているかどうか
+  bool get hasIntroductoryFixedPrices => 
+      introductoryFixedPrices != null && introductoryFixedPrices!.isNotEmpty;
 
   factory SubscriptionPlanPromo.fromMap(Map<String, dynamic> data) {
+    final fixedPricesRaw = data['fixedPrices'];
+    Map<String, int>? fixedPrices;
+    if (fixedPricesRaw is Map<String, dynamic>) {
+      fixedPrices = {};
+      fixedPricesRaw.forEach((key, value) {
+        if (value is num) {
+          fixedPrices![key.toUpperCase()] = value.toInt();
+        }
+      });
+    }
+    
+    final introductoryFixedPricesRaw = data['introductoryFixedPrices'];
+    Map<String, int>? introductoryFixedPrices;
+    if (introductoryFixedPricesRaw is Map<String, dynamic>) {
+      introductoryFixedPrices = {};
+      introductoryFixedPricesRaw.forEach((key, value) {
+        if (value is num) {
+          introductoryFixedPrices![key.toUpperCase()] = value.toInt();
+        }
+      });
+    }
+    
+    // startsAtとstartAtの両方に対応（後方互換性のため）
+    final startsAtValue = data['startsAt'] ?? data['startAt'];
+    
     return SubscriptionPlanPromo(
       discountRate: (data['discountRate'] as num?)?.toDouble() ?? 0,
-      startsAt: _decodeTimestamp(data['startsAt']),
+      startsAt: _decodeTimestamp(startsAtValue),
       endsAt: _decodeTimestamp(data['endsAt']),
       label: data['label'] as String?,
+      fixedPrices: fixedPrices,
+      introductoryFixedPrices: introductoryFixedPrices,
     );
+  }
+  
+  Map<String, dynamic> toMap() {
+    return {
+      'discountRate': discountRate,
+      if (startsAt != null) 'startsAt': Timestamp.fromDate(startsAt!),
+      if (endsAt != null) 'endsAt': Timestamp.fromDate(endsAt!),
+      if (label != null) 'label': label,
+      if (fixedPrices != null && fixedPrices!.isNotEmpty)
+        'fixedPrices': fixedPrices,
+      if (introductoryFixedPrices != null && introductoryFixedPrices!.isNotEmpty)
+        'introductoryFixedPrices': introductoryFixedPrices,
+    };
   }
 
   static DateTime? _decodeTimestamp(dynamic value) {

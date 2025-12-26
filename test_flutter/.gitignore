@@ -43,3 +43,17 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Sensitive files - API keys, secrets, passwords
+# Firebase configuration files with API keys
+lib/firebase_options.dart
+ios/GoogleService-Info.plist
+ios/Runner/GoogleService-Info.plist
+macos/GoogleService-Info.plist
+macos/Runner/GoogleService-Info.plist
+
+# Environment variables
+functions/.env
+
+# Development password protection
+web/auth-check.html

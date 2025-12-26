@@ -73,7 +73,7 @@ class AppBottomNavigationBar extends StatelessWidget {
           AppSpacing.sm,
           0,
           AppSpacing.sm,
-          0,
+          AppSpacing.xs,
         ),
         child: Container(
           decoration: BoxDecoration(

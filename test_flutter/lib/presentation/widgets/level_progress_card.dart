@@ -32,26 +32,30 @@ class LevelProgressCard extends StatelessWidget {
         (computation.requiredSecondsForNextLevel - totalSeconds).clamp(0, 1 << 31);
     final remainingHours = (remainingSeconds / 3600).toStringAsFixed(1);
 
-    return Container(
-      padding: EdgeInsets.all(AppSpacing.sm),
-      decoration: BoxDecoration(
-        color: AppColors.black,
-        borderRadius: BorderRadius.circular(AppRadius.medium),
-        border: Border.all(
-          color: visuals.badgeColor.withValues(alpha: 0.3),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: visuals.badgeColor.withValues(alpha: 0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return Container(
+          height: constraints.maxHeight,
+          padding: EdgeInsets.all(AppSpacing.sm),
+          decoration: BoxDecoration(
+            color: AppColors.black,
+            borderRadius: BorderRadius.circular(AppRadius.medium),
+            border: Border.all(
+              color: visuals.badgeColor.withValues(alpha: 0.3),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: visuals.badgeColor.withValues(alpha: 0.2),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Stack(
+          child: Stack(
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.max,
             children: [
               Row(
                 children: [
@@ -135,7 +139,9 @@ class LevelProgressCard extends StatelessWidget {
             ),
           ),
         ],
-      ),
+        ),
+      );
+      },
     );
   }
 }

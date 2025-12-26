@@ -201,6 +201,7 @@ class _GoalScreenNewState extends ConsumerState<GoalScreenNew> {
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
       body: SafeArea(
+        bottom: false,
         child: Stack(
           children: [
             ScrollableContent(

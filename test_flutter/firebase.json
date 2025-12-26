@@ -4,6 +4,7 @@
       "codebase": "default",
       "source": "functions",
       "runtime": "nodejs20",
+      "secrets": ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"],
       "ignore": [
         "node_modules",
         ".git",

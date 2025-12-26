@@ -1006,6 +1006,10 @@ class _SubscriptionScreenNewState
         interval: SubscriptionPlanInterval.yearly,
         prices: {
           'JPY': const SubscriptionPlanPrice(currencyCode: 'JPY', amount: 14800),
+          'USD': const SubscriptionPlanPrice(currencyCode: 'USD', amount: 9400),
+          'EUR': const SubscriptionPlanPrice(currencyCode: 'EUR', amount: 7990),
+          'KRW': const SubscriptionPlanPrice(currencyCode: 'KRW', amount: 139000),
+          'CNY': const SubscriptionPlanPrice(currencyCode: 'CNY', amount: 66900),
         },
         productIds: const {},
         isRecommended: true,
@@ -1060,6 +1064,10 @@ class _SubscriptionScreenNewState
       case 'PT':
       case 'AT':
         return 'EUR';
+      case 'CN':
+        return 'CNY';
+      case 'KR':
+        return 'KRW';
       case 'JP':
       default:
         return 'JPY';
@@ -1134,12 +1142,37 @@ class _PlanPriceDisplay {
     String? originalPrice;
     String? discountLabel;
 
-    if (promoActive && (plan.promo?.discountRate ?? 0) > 0) {
+    // 優先順位1: 期間限定の初回限定固定価格（最優先）
+    if (promoActive && plan.promo?.hasIntroductoryFixedPrices == true) {
+      final introFixedPrice = plan.promo!.introductoryFixedPriceForCurrency(currencyCode);
+      if (introFixedPrice != null && introFixedPrice < price.amount) {
+        originalPrice = _formatForDisplay(currencyCode, price.amount);
+        effectiveAmount = introFixedPrice;
+        final discountAmount = price.amount - introFixedPrice;
+        final discountRate = (discountAmount / price.amount) * 100;
+        discountLabel = '${discountRate.round()}% OFF（初回限定）';
+      }
+    }
+    // 優先順位2: 期間限定の固定価格
+    else if (promoActive && plan.promo?.hasFixedPrices == true) {
+      final fixedPrice = plan.promo!.fixedPriceForCurrency(currencyCode);
+      if (fixedPrice != null && fixedPrice < price.amount) {
+        originalPrice = _formatForDisplay(currencyCode, price.amount);
+        effectiveAmount = fixedPrice;
+        final discountAmount = price.amount - fixedPrice;
+        final discountRate = (discountAmount / price.amount) * 100;
+        discountLabel = '${discountRate.round()}% OFF';
+      }
+    }
+    // 優先順位3: 期間限定の割引率
+    else if (promoActive && (plan.promo?.discountRate ?? 0) > 0) {
       originalPrice = _formatForDisplay(currencyCode, price.amount);
       effectiveAmount =
           (price.amount * (1 - plan.promo!.discountRate)).round();
       discountLabel = '${(plan.promo!.discountRate * 100).round()}% OFF';
-    } else if (hasIntro &&
+    }
+    // 優先順位4: 通常の初回割引価格
+    else if (hasIntro &&
         price.introductoryAmount != null &&
         price.introductoryAmount! < price.amount) {
       originalPrice = _formatForDisplay(currencyCode, price.amount);

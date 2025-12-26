@@ -1,0 +1,24 @@
+{
+  // Claude Code settings
+  "claudeCode.enabled": true,
+  "claudeCode.autoAcceptEdits": false,
+  
+  // Flutter/Dart settings
+  "dart.flutterSdkPath": null,
+  "dart.lineLength": 80,
+  "editor.formatOnSave": true,
+  "editor.defaultFormatter": "dart-code.dart-code",
+  "[dart]": {
+    "editor.formatOnSave": true,
+    "editor.selectionHighlight": false,
+    "editor.suggest.snippetsPreventQuickSuggestions": false,
+    "editor.suggestSelection": "first",
+    "editor.tabCompletion": "onlySnippets",
+    "editor.wordBasedSuggestions": "off"
+  },
+  
+  // Source Control settings
+  "scm.alwaysShowProviders": true,
+  "scm.diffDecorations": "all",
+  "scm.diffDecorationsGutterVisibility": "always"
+}

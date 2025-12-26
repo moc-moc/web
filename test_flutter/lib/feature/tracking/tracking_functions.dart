@@ -223,8 +223,22 @@ Future<DetectionController?> initializeDetection({
       return null;
     }
 
+    LogMk.logDebug(
+      '🔧 初期化フラグ設定チェック: shouldCacheService=$shouldCacheService, _cachedDetectionServiceInitialized=$_cachedDetectionServiceInitialized',
+      tag: 'initializeDetection',
+    );
+
     if (shouldCacheService && !_cachedDetectionServiceInitialized) {
       _cachedDetectionServiceInitialized = true;
+      LogMk.logDebug(
+        '✅ キャッシュされたサービスの初期化フラグをtrueに設定しました',
+        tag: 'initializeDetection',
+      );
+    } else {
+      LogMk.logDebug(
+        '⚠️ 初期化フラグは設定されませんでした (条件不一致)',
+        tag: 'initializeDetection',
+      );
     }
 
     final bool controllerInitialModeSynced = (shouldCacheService && serviceInitNeeded)

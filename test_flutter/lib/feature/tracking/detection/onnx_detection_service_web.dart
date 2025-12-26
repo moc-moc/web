@@ -279,6 +279,11 @@ class ONNXDetectionService implements DetectionService {
         tag: 'ONNXDetectionService.initialize',
       );
 
+      LogMk.logDebug(
+        '🔧 [ONNXDetectionService] _isInitialized=$_isInitialized, _session=${_session != null}',
+        tag: 'ONNXDetectionService.initialize',
+      );
+
       return true;
     } catch (e, stackTrace) {
       LogMk.logError(

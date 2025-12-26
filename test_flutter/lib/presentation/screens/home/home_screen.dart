@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 import 'package:test_flutter/core/theme.dart';
@@ -29,6 +31,9 @@ class HomeScreenNew extends ConsumerStatefulWidget {
   ConsumerState<HomeScreenNew> createState() => _HomeScreenNewState();
 }
 
+/// 画面サイズの分類
+enum ScreenSize { small, medium, large }
+
 class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   bool _isLoading = false; // 初期値はfalse（データ更新が必要な場合のみtrueになる）
   bool _hasError = false;
@@ -36,6 +41,30 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   int? _pendingHomeToken;
   bool _hasInitialized = false; // 初期化済みフラグ
   bool _hasCheckedLevelReset = false;
+
+  // #region agent log
+  static void _log(String location, String message, Map<String, dynamic> data, String hypothesisId) {
+    // 非同期で実行してブロックを防ぐ
+    Future.microtask(() async {
+      try {
+        final logFile = File('/Users/ki/Documents/書類 - ItoのMacBook Air/GitHub/web/test_flutter/.cursor/debug.log');
+        final logEntry = jsonEncode({
+          'id': 'log_${DateTime.now().millisecondsSinceEpoch}',
+          'timestamp': DateTime.now().millisecondsSinceEpoch,
+          'location': location,
+          'message': message,
+          'data': data,
+          'sessionId': 'debug-session',
+          'runId': 'run1',
+          'hypothesisId': hypothesisId,
+        });
+        await logFile.writeAsString('$logEntry\n', mode: FileMode.append);
+      } catch (e) {
+        // ログ書き込みエラーは無視
+      }
+    });
+  }
+  // #endregion
 
   @override
   void initState() {
@@ -121,32 +150,63 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   void _handleHomeRefreshTrigger(DataRefreshState state) {
     final token = state.homeToken;
     final ack = state.homeAckToken;
-    
+
     // tokenが0または既に処理済みの場合は何もしない
     if (token == 0 || token == ack) {
       return;
     }
-    
+
     // 既に同じtokenを処理中または処理済みの場合は何もしない
     if (_pendingHomeToken == token) {
       return;
     }
-    
+
     // 他のtokenを処理中の場合は待つ
     if (_pendingHomeToken != null) {
       return;
     }
-    
+
     // データ読み込みを開始
     _pendingHomeToken = token;
     _loadData().whenComplete(() {
       if (!mounted) return;
       markHomeHandled(ref, token);
       _pendingHomeToken = null;
-      
+
       // 処理完了後、新しい更新がないか確認（再帰呼び出しを削除）
       // 新しい更新はref.listenで検知されるため、再帰呼び出しは不要
     });
+  }
+
+  /// 画面サイズを判定
+  ScreenSize _getScreenSize(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    if (width < 600) return ScreenSize.small;
+    if (width < 900) return ScreenSize.medium;
+    return ScreenSize.large;
+  }
+
+  /// レスポンシブな水平パディングを取得
+  double _getHorizontalPadding(ScreenSize size) {
+    switch (size) {
+      case ScreenSize.small:
+        return AppSpacing.sm;
+      case ScreenSize.medium:
+        return AppSpacing.md;
+      case ScreenSize.large:
+        return AppSpacing.lg;
+    }
+  }
+
+  /// レスポンシブなコンテンツの最大幅を取得
+  double? _getMaxContentWidth(ScreenSize size) {
+    switch (size) {
+      case ScreenSize.small:
+      case ScreenSize.medium:
+        return null; // 制限なし
+      case ScreenSize.large:
+        return 800; // 大画面では最大800pxに制限
+    }
   }
 
   @override
@@ -230,6 +290,9 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         ),
       );
     }
+    final screenSize = _getScreenSize(context);
+    final maxWidth = _getMaxContentWidth(screenSize);
+
     return AppScaffold(
       backgroundColor: AppColors.black,
       bottomNavigationBar: _buildBottomNavigationBar(context),
@@ -238,92 +301,128 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         top: true,
         left: true,
         right: true,
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final screenHeight = constraints.maxHeight;
-            // 目標が3つ表示される場合の高さ計算
-            // 各セクションとスペーシングの高さを定義
-            const levelHeight = 0.12;        // レベルセクション: 12%
-            const spacing1 = 0.01;           // スペーシング: 1%
-            const statsHeight = 0.10;        // 統計セクション: 10%
-            const spacing2 = 0.01;           // スペーシング: 1%
-            const spacing3 = 0.01;           // 今日の目標前のスペーシング: 1%
-            const settingsHeight = 0.06;     // 設定ボタン: 6%
-            const spacing4 = 0.01;           // スペーシング: 1%
-            const startHeight = 0.08;        // スタートボタン: 8%
-            const spacing5 = 0.01;           // 最後のスペーシング: 1%
-            
-            // 固定部分の合計（今日の目標を除く）
-            const fixedHeight = levelHeight + spacing1 + statsHeight + spacing2 + 
-                               spacing3 + settingsHeight + spacing4 + startHeight + spacing5;
-            // 今日の目標の高さ（残りを割り当て、合計100%になるように）
-            final goalsHeight = screenHeight * (1.0 - fixedHeight);
-            
-            return Padding(
-              padding: EdgeInsets.zero,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.max,
-                children: [
-                  SizedBox(
-                    height: screenHeight * levelHeight,
-                    child: _buildLevelSection(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: maxWidth ?? double.infinity,
+            ),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final screenHeight = constraints.maxHeight;
+
+                // 画面サイズに応じた高さの比率を調整
+                final levelHeight = screenSize == ScreenSize.large ? 0.10 : 0.12;
+                final statsHeight = screenSize == ScreenSize.large ? 0.12 : 0.10;
+                final settingsHeight = screenSize == ScreenSize.large ? 0.07 : 0.06;
+                final startHeight = screenSize == ScreenSize.large ? 0.09 : 0.08;
+
+                // スペーシングも画面サイズに応じて調整
+                final spacing1 = screenSize == ScreenSize.large ? 0.015 : 0.01;
+                final spacing2 = screenSize == ScreenSize.large ? 0.015 : 0.01;
+                final spacing3 = screenSize == ScreenSize.large ? 0.015 : 0.01;
+                final spacing4 = screenSize == ScreenSize.large ? 0.015 : 0.01;
+                final spacing5 = screenSize == ScreenSize.large ? 0.015 : 0.01;
+
+                // 固定部分の合計（今日の目標を除く）
+                final fixedHeight = levelHeight + spacing1 + statsHeight + spacing2 +
+                                   settingsHeight + spacing3 + spacing4 + startHeight + spacing5;
+                // 今日の目標の高さ（残りを割り当て、合計100%になるように）
+                final goalsHeight = screenHeight * (1.0 - fixedHeight);
+
+                // デバッグ: レイアウト計算を確認
+                debugPrint('📐 [HomeScreen] レイアウト計算: screenHeight=$screenHeight, fixedHeight=$fixedHeight, goalsHeight=$goalsHeight');
+
+                // #region agent log
+                _log('home_screen.dart:285', 'layout calculation', {
+                  'screenHeight': screenHeight,
+                  'screenSize': screenSize.toString(),
+                  'levelHeight': levelHeight,
+                  'statsHeight': statsHeight,
+                  'settingsHeight': settingsHeight,
+                  'startHeight': startHeight,
+                  'spacing1': spacing1,
+                  'spacing2': spacing2,
+                  'spacing3': spacing3,
+                  'spacing4': spacing4,
+                  'spacing5': spacing5,
+                  'fixedHeight': fixedHeight,
+                  'goalsHeight': goalsHeight,
+                  'totalRatio': fixedHeight + spacing3 + (goalsHeight / screenHeight),
+                  'isFixedHeightOver1': fixedHeight > 1.0,
+                  'isGoalsHeightNegative': goalsHeight < 0,
+                  'isTotalOver1': (fixedHeight + spacing3 + (goalsHeight / screenHeight)) > 1.0,
+                }, 'H1');
+                // #endregion
+
+                return Padding(
+                  padding: EdgeInsets.zero,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    mainAxisSize: MainAxisSize.max,
+                    children: [
+                      SizedBox(
+                        height: screenHeight * levelHeight,
+                        child: _buildLevelSection(screenSize),
+                      ),
+                      SizedBox(height: screenHeight * spacing1),
+
+                      // 統計表示セクション
+                      SizedBox(
+                        height: screenHeight * statsHeight,
+                        child: _buildStatsSection(screenSize),
+                      ),
+
+                      SizedBox(height: screenHeight * spacing2),
+
+                      // 今日の目標表示セクション（3つ表示される場合の高さに固定）
+                      SizedBox(
+                        height: goalsHeight,
+                        child: _buildTodaysGoalsSection(screenSize),
+                      ),
+
+                      SizedBox(height: screenHeight * spacing3),
+
+                      // 設定ボタン
+                      SizedBox(
+                        height: screenHeight * settingsHeight,
+                        child: _buildSettingsButton(context, screenSize),
+                      ),
+
+                      SizedBox(height: screenHeight * spacing4),
+
+                      // スタートボタン
+                      SizedBox(
+                        height: screenHeight * startHeight,
+                        child: _buildStartButton(context, screenSize),
+                      ),
+
+                      SizedBox(height: screenHeight * spacing5),
+                    ],
                   ),
-                  SizedBox(height: screenHeight * spacing1),
-
-                  // 統計表示セクション
-                  SizedBox(
-                    height: screenHeight * statsHeight,
-                    child: _buildStatsSection(),
-                  ),
-
-                  SizedBox(height: screenHeight * spacing2),
-
-                  // 今日の目標表示セクション（3つ表示される場合の高さに固定）
-                  SizedBox(
-                    height: goalsHeight,
-                    child: _buildTodaysGoalsSection(),
-                  ),
-
-                  SizedBox(height: screenHeight * spacing3),
-
-                  // 設定ボタン
-                  SizedBox(
-                    height: screenHeight * settingsHeight,
-                    child: _buildSettingsButton(context),
-                  ),
-
-                  SizedBox(height: screenHeight * spacing4),
-
-                  // スタートボタン
-                  SizedBox(
-                    height: screenHeight * startHeight,
-                    child: _buildStartButton(context),
-                  ),
-
-                  SizedBox(height: screenHeight * spacing5),
-                ],
-              ),
-            );
-          },
+                );
+              },
+            ),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildLevelSection() {
+  Widget _buildLevelSection(ScreenSize screenSize) {
     final levelState = ref.watch(levelingStateProvider);
+    final horizontalPadding = _getHorizontalPadding(screenSize);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return SizedBox(
           height: constraints.maxHeight,
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: SizedBox(
               height: constraints.maxHeight,
               child: LevelProgressCard(
                 state: levelState,
-                showCountdown: true,
+                showCountdown: false,
               ),
             ),
           ),
@@ -334,13 +433,16 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
 
 
   /// 統計表示セクション
-  Widget _buildStatsSection() {
+  Widget _buildStatsSection(ScreenSize screenSize) {
+    final horizontalPadding = _getHorizontalPadding(screenSize);
+    final cardSpacing = screenSize == ScreenSize.large ? AppSpacing.sm : AppSpacing.xs;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         return SizedBox(
           height: constraints.maxHeight,
           child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+            padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
             child: SizedBox(
               height: constraints.maxHeight,
               child: Column(
@@ -352,7 +454,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         Expanded(child: _buildTotalFocusedTimeCard()),
-                        SizedBox(width: AppSpacing.xs),
+                        SizedBox(width: cardSpacing),
                         Expanded(child: _buildStreakDaysCard()),
                       ],
                     ),
@@ -552,17 +654,29 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
 
   /// 今日の目標表示セクション
   /// トラッキング設定で選択された目標のみを表示（最大3つ）
-  Widget _buildTodaysGoalsSection() {
+  Widget _buildTodaysGoalsSection(ScreenSize screenSize) {
     final goals = ref.watch(goalsListProvider);
     final settings = ref.watch(trackingSettingsProvider);
-    
+    final horizontalPadding = _getHorizontalPadding(screenSize);
+    final containerPadding = screenSize == ScreenSize.large ? AppSpacing.md : AppSpacing.sm;
+    final titleFontSize = screenSize == ScreenSize.large ? 13.0 : 11.0;
+
     // 選択された目標IDを取得
     final selectedStudyGoalId = settings.selectedStudyGoalId;
     final selectedPcGoalId = settings.selectedPcGoalId;
     final selectedSmartphoneGoalId = settings.selectedSmartphoneGoalId;
-    
+
+    // #region agent log
+    _log('home_screen.dart:610', 'goals section build start', {
+      'totalGoals': goals.length,
+      'selectedStudyGoalId': selectedStudyGoalId,
+      'selectedPcGoalId': selectedPcGoalId,
+      'selectedSmartphoneGoalId': selectedSmartphoneGoalId,
+    }, 'H4');
+    // #endregion
+
     final todaysGoals = <Goal>[];
-    
+
     // Study目標（選択されている場合のみ）
     if (selectedStudyGoalId != null) {
       try {
@@ -574,7 +688,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         // 目標が見つからない場合は無視
       }
     }
-    
+
     // PC目標（選択されている場合のみ）
     if (selectedPcGoalId != null && todaysGoals.length < 3) {
       try {
@@ -586,7 +700,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         // 目標が見つからない場合は無視
       }
     }
-    
+
     // Smartphone目標（選択されている場合のみ）
     if (selectedSmartphoneGoalId != null && todaysGoals.length < 3) {
       try {
@@ -598,14 +712,27 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
         // 目標が見つからない場合は無視
       }
     }
-    
+
+    // #region agent log
+    _log('home_screen.dart:660', 'goals filtered', {
+      'todaysGoalsCount': todaysGoals.length,
+      'isEmpty': todaysGoals.isEmpty,
+    }, 'H4');
+    // #endregion
+
+    // デバッグ: 目標データを確認
+    debugPrint('🎯 [HomeScreen] 目標セクション: todaysGoals.length=${todaysGoals.length}, isEmpty=${todaysGoals.isEmpty}');
+    debugPrint('🎯 [HomeScreen] 選択された目標ID: Study=$selectedStudyGoalId, PC=$selectedPcGoalId, Smartphone=$selectedSmartphoneGoalId');
+    debugPrint('🎯 [HomeScreen] 全目標数: ${goals.length}');
+
     if (todaysGoals.isEmpty) {
+      debugPrint('⚠️ [HomeScreen] 目標が空のため、SizedBox.shrink()を返します');
       return const SizedBox.shrink();
     }
-    
+
     return Container(
-      margin: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
-      padding: EdgeInsets.all(AppSpacing.sm),
+      margin: EdgeInsets.symmetric(horizontal: horizontalPadding),
+      padding: EdgeInsets.all(containerPadding),
       decoration: BoxDecoration(
         color: AppColors.black,
         borderRadius: BorderRadius.circular(AppRadius.medium),
@@ -622,7 +749,7 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
             style: AppTextStyles.body2.copyWith(
               fontWeight: FontWeight.bold,
               color: AppColors.textSecondary,
-              fontSize: 11,
+              fontSize: titleFontSize,
             ),
           ),
           SizedBox(height: AppSpacing.xs),
@@ -631,7 +758,17 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
               builder: (context, constraints) {
                 final availableHeight = constraints.maxHeight;
                 final cardHeight = availableHeight / todaysGoals.length.clamp(1, 3);
-                
+
+                // #region agent log
+                _log('home_screen.dart:687', 'goals layout calculation', {
+                  'availableHeight': availableHeight,
+                  'todaysGoalsCount': todaysGoals.length,
+                  'cardHeight': cardHeight,
+                  'isAvailableHeightZero': availableHeight <= 0,
+                  'isAvailableHeightNegative': availableHeight < 0,
+                }, 'H4');
+                // #endregion
+
                 return Column(
                   children: todaysGoals.map((goal) => SizedBox(
                     height: cardHeight,
@@ -712,16 +849,18 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   }
 
   /// 設定ボタン
-  Widget _buildSettingsButton(BuildContext context) {
+  Widget _buildSettingsButton(BuildContext context, ScreenSize screenSize) {
     final borderRadius = BorderRadius.circular(AppRadius.small);
+    final horizontalPadding = _getHorizontalPadding(screenSize);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final buttonHeight = constraints.maxHeight;
         final iconSize = buttonHeight * 0.4;
-        final fontSize = buttonHeight * 0.25;
-        
+        final fontSize = buttonHeight * (screenSize == ScreenSize.large ? 0.28 : 0.25);
+
         return Padding(
-          padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: Material(
             color: Colors.transparent,
             child: InkWell(
@@ -778,20 +917,21 @@ class _HomeScreenNewState extends ConsumerState<HomeScreenNew> {
   }
 
   /// スタートボタン
-  Widget _buildStartButton(BuildContext context) {
+  Widget _buildStartButton(BuildContext context, ScreenSize screenSize) {
     final borderRadius = BorderRadius.circular(AppRadius.small);
     final subscriptionStatus = ref.watch(subscriptionStatusProvider);
     final remainingCount = ref.watch(remainingTrackingCountProvider);
     final canStart = ref.watch(canStartTrackingProvider);
-    
+    final horizontalPadding = _getHorizontalPadding(screenSize);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final buttonHeight = constraints.maxHeight;
         final iconSize = buttonHeight * 0.4;
-        final fontSize = buttonHeight * 0.25;
-        
+        final fontSize = buttonHeight * (screenSize == ScreenSize.large ? 0.28 : 0.25);
+
         return Padding(
-          padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+          padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
           child: Material(
             color: Colors.transparent,
             child: InkWell(

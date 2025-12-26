@@ -36,7 +36,7 @@ class LevelProgressCard extends StatelessWidget {
       builder: (context, constraints) {
         return Container(
           height: constraints.maxHeight,
-          padding: EdgeInsets.all(AppSpacing.sm),
+          padding: EdgeInsets.all(AppSpacing.xs),
           decoration: BoxDecoration(
             color: AppColors.black,
             borderRadius: BorderRadius.circular(AppRadius.medium),
@@ -55,17 +55,17 @@ class LevelProgressCard extends StatelessWidget {
         children: [
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.max,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 children: [
                   LevelBadge(
                     tier: computation.rank,
                     level: computation.level,
-                    size: 32,
+                    size: 28,
                     showGlow: true,
                   ),
-                  SizedBox(width: AppSpacing.sm),
+                  SizedBox(width: AppSpacing.xs),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -75,10 +75,10 @@ class LevelProgressCard extends StatelessWidget {
                           style: AppTextStyles.body1.copyWith(
                             color: AppColors.white,
                             fontWeight: FontWeight.bold,
-                            fontSize: 13,
+                            fontSize: 12,
                           ),
                         ),
-                        SizedBox(height: 2),
+                        SizedBox(height: 1),
                         Text(
                           '$hours h human focus',
                           style: AppTextStyles.caption.copyWith(
@@ -91,10 +91,10 @@ class LevelProgressCard extends StatelessWidget {
                   ),
                 ],
               ),
-              SizedBox(height: AppSpacing.xs),
+              SizedBox(height: 4),
               LinearProgressBar(
                 percentage: percentage,
-                height: 10,
+                height: 8,
                 progressColor: visuals.badgeColor,
                 backgroundColor: AppColors.blackgray,
                 barBackgroundColor: AppColors.disabledGray,
